@@ -55,7 +55,7 @@ builder.Services.AddDbContext<PetWorkDbContext>(options =>
 // API servisleri
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
-    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.Preserve;
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 });
 
 // HttpClient ve web scraping servisleri

@@ -10,7 +10,7 @@ using PetWork.Models;
 
 namespace PetWork.Controllers.Api
 {
-    [Route("api/[controller]")]
+    [Route("api/recipes")]
     [ApiController]
     public class RecipesApiController : ControllerBase
     {
