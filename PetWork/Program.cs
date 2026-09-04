@@ -33,24 +33,53 @@ builder.Services.AddAntiforgery(options =>
     options.SuppressXFrameOptionsHeader = false;
 });
 
-// Entity Framework veritabanı bağlantısı
-builder.Services.AddDbContext<PetWorkDbContext>(options =>
+// SQL Server kaynak/geri dönüş sağlayıcısı olarak korunur. PostgreSQL seçildiğinde
+// controller'lar aynı PetWorkDbContext modelini türetilmiş context üzerinden kullanır.
+var databaseProvider = builder.Configuration["DatabaseProvider"]?.Trim() ?? "SqlServer";
+
+if (databaseProvider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
 {
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        sqlOptions => sqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 5,
-            maxRetryDelay: TimeSpan.FromSeconds(30),
-            errorNumbersToAdd: null)
-    );
-    
-    // Development ortamında SQL komutlarını logla
-    if (builder.Environment.IsDevelopment())
+    var postgresConnection = PostgreSqlConnectionString.Normalize(
+        builder.Configuration.GetConnectionString("PostgreSqlApp")
+            ?? throw new InvalidOperationException(
+                "PostgreSqlApp connection string is required when DatabaseProvider is PostgreSql."));
+
+    builder.Services.AddDbContext<PostgresPetWorkDbContext>(options =>
     {
-        options.EnableSensitiveDataLogging();
-        options.EnableDetailedErrors();
-    }
-});
+        options.UseNpgsql(
+            postgresConnection,
+            postgresOptions => postgresOptions.MigrationsHistoryTable(
+                "__EFMigrationsHistory",
+                PostgresPetWorkDbContext.SchemaName));
+
+        ConfigureDatabaseDiagnostics(options, builder);
+    });
+
+    builder.Services.AddScoped<PetWorkDbContext>(services =>
+        services.GetRequiredService<PostgresPetWorkDbContext>());
+}
+else if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+{
+    var sqlServerConnection = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("DefaultConnection is required for SQL Server.");
+
+    builder.Services.AddDbContext<PetWorkDbContext>(options =>
+    {
+        options.UseSqlServer(
+            sqlServerConnection,
+            sqlOptions => sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null));
+
+        ConfigureDatabaseDiagnostics(options, builder);
+    });
+}
+else
+{
+    throw new InvalidOperationException(
+        $"Unsupported DatabaseProvider '{databaseProvider}'. Use SqlServer or PostgreSql.");
+}
 
 // API servisleri
 builder.Services.AddControllers().AddJsonOptions(options =>
@@ -65,21 +94,24 @@ builder.Services.AddScoped<ExperienceService>();
 
 var app = builder.Build();
 
-// Migrationları uygula
-using (var scope = app.Services.CreateScope())
+// Ortak/hedef DB migration'ları kontrollü bir dağıtım adımıdır.
+// Varsayılan false'tur; uygulama açılışı şemayı kendiliğinden değiştirmez.
+if (builder.Configuration.GetValue<bool>("DatabaseMigrations:ApplyOnStartup"))
 {
+    using var scope = app.Services.CreateScope();
     var services = scope.ServiceProvider;
+
     try
     {
         var context = services.GetRequiredService<PetWorkDbContext>();
         context.Database.Migrate();
-        Console.WriteLine("Database migrated successfully!");
+        Console.WriteLine("Database migrations applied successfully.");
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "An error occurred while migrating the database.");
-        Console.WriteLine("Error migrating database: " + ex.Message);
+        throw;
     }
 }
 
@@ -115,6 +147,42 @@ app.UseRouting();
 
 app.UseSession(); // Use Session middleware
 
+// Mobil istemci için token tabanlı kimlik doğrulama ayrı tasarlanana kadar API
+// yazma işlemleri yalnızca mevcut yönetici oturumuna açıktır. GET/HEAD/OPTIONS
+// uçları halka açık kalır; hassas User alanları ayrıca JSON'dan çıkarılmıştır.
+app.Use(async (context, next) =>
+{
+    var isApiRequest = context.Request.Path.StartsWithSegments("/api");
+    var isReadOnlyMethod = HttpMethods.IsGet(context.Request.Method) ||
+                           HttpMethods.IsHead(context.Request.Method) ||
+                           HttpMethods.IsOptions(context.Request.Method);
+
+    if (isApiRequest && !isReadOnlyMethod)
+    {
+        var userId = context.Session.GetInt32("UserId");
+        if (userId is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new { error = "Authentication required." });
+            return;
+        }
+
+        var isAdmin = string.Equals(
+            context.Session.GetString("IsAdmin"),
+            bool.TrueString,
+            StringComparison.OrdinalIgnoreCase);
+
+        if (!isAdmin)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new { error = "Administrator permission required." });
+            return;
+        }
+    }
+
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -125,3 +193,20 @@ app.MapControllerRoute(
 app.MapControllers(); // API controller'ları için
 
 app.Run();
+
+static void ConfigureDatabaseDiagnostics(
+    DbContextOptionsBuilder options,
+    WebApplicationBuilder builder)
+{
+    if (!builder.Environment.IsDevelopment())
+    {
+        return;
+    }
+
+    options.EnableDetailedErrors();
+
+    if (builder.Configuration.GetValue<bool>("DatabaseDiagnostics:EnableSensitiveDataLogging"))
+    {
+        options.EnableSensitiveDataLogging();
+    }
+}
