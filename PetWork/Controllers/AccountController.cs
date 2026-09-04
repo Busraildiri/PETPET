@@ -7,6 +7,7 @@ using PetWork.Data;
 using PetWork.Services;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 
 namespace PetWork.Controllers
 {
@@ -183,27 +184,79 @@ namespace PetWork.Controllers
         
         public IActionResult EditProfile()
         {
-            // Örnek kullanıcı verileri - gerçek uygulamada veritabanından gelecek
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (!userId.HasValue)
+                return RedirectToAction("Login");
+
+            var user = _context.Users.FirstOrDefault(item => item.Id == userId.Value);
+            if (user == null)
+                return RedirectToAction("Login");
+
             var viewModel = new EditProfileViewModel
             {
-                Username = "pet_lover",
-                Email = "pet_lover@example.com",
-                Bio = "Hayvan sevgisiyle dolu bir evcil hayvan tutkunu. İki kedim ve bir köpeğim var. Boş zamanlarımda hayvan barınaklarında gönüllülük yapıyorum."
+                Username = user.Username,
+                Email = user.Email,
+                Bio = user.Bio
             };
-            
+
             return View(viewModel);
         }
-        
+
         [HttpPost]
-        public IActionResult EditProfile(EditProfileViewModel model)
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditProfile(EditProfileViewModel model)
         {
-            if (ModelState.IsValid)
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (!userId.HasValue)
+                return RedirectToAction("Login");
+
+            var user = await _context.Users.FindAsync(userId.Value);
+            if (user == null)
+                return RedirectToAction("Login");
+
+            if (await _context.Users.AnyAsync(item => item.Id != user.Id && (item.Username == model.Username || item.Email == model.Email)))
+                ModelState.AddModelError(string.Empty, "Bu kullanıcı adı veya e-posta başka bir hesap tarafından kullanılıyor.");
+
+            var hasher = new PasswordHasher<User>();
+            if (!string.IsNullOrWhiteSpace(model.NewPassword))
             {
-                // Gerçek uygulamada kullanıcı güncelleme işlemleri burada gerçekleştirilir
-                return RedirectToAction("Profile");
+                if (string.IsNullOrWhiteSpace(model.CurrentPassword) || hasher.VerifyHashedPassword(user, user.PasswordHash, model.CurrentPassword) == PasswordVerificationResult.Failed)
+                    ModelState.AddModelError(nameof(model.CurrentPassword), "Mevcut şifreniz doğru değil.");
             }
-            
-            return View(model);
+
+            if (model.ProfileImage is { Length: > 0 })
+            {
+                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+                var extension = Path.GetExtension(model.ProfileImage.FileName).ToLowerInvariant();
+                if (model.ProfileImage.Length > 2 * 1024 * 1024 || !allowedExtensions.Contains(extension))
+                    ModelState.AddModelError(nameof(model.ProfileImage), "En fazla 2 MB boyutunda JPG, PNG veya WebP görsel yükleyebilirsiniz.");
+            }
+
+            if (!ModelState.IsValid)
+                return View(model);
+
+            user.Username = model.Username.Trim();
+            user.Email = model.Email.Trim();
+            user.Bio = model.Bio?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(model.NewPassword))
+                user.PasswordHash = hasher.HashPassword(user, model.NewPassword);
+
+            if (model.ProfileImage is { Length: > 0 })
+            {
+                var extension = Path.GetExtension(model.ProfileImage.FileName).ToLowerInvariant();
+                var fileName = $"{Guid.NewGuid():N}{extension}";
+                var profileDirectory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "img", "profiles");
+                Directory.CreateDirectory(profileDirectory);
+                await using var stream = System.IO.File.Create(Path.Combine(profileDirectory, fileName));
+                await model.ProfileImage.CopyToAsync(stream);
+                user.ProfileImage = $"img/profiles/{fileName}";
+            }
+
+            await _context.SaveChangesAsync();
+            HttpContext.Session.SetString("Username", user.Username);
+            TempData["SuccessMessage"] = "Profiliniz güncellendi.";
+            return RedirectToAction("Index", "Profile");
         }
         
         public IActionResult Logout()

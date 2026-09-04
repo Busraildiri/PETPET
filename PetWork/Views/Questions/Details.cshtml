@@ -145,28 +145,11 @@
         <!-- Sidebar Column -->
         <div class="col-lg-4">
             <div class="card mb-4">
-                <div class="card-header">
-                    <h4 class="mb-0">İlgili Sorular</h4>
-                </div>
-                <div class="card-body">
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item">
-                            <a href="#">Kedim son zamanlarda iştahsız, sebebi ne olabilir?</a>
-                            <div class="text-muted small">3 cevap • 2 gün önce</div>
-                        </li>
-                        <li class="list-group-item">
-                            <a href="#">En iyi kedi maması markaları hangileri?</a>
-                            <div class="text-muted small">8 cevap • 4 gün önce</div>
-                        </li>
-                        <li class="list-group-item">
-                            <a href="#">British Shorthair kedilerin bakımı nasıl olmalı?</a>
-                            <div class="text-muted small">5 cevap • 1 hafta önce</div>
-                        </li>
-                        <li class="list-group-item">
-                            <a href="#">Kediler için ev yapımı mama tarifi önerir misiniz?</a>
-                            <div class="text-muted small">12 cevap • 2 hafta önce</div>
-                        </li>
-                    </ul>
+                <div class="card-body p-4">
+                    <span class="eyebrow mb-2">Benzer konuşmalar</span>
+                    <h4>Aynı konuda gerçek paylaşımlara göz atın.</h4>
+                    <p class="text-muted small">Hazır örnek sorular yerine toplulukta gerçekten yayımlanmış içerikleri gösteriyoruz.</p>
+                    <a asp-controller="Questions" asp-action="Index" asp-route-category="@Model.Category" class="btn btn-outline-primary w-100">@(Model.Category ?? "Genel") paylaşımlarını gör</a>
                 </div>
             </div>
 

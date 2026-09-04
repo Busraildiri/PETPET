@@ -14,6 +14,7 @@ namespace PetWork.Controllers.Api
     [ApiController]
     public class QuestionsApiController : ControllerBase
     {
+        private static readonly string[] DemoUsernames = { "kediSever", "goldenSahibi", "kusSever" };
         private readonly PetWorkDbContext _context;
 
         public QuestionsApiController(PetWorkDbContext context)
@@ -27,7 +28,8 @@ namespace PetWork.Controllers.Api
         {
             var questions = _context.Questions
                 .Include(q => q.User)
-                .Include(q => q.Answers)
+                .Include(q => q.Answers.Where(answer => !DemoUsernames.Contains(answer.User.Username)))
+                .Where(q => q.User == null || !DemoUsernames.Contains(q.User.Username))
                 .AsQueryable();
 
             // Kategori filtresi uygula
@@ -54,7 +56,8 @@ namespace PetWork.Controllers.Api
         {
             var latestQuestions = await _context.Questions
                 .Include(q => q.User)
-                .Include(q => q.Answers)
+                .Include(q => q.Answers.Where(answer => !DemoUsernames.Contains(answer.User.Username)))
+                .Where(q => q.User == null || !DemoUsernames.Contains(q.User.Username))
                 .OrderByDescending(q => q.CreatedDate)
                 .Take(6)
                 .Select(q => new
@@ -74,94 +77,6 @@ namespace PetWork.Controllers.Api
                 })
                 .ToListAsync();
 
-            // If no questions exist, return sample data
-            if (latestQuestions == null || !latestQuestions.Any())
-            {
-                var sampleData = new List<object>
-                {
-                    new {
-                        id = 1,
-                        title = "Kedim çok tüy döküyor, ne yapabilirim?",
-                        content = "3 yaşındaki British Shorthair kedim son zamanlarda çok fazla tüy dökmeye başladı. Nasıl beslenmeli ve nasıl bakım yapmalıyım?",
-                        createdAt = DateTime.Now.AddDays(-2),
-                        viewCount = 45,
-                        answersCount = 3,
-                        user = new {
-                            username = "kediSever",
-                            profileImage = "/img/user1.jpg"
-                        },
-                        petType = "Kedi"
-                    },
-                    new {
-                        id = 2,
-                        title = "Köpeğimin mamasını değiştirmek istiyorum, önerileriniz nedir?",
-                        content = "Golden retriever cinsi köpeğim var ve daha sağlıklı bir mamaya geçmek istiyorum. Hangi markaları önerirsiniz?",
-                        createdAt = DateTime.Now.AddDays(-3),
-                        viewCount = 32,
-                        answersCount = 5,
-                        user = new {
-                            username = "goldenSahibi",
-                            profileImage = "/img/user2.jpg"
-                        },
-                        petType = "Köpek"
-                    },
-                    new {
-                        id = 3,
-                        title = "Kuşum tüylerini yoluyor, ne yapmalıyım?",
-                        content = "Muhabbet kuşum son zamanlarda tüylerini yolmaya başladı. Veterinere götürdüm ve fiziksel bir sorun bulamadı. Psikolojik olabilir mi?",
-                        createdAt = DateTime.Now.AddDays(-5),
-                        viewCount = 28,
-                        answersCount = 2,
-                        user = new {
-                            username = "kuşSever",
-                            profileImage = "/img/user3.jpg"
-                        },
-                        petType = "Kuş"
-                    },
-                    new {
-                        id = 4,
-                        title = "Balıklarım için en uygun filtre hangisi?",
-                        content = "60 litrelik bir akvaryumum var ve içinde 10 adet lepistes balığı bulunuyor. Hangi filtre sistemini önerirsiniz?",
-                        createdAt = DateTime.Now.AddDays(-7),
-                        viewCount = 18,
-                        answersCount = 4,
-                        user = new {
-                            username = "akvaryumcu",
-                            profileImage = "/img/user1.jpg"
-                        },
-                        petType = "Balık"
-                    },
-                    new {
-                        id = 5,
-                        title = "Tavşanım için uygun kafes boyutu ne olmalı?",
-                        content = "Yeni bir tavşan sahiplendim ve mevcut kafesi biraz küçük geliyor. İdeal kafes boyutu ne olmalı?",
-                        createdAt = DateTime.Now.AddDays(-8),
-                        viewCount = 22,
-                        answersCount = 3,
-                        user = new {
-                            username = "tavşancı",
-                            profileImage = "/img/user2.jpg"
-                        },
-                        petType = "Tavşan"
-                    },
-                    new {
-                        id = 6,
-                        title = "Köpeğimin aşı takvimi nasıl olmalı?",
-                        content = "2 aylık bir yavru köpek sahiplendim. Aşı takvimi hakkında bilgi almak istiyorum. Hangi aşıları ne zaman yaptırmalıyım?",
-                        createdAt = DateTime.Now.AddDays(-10),
-                        viewCount = 56,
-                        answersCount = 7,
-                        user = new {
-                            username = "yeniKöpekSahibi",
-                            profileImage = "/img/user3.jpg"
-                        },
-                        petType = "Köpek"
-                    }
-                };
-                
-                return Ok(sampleData);
-            }
-
             return Ok(latestQuestions);
         }
 
@@ -171,7 +86,8 @@ namespace PetWork.Controllers.Api
         {
             var question = await _context.Questions
                 .Include(q => q.User)
-                .Include(q => q.Answers)
+                .Where(q => q.User == null || !DemoUsernames.Contains(q.User.Username))
+                .Include(q => q.Answers.Where(answer => !DemoUsernames.Contains(answer.User.Username)))
                 .ThenInclude(a => a.User)
                 .FirstOrDefaultAsync(q => q.Id == id);
 

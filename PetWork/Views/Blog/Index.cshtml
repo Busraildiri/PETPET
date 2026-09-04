@@ -12,7 +12,7 @@
                 <h1>@ViewData["Title"]</h1>
                 @if (User.Identity.IsAuthenticated)
                 {
-                    <a href="#" class="btn btn-primary">
+                    <a asp-controller="Blog" asp-action="Add" class="btn btn-primary">
                         <i class="fas fa-pen me-2"></i>Yeni Yazı
                     </a>
                 }
@@ -142,7 +142,7 @@
                     <p>Evcil hayvanlar hakkında bilginizi paylaşmak ister misiniz? Hikayelerinizi, ipuçlarınızı ve deneyimlerinizi toplulukla paylaşın.</p>
                     @if (User.Identity.IsAuthenticated)
                     {
-                        <a href="#" class="btn btn-primary w-100">Yeni Yazı Ekle</a>
+                        <a asp-controller="Blog" asp-action="Add" class="btn btn-primary w-100">Yeni Yazı Ekle</a>
                     }
                     else
                     {

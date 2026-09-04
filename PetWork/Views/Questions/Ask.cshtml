@@ -39,6 +39,8 @@
                                 <option value="Kemirgen Bakımı">Kemirgen Bakımı</option>
                                 <option value="Eğitim">Eğitim</option>
                                 <option value="Davranış Problemleri">Davranış Problemleri</option>
+                                <option value="Yas ve Kayıp">Yas ve Kayıp</option>
+                                <option value="Sosyalleşme ve Arkadaşlık">Sosyalleşme ve Arkadaşlık</option>
                                 <option value="Genel">Genel</option>
                             </select>
                             <span asp-validation-for="Category" class="text-danger"></span>
@@ -65,7 +67,7 @@
                                 <input class="form-check-input" type="checkbox" id="termsCheck" required>
                                 <input type="hidden" name="TermsAccepted" id="termsAccepted" value="false" />
                                 <label class="form-check-label" for="termsCheck">
-                                    <a href="#" target="_blank">Topluluk kurallarını</a> okudum ve kabul ediyorum.
+                                    <a asp-controller="Home" asp-action="About" target="_blank">Topluluk yaklaşımımızı</a> okudum ve kabul ediyorum.
                                 </label>
                             </div>
                         </div>
