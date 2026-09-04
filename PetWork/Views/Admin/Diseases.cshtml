@@ -17,7 +17,7 @@
             {
                 <tr>
                     <td>@item.Name</td><td>@(item.AnimalType ?? item.PetType ?? "Genel")</td><td>@(item.Category ?? "-")</td><td>@item.ViewCount</td>
-                    <td class="text-end"><form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Bu hastalık kaydını kalıcı olarak silmek istiyor musunuz?');">
+                    <td class="text-end"><a asp-action="EditContent" asp-route-type="disease" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary me-1"><i class="fas fa-edit me-1"></i>İncele / Düzenle</a><form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Bu hastalık kaydını kalıcı olarak silmek istiyor musunuz?');">
                         <input type="hidden" name="id" value="@item.Id" /><input type="hidden" name="type" value="disease" />
                         <button class="btn btn-sm btn-danger" type="submit"><i class="fas fa-trash me-1"></i>Sil</button>
                     </form></td>

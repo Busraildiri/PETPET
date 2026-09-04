@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
+using PetWork.Models.ViewModels;
 
 namespace PetWork.Controllers;
 
@@ -84,6 +85,43 @@ public class AdminController : Controller
             return RedirectToAction("Login", "Account");
 
         return View(_context.BlogPosts.Include(blog => blog.User).OrderByDescending(blog => blog.PublishDate).ToList());
+    }
+
+    public IActionResult EditContent(string type, int id)
+    {
+        if (!IsAdmin())
+            return RedirectToAction("Login", "Account");
+
+        var model = GetContentForEditing(type, id);
+        return model is null ? NotFound() : View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult EditContent(AdminContentEditViewModel model)
+    {
+        if (!IsAdmin())
+            return RedirectToAction("Login", "Account");
+
+        ValidateContent(model);
+        if (!ModelState.IsValid)
+            return View(model);
+
+        try
+        {
+            var updated = UpdateContent(model);
+            if (!updated)
+                return NotFound();
+
+            _context.SaveChanges();
+            TempData["SuccessMessage"] = "İçerik güncellendi.";
+            return RedirectToAction(nameof(EditContent), new { type = model.Type, id = model.Id });
+        }
+        catch (DbUpdateException)
+        {
+            ModelState.AddModelError(string.Empty, "Değişiklikler veritabanına kaydedilemedi.");
+            return View(model);
+        }
     }
 
     [HttpPost]
@@ -184,5 +222,127 @@ public class AdminController : Controller
         transaction.Commit();
 
         TempData["SuccessMessage"] = "Kullanıcı ve bağlı içerikleri silindi.";
+    }
+
+    private AdminContentEditViewModel? GetContentForEditing(string type, int id)
+    {
+        switch (type)
+        {
+            case "recipe":
+                var recipe = _context.Recipes.Include(item => item.User).FirstOrDefault(item => item.Id == id);
+                return recipe is null ? null : new AdminContentEditViewModel
+                {
+                    Id = recipe.Id, Type = type, Title = recipe.Title, Description = recipe.Description,
+                    Content = recipe.Content, PetType = recipe.PetType, AnimalType = recipe.AnimalType,
+                    DietType = recipe.DietType, PreparationTime = recipe.PreparationTime,
+                    FeaturedImage = recipe.FeaturedImage, ImageUrl = recipe.ImageUrl,
+                    Difficulty = recipe.Difficulty, PrepTime = recipe.PrepTime,
+                    Ingredients = recipe.Ingredients, Instructions = recipe.Instructions,
+                    ViewCount = recipe.ViewCount, AuthorName = recipe.User?.Username, PublishedAt = recipe.PublishDate
+                };
+            case "disease":
+                var disease = _context.Diseases.Find(id);
+                return disease is null ? null : new AdminContentEditViewModel
+                {
+                    Id = disease.Id, Type = type, Title = disease.Name, Description = disease.Description,
+                    Symptoms = disease.Symptoms, Treatments = disease.Treatments, Treatment = disease.Treatment,
+                    Prevention = disease.Prevention, PetType = disease.PetType, AnimalType = disease.AnimalType,
+                    FeaturedImage = disease.FeaturedImage, Category = disease.Category,
+                    SeverityLevel = disease.SeverityLevel, ViewCount = disease.ViewCount, PublishedAt = disease.PublishDate
+                };
+            case "guide":
+                var guide = _context.Guides.Include(item => item.User).FirstOrDefault(item => item.Id == id);
+                return guide is null ? null : new AdminContentEditViewModel
+                {
+                    Id = guide.Id, Type = type, Title = guide.Title, Description = guide.Description,
+                    Content = guide.Content, AnimalType = guide.AnimalType, Category = guide.Category,
+                    Level = guide.Level, ViewCount = guide.ViewCount, AuthorName = guide.User?.Username,
+                    PublishedAt = guide.PublishDate
+                };
+            case "question":
+                var question = _context.Questions.Include(item => item.User).FirstOrDefault(item => item.Id == id);
+                return question is null ? null : new AdminContentEditViewModel
+                {
+                    Id = question.Id, Type = type, Title = question.Title, Content = question.Content,
+                    Category = question.Category, Tags = question.Tags, ViewCount = question.ViewCount,
+                    AuthorName = question.User?.Username, PublishedAt = question.CreatedDate
+                };
+            case "blog":
+                var blog = _context.BlogPosts.Include(item => item.User).FirstOrDefault(item => item.Id == id);
+                return blog is null ? null : new AdminContentEditViewModel
+                {
+                    Id = blog.Id, Type = type, Title = blog.Title, Content = blog.Content,
+                    Category = blog.Category, FeaturedImage = blog.FeaturedImage, ImageUrl = blog.ImageUrl,
+                    ViewCount = blog.ViewCount, AuthorName = blog.User?.Username, PublishedAt = blog.PublishDate
+                };
+            default:
+                return null;
+        }
+    }
+
+    private void ValidateContent(AdminContentEditViewModel model)
+    {
+        if (model.Type is "recipe" or "disease" or "guide" && string.IsNullOrWhiteSpace(model.Description))
+            ModelState.AddModelError(nameof(model.Description), "Açıklama zorunludur.");
+
+        if (model.Type is "question" or "blog" or "guide" && string.IsNullOrWhiteSpace(model.Content))
+            ModelState.AddModelError(nameof(model.Content), "İçerik zorunludur.");
+
+        if (model.Type == "recipe" && string.IsNullOrWhiteSpace(model.Ingredients))
+            ModelState.AddModelError(nameof(model.Ingredients), "Malzemeler zorunludur.");
+
+        if (model.Type == "recipe" && string.IsNullOrWhiteSpace(model.Instructions))
+            ModelState.AddModelError(nameof(model.Instructions), "Hazırlama adımları zorunludur.");
+    }
+
+    private bool UpdateContent(AdminContentEditViewModel model)
+    {
+        switch (model.Type)
+        {
+            case "recipe":
+                var recipe = _context.Recipes.Find(model.Id);
+                if (recipe is null) return false;
+                recipe.Title = model.Title.Trim(); recipe.Description = model.Description!;
+                recipe.Content = model.Content ?? string.Empty; recipe.PetType = model.PetType;
+                recipe.AnimalType = model.AnimalType; recipe.DietType = model.DietType;
+                recipe.PreparationTime = model.PreparationTime ?? 0; recipe.FeaturedImage = model.FeaturedImage ?? string.Empty;
+                recipe.ImageUrl = model.ImageUrl ?? string.Empty; recipe.Difficulty = model.Difficulty ?? string.Empty;
+                recipe.PrepTime = model.PrepTime ?? string.Empty; recipe.Ingredients = model.Ingredients!;
+                recipe.Instructions = model.Instructions!;
+                return true;
+            case "disease":
+                var disease = _context.Diseases.Find(model.Id);
+                if (disease is null) return false;
+                disease.Name = model.Title.Trim(); disease.Description = model.Description!;
+                disease.Symptoms = model.Symptoms; disease.Treatments = model.Treatments;
+                disease.Treatment = model.Treatment; disease.Prevention = model.Prevention;
+                disease.PetType = model.PetType; disease.AnimalType = model.AnimalType;
+                disease.FeaturedImage = model.FeaturedImage ?? string.Empty; disease.Category = model.Category;
+                disease.SeverityLevel = model.SeverityLevel;
+                return true;
+            case "guide":
+                var guide = _context.Guides.Find(model.Id);
+                if (guide is null) return false;
+                guide.Title = model.Title.Trim(); guide.Description = model.Description!;
+                guide.Content = model.Content!; guide.AnimalType = model.AnimalType;
+                guide.Category = model.Category; guide.Level = model.Level;
+                return true;
+            case "question":
+                var question = _context.Questions.Find(model.Id);
+                if (question is null) return false;
+                question.Title = model.Title.Trim(); question.Content = model.Content!;
+                question.Category = model.Category; question.Tags = model.Tags;
+                return true;
+            case "blog":
+                var blog = _context.BlogPosts.Find(model.Id);
+                if (blog is null) return false;
+                blog.Title = model.Title.Trim(); blog.Content = model.Content!;
+                blog.Category = model.Category ?? string.Empty; blog.FeaturedImage = model.FeaturedImage ?? string.Empty;
+                blog.ImageUrl = model.ImageUrl ?? string.Empty;
+                return true;
+            default:
+                ModelState.AddModelError(nameof(model.Type), "Geçersiz içerik türü.");
+                return false;
+        }
     }
 }

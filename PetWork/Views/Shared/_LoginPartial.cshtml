@@ -1,5 +1,6 @@
 @{
     bool isLoggedIn = Context.Session.GetInt32("UserId").HasValue;
+    bool isAdmin = string.Equals(Context.Session.GetString("IsAdmin"), "True", StringComparison.OrdinalIgnoreCase);
 }
 
 @if (isLoggedIn)
@@ -11,6 +12,11 @@
                 <span class="ms-1">@Context.Session.GetString("Username")</span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                @if (isAdmin)
+                {
+                    <li><a class="dropdown-item fw-semibold text-primary" asp-controller="Admin" asp-action="Index"><i class="fas fa-user-shield me-2"></i>Admin Paneli</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                }
                 <li><a class="dropdown-item" asp-controller="Account" asp-action="Profile">Profilim</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item" asp-controller="Questions" asp-action="Ask">Soru Sor</a></li>

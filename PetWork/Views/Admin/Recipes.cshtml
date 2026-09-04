@@ -20,6 +20,7 @@
                         <td>@item.Title</td><td>@(item.PetType ?? item.AnimalType ?? "Genel")</td>
                         <td>@(item.User?.Username ?? "Bilinmiyor")</td><td>@item.ViewCount</td>
                         <td class="text-end">
+                            <a asp-action="EditContent" asp-route-type="recipe" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary me-1"><i class="fas fa-edit me-1"></i>İncele / Düzenle</a>
                             <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Bu tarifi kalıcı olarak silmek istiyor musunuz?');">
                                 <input type="hidden" name="id" value="@item.Id" /><input type="hidden" name="type" value="recipe" />
                                 <button class="btn btn-sm btn-danger" type="submit"><i class="fas fa-trash me-1"></i>Sil</button>
