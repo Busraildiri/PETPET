@@ -1,159 +1,49 @@
 @{
     ViewData["Title"] = "Admin Paneli";
-    Layout = "_Layout";
 }
 
-<div class="container-fluid py-4">
-    <h1 class="mb-4">Admin Paneli</h1>
-    
-    <div class="row mb-4">
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-primary shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                Kullanıcılar</div>
-                            <div class="h5 mb-0 font-weight-bold">@ViewBag.UsersCount</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-users fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent border-0">
-                    <a asp-controller="Admin" asp-action="Users" class="btn btn-sm btn-primary w-100">Yönet</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-success shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                Tarifler</div>
-                            <div class="h5 mb-0 font-weight-bold">@ViewBag.RecipesCount</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-utensils fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent border-0">
-                    <a asp-controller="Admin" asp-action="Recipes" class="btn btn-sm btn-success w-100">Yönet</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-info shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                Hastalıklar</div>
-                            <div class="h5 mb-0 font-weight-bold">@ViewBag.DiseasesCount</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-stethoscope fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent border-0">
-                    <a asp-controller="Admin" asp-action="Diseases" class="btn btn-sm btn-info w-100">Yönet</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-warning shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                Rehberler</div>
-                            <div class="h5 mb-0 font-weight-bold">@ViewBag.GuidesCount</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-book fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent border-0">
-                    <a asp-controller="Admin" asp-action="Guides" class="btn btn-sm btn-warning w-100">Yönet</a>
-                </div>
-            </div>
-        </div>
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div><h1 class="mb-1">Admin Paneli</h1><p class="text-muted mb-0">Platformdaki kullanıcıları ve içerikleri yönetin.</p></div>
     </div>
-    
-    <div class="row">
-        <div class="col-xl-6 col-md-12 mb-4">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Sorular</h6>
-                    <a asp-controller="Admin" asp-action="Questions" class="btn btn-sm btn-primary">Tümünü Gör</a>
-                </div>
-                <div class="card-body">
-                    <p>Toplam Soru Sayısı: @ViewBag.QuestionsCount</p>
-                    <a asp-controller="Admin" asp-action="Questions" class="btn btn-outline-primary">Soruları Yönet</a>
-                </div>
-            </div>
+    <partial name="_Messages" />
+
+    <div class="row g-4">
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 shadow-sm border-start border-primary border-4"><div class="card-body">
+                <div class="d-flex justify-content-between"><div><h5>Kullanıcılar</h5><div class="display-6">@ViewBag.UsersCount</div></div><i class="fas fa-users fa-2x text-primary"></i></div>
+                <a asp-action="Users" class="btn btn-outline-primary w-100 mt-3">Kullanıcıları Yönet</a>
+            </div></div>
         </div>
-        
-        <div class="col-xl-6 col-md-12 mb-4">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Hızlı İşlemler</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <a asp-controller="Recipes" asp-action="Create" class="btn btn-success btn-block mb-3">
-                                <i class="fas fa-plus-circle mr-2"></i> Yeni Tarif Ekle
-                            </a>
-                        </div>
-                        <div class="col-md-6">
-                            <a asp-controller="Diseases" asp-action="Create" class="btn btn-info btn-block mb-3">
-                                <i class="fas fa-plus-circle mr-2"></i> Yeni Hastalık Ekle
-                            </a>
-                        </div>
-                        <div class="col-md-6">
-                            <a asp-controller="Guide" asp-action="Create" class="btn btn-warning btn-block mb-3">
-                                <i class="fas fa-plus-circle mr-2"></i> Yeni Rehber Ekle
-                            </a>
-                        </div>
-                        <div class="col-md-6">
-                            <a asp-controller="Admin" asp-action="UserStatistics" class="btn btn-primary btn-block">
-                                <i class="fas fa-chart-line mr-2"></i> Kullanıcı İstatistikleri
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 shadow-sm border-start border-success border-4"><div class="card-body">
+                <div class="d-flex justify-content-between"><div><h5>Tarifler</h5><div class="display-6">@ViewBag.RecipesCount</div></div><i class="fas fa-utensils fa-2x text-success"></i></div>
+                <a asp-action="Recipes" class="btn btn-outline-success w-100 mt-3">Tarifleri Yönet</a>
+            </div></div>
+        </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 shadow-sm border-start border-info border-4"><div class="card-body">
+                <div class="d-flex justify-content-between"><div><h5>Hastalıklar</h5><div class="display-6">@ViewBag.DiseasesCount</div></div><i class="fas fa-stethoscope fa-2x text-info"></i></div>
+                <a asp-action="Diseases" class="btn btn-outline-info w-100 mt-3">Hastalıkları Yönet</a>
+            </div></div>
+        </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 shadow-sm border-start border-warning border-4"><div class="card-body">
+                <div class="d-flex justify-content-between"><div><h5>Rehberler</h5><div class="display-6">@ViewBag.GuidesCount</div></div><i class="fas fa-book fa-2x text-warning"></i></div>
+                <a asp-action="Guides" class="btn btn-outline-warning w-100 mt-3">Rehberleri Yönet</a>
+            </div></div>
+        </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 shadow-sm border-start border-danger border-4"><div class="card-body">
+                <div class="d-flex justify-content-between"><div><h5>Sorular</h5><div class="display-6">@ViewBag.QuestionsCount</div></div><i class="fas fa-question-circle fa-2x text-danger"></i></div>
+                <a asp-action="Questions" class="btn btn-outline-danger w-100 mt-3">Soruları Yönet</a>
+            </div></div>
+        </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 shadow-sm border-start border-secondary border-4"><div class="card-body">
+                <div class="d-flex justify-content-between"><div><h5>Blog Yazıları</h5><div class="display-6">@ViewBag.BlogsCount</div></div><i class="fas fa-newspaper fa-2x text-secondary"></i></div>
+                <a asp-action="Blogs" class="btn btn-outline-secondary w-100 mt-3">Blogları Yönet</a>
+            </div></div>
         </div>
     </div>
 </div>
-
-<style>
-    .border-left-primary {
-        border-left: 0.25rem solid #4e73df !important;
-    }
-    .border-left-success {
-        border-left: 0.25rem solid #1cc88a !important;
-    }
-    .border-left-info {
-        border-left: 0.25rem solid #36b9cc !important;
-    }
-    .border-left-warning {
-        border-left: 0.25rem solid #f6c23e !important;
-    }
-    .text-gray-300 {
-        color: #dddfeb !important;
-    }
-    .btn-block {
-        display: block;
-        width: 100%;
-    }
-</style> 

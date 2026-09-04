@@ -1,0 +1,34 @@
+@model List<PetWork.Models.Recipe>
+@{
+    ViewData["Title"] = "Tarif Yönetimi";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Tarif Yönetimi</h1>
+        <a asp-action="Index" class="btn btn-outline-secondary">Admin Paneline Dön</a>
+    </div>
+    <partial name="_Messages" />
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Başlık</th><th>Tür</th><th>Yazar</th><th>Görüntülenme</th><th class="text-end">İşlem</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td>@item.Title</td><td>@(item.PetType ?? item.AnimalType ?? "Genel")</td>
+                        <td>@(item.User?.Username ?? "Bilinmiyor")</td><td>@item.ViewCount</td>
+                        <td class="text-end">
+                            <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Bu tarifi kalıcı olarak silmek istiyor musunuz?');">
+                                <input type="hidden" name="id" value="@item.Id" /><input type="hidden" name="type" value="recipe" />
+                                <button class="btn btn-sm btn-danger" type="submit"><i class="fas fa-trash me-1"></i>Sil</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
