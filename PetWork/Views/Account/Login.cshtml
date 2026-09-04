@@ -53,27 +53,10 @@
                             <button type="submit" class="btn btn-primary btn-lg">Giriş Yap</button>
                         </div>
 
-                        <div class="text-center mt-3">
-                            <a href="#" class="text-decoration-none">Şifremi Unuttum</a>
-                        </div>
+                        <div class="text-center mt-3 text-muted small">Şifre desteği için şimdilik yöneticiyle iletişime geçin.</div>
                     </form>
 
                     <hr class="my-4">
-
-                    <div class="text-center">
-                        <p class="mb-3">Sosyal medya hesabınızla giriş yapın:</p>
-                        <div class="d-flex justify-content-center gap-3">
-                            <button class="btn btn-outline-primary rounded-circle">
-                                <i class="fab fa-facebook-f"></i>
-                            </button>
-                            <button class="btn btn-outline-info rounded-circle">
-                                <i class="fab fa-twitter"></i>
-                            </button>
-                            <button class="btn btn-outline-danger rounded-circle">
-                                <i class="fab fa-google"></i>
-                            </button>
-                        </div>
-                    </div>
 
                     <div class="text-center mt-4">
                         <p class="mb-0">Hesabınız yok mu? <a asp-controller="Account" asp-action="Register">Üye Olun</a></p>
@@ -89,7 +72,7 @@
                             <p class="mb-0">Evcil hayvanınız için bilgi, destek ve topluluk bir arada.</p>
                         </div>
                         <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                            <a href="#" class="btn btn-outline-primary">Daha Fazla Bilgi</a>
+                            <a asp-controller="Home" asp-action="About" class="btn btn-outline-primary">Neden PetWork?</a>
                         </div>
                     </div>
                 </div>

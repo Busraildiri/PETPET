@@ -1,0 +1,105 @@
+@model PetWork.Models.ViewModels.AdminContentEditViewModel
+@{
+    ViewData["Title"] = "İçerik Düzenle";
+    var listAction = Model.Type switch
+    {
+        "recipe" => "Recipes", "disease" => "Diseases", "guide" => "Guides",
+        "question" => "Questions", "blog" => "Blogs", _ => "Index"
+    };
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div><h1 class="mb-1">İçeriği İncele ve Düzenle</h1><p class="text-muted mb-0">Kayıt #@Model.Id · @Model.Type</p></div>
+        <a asp-action="@listAction" class="btn btn-outline-secondary">Listeye Dön</a>
+    </div>
+    <partial name="_Messages" />
+
+    <div class="card shadow-sm mb-4"><div class="card-body">
+        <div class="row g-3 small">
+            <div class="col-md-4"><strong>Yazar:</strong> @(Model.AuthorName ?? "Sistem")</div>
+            <div class="col-md-4"><strong>Tarih:</strong> @(Model.PublishedAt?.ToString("dd.MM.yyyy HH:mm") ?? "-")</div>
+            <div class="col-md-4"><strong>Görüntülenme:</strong> @Model.ViewCount</div>
+        </div>
+    </div></div>
+
+    <form asp-action="EditContent" method="post">
+        <input asp-for="Id" type="hidden" />
+        <input asp-for="Type" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        <div class="card shadow-sm mb-4"><div class="card-body">
+            <div class="mb-3"><label asp-for="Title" class="form-label">Başlık / Ad</label><input asp-for="Title" class="form-control" /><span asp-validation-for="Title" class="text-danger"></span></div>
+
+            @if (Model.Type is "recipe" or "disease" or "guide")
+            {
+                <div class="mb-3"><label asp-for="Description" class="form-label">Açıklama</label><textarea asp-for="Description" class="form-control" rows="4"></textarea><span asp-validation-for="Description" class="text-danger"></span></div>
+            }
+
+            @if (Model.Type is "question" or "blog" or "guide" or "recipe")
+            {
+                <div class="mb-3"><label asp-for="Content" class="form-label">İçerik</label><textarea asp-for="Content" class="form-control font-monospace" rows="10"></textarea><span asp-validation-for="Content" class="text-danger"></span><div class="form-text">HTML içeriyorsa etiketleri koruyarak düzenleyebilirsiniz.</div></div>
+            }
+
+            <div class="row g-3">
+                @if (Model.Type is "disease" or "guide" or "question" or "blog")
+                { <div class="col-md-6"><label asp-for="Category" class="form-label">Kategori</label><input asp-for="Category" class="form-control" /></div> }
+                @if (Model.Type is "recipe" or "disease")
+                { <div class="col-md-6"><label asp-for="PetType" class="form-label">Evcil Hayvan Türü</label><input asp-for="PetType" class="form-control" /></div> }
+                @if (Model.Type is "recipe" or "disease" or "guide")
+                { <div class="col-md-6"><label asp-for="AnimalType" class="form-label">Hayvan Türü</label><input asp-for="AnimalType" class="form-control" /></div> }
+                @if (Model.Type == "question")
+                { <div class="col-md-6"><label asp-for="Tags" class="form-label">Etiketler</label><input asp-for="Tags" class="form-control" /></div> }
+                @if (Model.Type == "guide")
+                { <div class="col-md-6"><label asp-for="Level" class="form-label">Seviye</label><input asp-for="Level" class="form-control" /></div> }
+            </div>
+        </div></div>
+
+        @if (Model.Type == "recipe")
+        {
+            <div class="card shadow-sm mb-4"><div class="card-header"><strong>Tarif Detayları</strong></div><div class="card-body">
+                <div class="mb-3"><label asp-for="Ingredients" class="form-label">Malzemeler</label><textarea asp-for="Ingredients" class="form-control" rows="6"></textarea><span asp-validation-for="Ingredients" class="text-danger"></span></div>
+                <div class="mb-3"><label asp-for="Instructions" class="form-label">Hazırlama Adımları</label><textarea asp-for="Instructions" class="form-control" rows="6"></textarea><span asp-validation-for="Instructions" class="text-danger"></span></div>
+                <div class="row g-3">
+                    <div class="col-md-4"><label asp-for="DietType" class="form-label">Diyet Türü</label><input asp-for="DietType" class="form-control" /></div>
+                    <div class="col-md-4"><label asp-for="Difficulty" class="form-label">Zorluk</label><input asp-for="Difficulty" class="form-control" /></div>
+                    <div class="col-md-4"><label asp-for="PreparationTime" class="form-label">Hazırlama Süresi (dk)</label><input asp-for="PreparationTime" class="form-control" /></div>
+                    <div class="col-md-6"><label asp-for="PrepTime" class="form-label">Süre Metni</label><input asp-for="PrepTime" class="form-control" /></div>
+                </div>
+            </div></div>
+        }
+
+        @if (Model.Type == "disease")
+        {
+            <div class="card shadow-sm mb-4"><div class="card-header"><strong>Sağlık Bilgileri</strong></div><div class="card-body">
+                <div class="mb-3"><label asp-for="Symptoms" class="form-label">Belirtiler</label><textarea asp-for="Symptoms" class="form-control" rows="5"></textarea></div>
+                <div class="mb-3"><label asp-for="Treatments" class="form-label">Tedaviler</label><textarea asp-for="Treatments" class="form-control" rows="5"></textarea></div>
+                <div class="mb-3"><label asp-for="Treatment" class="form-label">Tedavi Açıklaması</label><textarea asp-for="Treatment" class="form-control" rows="5"></textarea></div>
+                <div class="mb-3"><label asp-for="Prevention" class="form-label">Korunma</label><textarea asp-for="Prevention" class="form-control" rows="5"></textarea></div>
+                <div><label asp-for="SeverityLevel" class="form-label">Ciddiyet Seviyesi</label><input asp-for="SeverityLevel" class="form-control" /></div>
+            </div></div>
+        }
+
+        @if (Model.Type is "recipe" or "disease" or "blog")
+        {
+            <div class="card shadow-sm mb-4"><div class="card-header"><strong>Görseller</strong></div><div class="card-body row g-3">
+                @if (Model.Type is "recipe" or "blog")
+                { <div class="col-md-6"><label asp-for="ImageUrl" class="form-label">Görsel Yolu</label><input asp-for="ImageUrl" class="form-control" /></div> }
+                <div class="col-md-6"><label asp-for="FeaturedImage" class="form-label">Öne Çıkan Görsel Yolu</label><input asp-for="FeaturedImage" class="form-control" /></div>
+            </div></div>
+        }
+
+        <div class="d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save me-2"></i>Değişiklikleri Kaydet</button>
+        </div>
+    </form>
+
+    <div class="border-top mt-5 pt-4">
+        <form asp-action="Delete" method="post" onsubmit="return confirm('Bu içerik kalıcı olarak silinsin mi? Bu işlem geri alınamaz.');">
+            <input type="hidden" name="id" value="@Model.Id" /><input type="hidden" name="type" value="@Model.Type" />
+            <button type="submit" class="btn btn-outline-danger"><i class="fas fa-trash me-2"></i>İçeriği Sil</button>
+        </form>
+    </div>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

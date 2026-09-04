@@ -52,7 +52,7 @@
                             <input type="checkbox" id="AcceptTerms" name="AcceptTerms" class="form-check-input" value="true" />
                             <input name="AcceptTerms" type="hidden" value="false" />
                             <label class="form-check-label" for="AcceptTerms">
-                                <a href="#" target="_blank">Kullanım koşullarını</a> ve <a href="#" target="_blank">gizlilik politikasını</a> okudum ve kabul ediyorum.
+                                <a asp-controller="Home" asp-action="About" target="_blank">Topluluk yaklaşımını</a> ve <a asp-controller="Home" asp-action="Privacy" target="_blank">gizlilik politikasını</a> okudum ve kabul ediyorum.
                             </label>
                             <span asp-validation-for="AcceptTerms" class="text-danger d-block"></span>
                         </div>

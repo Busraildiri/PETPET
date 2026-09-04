@@ -10,7 +10,7 @@ using PetWork.Models;
 
 namespace PetWork.Controllers.Api
 {
-    [Route("api/[controller]")]
+    [Route("api/recipes")]
     [ApiController]
     public class RecipesApiController : ControllerBase
     {
@@ -65,70 +65,6 @@ namespace PetWork.Controllers.Api
                 })
                 .ToListAsync();
                 
-            // If no recipes exist, return sample data
-            if (featuredRecipes == null || !featuredRecipes.Any())
-            {
-                var sampleData = new List<object>
-                {
-                    new {
-                        id = 1,
-                        title = "Ev Yapımı Kedi Maması",
-                        description = "Kedileriniz için protein açısından zengin ve doğal ev yapımı mama tarifi.",
-                        imageUrl = "/img/recipes/recipe1.jpg",
-                        category = "Kedi",
-                        animalType = "Kedi",
-                        viewCount = 124
-                    },
-                    new {
-                        id = 2,
-                        title = "Köpekler İçin Protein Topu",
-                        description = "Aktif köpekler için yüksek proteinli atıştırmalık tarifi.",
-                        imageUrl = "/img/recipes/recipe2.jpg",
-                        category = "Köpek",
-                        animalType = "Köpek",
-                        viewCount = 98
-                    },
-                    new {
-                        id = 3,
-                        title = "Kuşlar İçin Vitamin Karışımı",
-                        description = "Muhabbet kuşları ve papağanlar için vitamin açısından zengin tohum karışımı.",
-                        imageUrl = "/img/recipes/recipe3.jpg",
-                        category = "Kuş",
-                        animalType = "Kuş",
-                        viewCount = 76
-                    },
-                    new {
-                        id = 4,
-                        title = "Yaşlı Kediler İçin Yumuşak Diyet",
-                        description = "Diş sorunları olan ve yaşlı kediler için kolay tüketilebilir mama tarifi.",
-                        imageUrl = "/img/recipes/recipe4.jpg",
-                        category = "Kedi",
-                        animalType = "Kedi",
-                        viewCount = 105
-                    },
-                    new {
-                        id = 5,
-                        title = "Hassas Köpekler İçin Hipoalerjenik Mama",
-                        description = "Gıda alerjisi olan köpekler için evde hazırlayabileceğiniz hipoalerjenik mama tarifi.",
-                        imageUrl = "/img/recipes/recipe5.jpg",
-                        category = "Köpek",
-                        animalType = "Köpek",
-                        viewCount = 92
-                    },
-                    new {
-                        id = 6,
-                        title = "Tavşanlar İçin Taze Sebze Karışımı",
-                        description = "Evcil tavşanlarınız için dengeli ve besleyici sebze karışımı tarifi.",
-                        imageUrl = "/img/recipes/recipe6.jpg",
-                        category = "Tavşan",
-                        animalType = "Tavşan",
-                        viewCount = 64
-                    }
-                };
-                
-                return Ok(sampleData);
-            }
-
             return Ok(featuredRecipes);
         }
 

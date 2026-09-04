@@ -13,6 +13,7 @@ namespace PetWork.Controllers
 {
     public class QuestionsController : Controller
     {
+        private static readonly string[] DemoUsernames = { "kediSever", "goldenSahibi", "kusSever" };
         private readonly PetWorkDbContext _context;
         private readonly ILogger<QuestionsController> _logger;
 
@@ -27,7 +28,8 @@ namespace PetWork.Controllers
             // Veritabanından soruları çek
             var questions = _context.Questions
                 .Include(q => q.User)
-                .Include(q => q.Answers)
+                .Include(q => q.Answers.Where(answer => !DemoUsernames.Contains(answer.User.Username)))
+                .Where(q => q.User == null || !DemoUsernames.Contains(q.User.Username))
                 .AsQueryable();
             
             // Kategori filtresi uygula
@@ -73,6 +75,8 @@ namespace PetWork.Controllers
                     "Kemirgen Bakımı",
                     "Eğitim",
                     "Davranış Problemleri",
+                    "Yas ve Kayıp",
+                    "Sosyalleşme ve Arkadaşlık",
                     "Genel"
                 };
             }
@@ -93,7 +97,8 @@ namespace PetWork.Controllers
             // Veritabanından soruyu ID'ye göre bul
             var question = _context.Questions
                 .Include(q => q.User)
-                .Include(q => q.Answers)
+                .Where(q => q.User == null || !DemoUsernames.Contains(q.User.Username))
+                .Include(q => q.Answers.Where(answer => !DemoUsernames.Contains(answer.User.Username)))
                     .ThenInclude(a => a.User)
                 .FirstOrDefault(q => q.Id == id);
             
@@ -109,7 +114,7 @@ namespace PetWork.Controllers
             return View(question);
         }
         
-        public IActionResult Ask()
+        public IActionResult Ask(string? category = null)
         {
             var userId = HttpContext.Session.GetInt32("UserId");
             if (userId == null)
@@ -117,7 +122,7 @@ namespace PetWork.Controllers
                 return RedirectToAction("Login", "Account", new { returnUrl = Url.Action("Ask", "Questions") });
             }
             
-            return View(new Question());
+            return View(new Question { Category = category });
         }
         
         [HttpPost]
