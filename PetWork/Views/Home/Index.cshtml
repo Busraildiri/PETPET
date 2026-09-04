@@ -1,0 +1,537 @@
+﻿@{
+    ViewData["Title"] = "Ana Sayfa";
+    ViewData["Description"] = "PetWork - Evcil hayvan sahipleri için güvenilir bilgi ve topluluk platformu. Sorular, tarifler, hastalık bilgileri ve rehberler.";
+    ViewData["Keywords"] = "evcil hayvan, kedi, köpek, kuş, hayvan bakımı, pet community, hayvan hastalıkları, hayvan beslenmesi";
+}
+
+<!-- Hero Section Slider -->
+<div id="homeSlider" class="carousel slide" data-bs-ride="carousel">
+    <div class="carousel-indicators">
+        <button type="button" data-bs-target="#homeSlider" data-bs-slide-to="0" class="active"></button>
+        <button type="button" data-bs-target="#homeSlider" data-bs-slide-to="1"></button>
+        <button type="button" data-bs-target="#homeSlider" data-bs-slide-to="2"></button>
+    </div>
+    <div class="carousel-inner">
+        <div class="carousel-item active">
+            <div class="hero-slide bg-primary text-white py-5" style="background-image: url('/img/hero-community-v2.png'); background-size: cover; background-position: center;">
+                <div class="container py-5">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="bg-dark bg-opacity-50 p-4 rounded shadow">
+                                <h1 class="display-4 fw-bold">Evcil Hayvan Sahipleri İçin Güvenilir Bilgi Platformu</h1>
+                                <p class="lead">Tüm evcil hayvan bakımı sorularınıza uzmanlar ve deneyimli hayvan sahiplerinden cevaplar bulun.</p>
+                                <a href="/Questions" class="btn btn-primary btn-lg">Sorular & Cevaplar</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="carousel-item">
+            <div class="hero-slide bg-success text-white py-5" style="background-image: url('/img/hero-recipes-v2.png'); background-size: cover; background-position: center;">
+                <div class="container py-5">
+                    <div class="row">
+                        <div class="col-md-6 offset-md-6">
+                            <div class="bg-dark bg-opacity-50 p-4 rounded shadow">
+                                <h1 class="display-4 fw-bold">Evcil Hayvanınız İçin Sağlıklı Tarifler</h1>
+                                <p class="lead">Ev yapımı, doğal ve sağlıklı mama tarifleri ile dostunuzu şımartın.</p>
+                                <a href="/Recipes" class="btn btn-success btn-lg">Tarifler</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="carousel-item">
+            <div class="hero-slide bg-info text-white py-5" style="background-image: url('/img/hero-health-v2.png'); background-size: cover; background-position: center;">
+                <div class="container py-5">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="bg-dark bg-opacity-50 p-4 rounded shadow">
+                                <h1 class="display-4 fw-bold">Hayvan Hastalıkları Bilgi Bankası</h1>
+                                <p class="lead">Evcil hayvan hastalıkları, belirtileri, tedavi yöntemleri ve korunma hakkında kapsamlı bilgiler.</p>
+                                <a href="/Diseases" class="btn btn-info btn-lg text-white">Hastalık Bilgileri</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <button class="carousel-control-prev" type="button" data-bs-target="#homeSlider" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon"></span>
+        <span class="visually-hidden">Önceki</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#homeSlider" data-bs-slide="next">
+        <span class="carousel-control-next-icon"></span>
+        <span class="visually-hidden">Sonraki</span>
+    </button>
+</div>
+
+<!-- Quick Access Categories -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="mb-4 text-center">Evcil Hayvan Türleri</h2>
+        <div class="row g-4 justify-content-center">
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                <a href="/Category/Cats" class="category-card text-center d-block text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm hover-elevate">
+                        <div class="card-body">
+                            <div class="category-icon mb-3 text-primary">
+                                <i class="fas fa-cat fa-3x"></i>
+                            </div>
+                            <h5 class="card-title mb-0">Kediler</h5>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                <a href="/Category/Dogs" class="category-card text-center d-block text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm hover-elevate">
+                        <div class="card-body">
+                            <div class="category-icon mb-3 text-primary">
+                                <i class="fas fa-dog fa-3x"></i>
+                            </div>
+                            <h5 class="card-title mb-0">Köpekler</h5>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                <a href="/Category/Birds" class="category-card text-center d-block text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm hover-elevate">
+                        <div class="card-body">
+                            <div class="category-icon mb-3 text-primary">
+                                <i class="fas fa-dove fa-3x"></i>
+                            </div>
+                            <h5 class="card-title mb-0">Kuşlar</h5>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                <a href="/Category/Rodents" class="category-card text-center d-block text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm hover-elevate">
+                        <div class="card-body">
+                            <div class="category-icon mb-3 text-primary">
+                                <i class="fas fa-carrot fa-3x"></i>
+                            </div>
+                            <h5 class="card-title mb-0">Tavşanlar</h5>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                <a href="/Category/Fish" class="category-card text-center d-block text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm hover-elevate">
+                        <div class="card-body">
+                            <div class="category-icon mb-3 text-primary">
+                                <i class="fas fa-fish fa-3x"></i>
+                            </div>
+                            <h5 class="card-title mb-0">Balıklar</h5>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                <a href="/Category/Others" class="category-card text-center d-block text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm hover-elevate">
+                        <div class="card-body">
+                            <div class="category-icon mb-3 text-primary">
+                                <i class="fas fa-paw fa-3x"></i>
+                            </div>
+                            <h5 class="card-title mb-0">Diğer</h5>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Latest Questions -->
+<section class="py-5">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Güncel Sorular</h2>
+            <a href="/Questions" class="btn btn-outline-primary">Tüm Sorular</a>
+        </div>
+        <div class="row" id="latestQuestions">
+            <div class="col-12">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Yükleniyor...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Featured Content Tabs -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="mb-4 text-center">Öne Çıkan İçerikler</h2>
+        
+        <ul class="nav nav-pills mb-4 justify-content-center" id="featuredContentTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="recipes-tab" data-bs-toggle="pill" data-bs-target="#recipes" type="button" role="tab" aria-selected="true">Tarifler</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="diseases-tab" data-bs-toggle="pill" data-bs-target="#diseases" type="button" role="tab" aria-selected="false">Hastalıklar</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="guides-tab" data-bs-toggle="pill" data-bs-target="#guides" type="button" role="tab" aria-selected="false">Rehberler</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="featuredContentTabsContent">
+            <div class="tab-pane fade show active" id="recipes" role="tabpanel" aria-labelledby="recipes-tab">
+                <div class="row" id="featuredRecipes">
+                    <div class="col-12">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Yükleniyor...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="diseases" role="tabpanel" aria-labelledby="diseases-tab">
+                <div class="row" id="featuredDiseases">
+                    <div class="col-12">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Yükleniyor...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="guides" role="tabpanel" aria-labelledby="guides-tab">
+                <div class="row" id="featuredGuides">
+                    <div class="col-12">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Yükleniyor...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Community Stats -->
+<section class="py-5 bg-dark text-white text-center">
+    <div class="container">
+        <h2 class="mb-5">PetWork Topluluğu</h2>
+        <div class="row counter-section">
+            <div class="col-6 col-md-3 mb-4">
+                <div class="counter-item">
+                    <div class="counter-icon mb-3">
+                        <i class="fas fa-users fa-3x"></i>
+                    </div>
+                    <h3 class="counter-number" data-counter="5840">0</h3>
+                    <p class="counter-label">Üye</p>
+                </div>
+            </div>
+            <div class="col-6 col-md-3 mb-4">
+                <div class="counter-item">
+                    <div class="counter-icon mb-3">
+                        <i class="fas fa-question-circle fa-3x"></i>
+                    </div>
+                    <h3 class="counter-number" data-counter="12650">0</h3>
+                    <p class="counter-label">Soru</p>
+                </div>
+            </div>
+            <div class="col-6 col-md-3 mb-4">
+                <div class="counter-item">
+                    <div class="counter-icon mb-3">
+                        <i class="fas fa-comment fa-3x"></i>
+                    </div>
+                    <h3 class="counter-number" data-counter="38200">0</h3>
+                    <p class="counter-label">Cevap</p>
+                </div>
+            </div>
+            <div class="col-6 col-md-3 mb-4">
+                <div class="counter-item">
+                    <div class="counter-icon mb-3">
+                        <i class="fas fa-paw fa-3x"></i>
+                    </div>
+                    <h3 class="counter-number" data-counter="7520">0</h3>
+                    <p class="counter-label">Evcil Hayvan</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Newsletter Subscription -->
+<section class="py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card border-0 shadow">
+                    <div class="card-body p-4 p-md-5 text-center">
+                        <h3 class="mb-3">Evcil Hayvan Dünyasından Haberdar Olun</h3>
+                        <p class="text-muted mb-4">Haftalık bültenimize ücretsiz kaydolun ve en yeni tarifler, hastalık bilgileri ve pet bakım rehberlerini ilk siz alın!</p>
+                        <form class="newsletter-form" id="newsletterForm">
+                            <div class="input-group mb-3">
+                                <input type="email" class="form-control" placeholder="E-posta adresiniz" required>
+                                <button class="btn btn-primary" type="submit">Abone Ol</button>
+                            </div>
+                            <small class="form-text text-muted">Spam göndermiyoruz. Dilediğiniz zaman bülten aboneliğinizi iptal edebilirsiniz.</small>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        // AJAX ile dinamik içerik yükleme
+        $(document).ready(function() {
+            // En son soruları yükle
+            $.ajax({
+                url: '/api/questions/latest',
+                method: 'GET',
+                success: function(data) {
+                    var html = '';
+                    if (data && data.length > 0) {
+                        // Veri var, içeriği oluştur
+                        data.forEach(function(question) {
+                            html += `
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card h-100 border-0 shadow-sm hover-elevate">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-3">
+                                            <img src="${question.user.profileImage}" alt="${question.user.username}" class="rounded-circle me-2" width="32" height="32">
+                                            <span class="text-muted small">${question.user.username}</span>
+                                            <span class="badge bg-${getPetTypeBadgeColor(question.petType)} ms-auto">${question.petType}</span>
+                                        </div>
+                                        <h5 class="card-title">
+                                            <a href="/Questions/Details/${question.id}" class="text-decoration-none stretched-link">${question.title}</a>
+                                        </h5>
+                                        <p class="card-text text-muted small">${truncateText(question.content, 100)}</p>
+                                    </div>
+                                    <div class="card-footer bg-transparent border-0">
+                                        <div class="d-flex justify-content-between text-muted small">
+                                            <span><i class="far fa-comment me-1"></i> ${question.answersCount} cevap</span>
+                                            <span><i class="far fa-eye me-1"></i> ${question.viewCount} görüntülenme</span>
+                                            <span><i class="far fa-clock me-1"></i> ${formatDate(question.createdAt)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>`;
+                        });
+                    } else {
+                        // Veri yok, bilgi mesajı göster
+                        html = '<div class="col-12"><div class="alert alert-info">Henüz soru bulunamadı.</div></div>';
+                    }
+                    $('#latestQuestions').html(html);
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading questions:', error);
+                    $('#latestQuestions').html(`<div class="col-12"><div class="alert alert-danger">Sorular yüklenirken bir hata oluştu: ${error}</div></div>`);
+                }
+            });
+
+            // Öne çıkan tarifleri yükle
+            loadFeaturedContent('recipes', '/api/recipes/featured');
+            
+            // Sekme değiştiğinde içerikleri yükle
+            $('#diseases-tab').on('shown.bs.tab', function() {
+                if ($('#featuredDiseases').find('.spinner-border').length) {
+                    loadFeaturedContent('diseases', '/api/diseases/featured');
+                }
+            });
+            
+            $('#guides-tab').on('shown.bs.tab', function() {
+                if ($('#featuredGuides').find('.spinner-border').length) {
+                    loadFeaturedContent('guides', '/api/guides/featured');
+                }
+            });
+            
+            // Sayaçları başlat
+            startCounters();
+            
+            // Newsletter form submit
+            $('#newsletterForm').on('submit', function(e) {
+                e.preventDefault();
+                var email = $(this).find('input[type="email"]').val();
+                
+                $.ajax({
+                    url: '/api/newsletter/subscribe',
+                    method: 'POST',
+                    data: { email: email },
+                    success: function() {
+                        alert('Bülten aboneliğiniz başarıyla oluşturuldu!');
+                        $('#newsletterForm')[0].reset();
+                    },
+                    error: function() {
+                        alert('Abonelik işlemi sırasında bir hata oluştu. Lütfen daha sonra tekrar deneyin.');
+                    }
+                });
+            });
+        });
+        
+        // Yardımcı fonksiyonlar
+        function loadFeaturedContent(type, url) {
+            $.ajax({
+                url: url,
+                method: 'GET',
+                success: function(data) {
+                    var html = '';
+                    if (data && data.length > 0) {
+                        data.forEach(function(item) {
+                            var imagePath = item.imageUrl || '/img/placeholder.jpg';
+                            // Make sure the image exists by using onerror handler
+                            html += `
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card h-100 border-0 shadow-sm hover-elevate">
+                                    <img src="${imagePath}" class="card-img-top" alt="${item.title}" onerror="this.src='/img/placeholder.jpg'">
+                                    <div class="card-body">
+                                        <h5 class="card-title">
+                                            <a href="/${type}/Details/${item.id}" class="text-decoration-none stretched-link">${item.title}</a>
+                                        </h5>
+                                        <p class="card-text text-muted small">${truncateText(item.description, 100)}</p>
+                                    </div>
+                                    <div class="card-footer bg-transparent border-0">
+                                        <div class="d-flex justify-content-between text-muted small">
+                                            <span><i class="fas fa-${type === 'recipes' ? 'utensils' : (type === 'diseases' ? 'stethoscope' : 'book')} me-1"></i> ${item.category || item.animalType}</span>
+                                            <span><i class="far fa-eye me-1"></i> ${item.viewCount} görüntülenme</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>`;
+                        });
+                    } else {
+                        html = '<div class="col-12"><div class="alert alert-info">Henüz içerik bulunamadı.</div></div>';
+                    }
+                    $(`#featured${type.charAt(0).toUpperCase() + type.slice(1)}`).html(html);
+                },
+                error: function(xhr, status, error) {
+                    console.error(`Error loading ${type}:`, error);
+                    $(`#featured${type.charAt(0).toUpperCase() + type.slice(1)}`).html(`<div class="col-12"><div class="alert alert-danger">İçerik yüklenirken bir hata oluştu: ${error}</div></div>`);
+                }
+            });
+        }
+        
+        function getPetTypeBadgeColor(petType) {
+            switch(petType) {
+                case 'Kedi': return 'success';
+                case 'Köpek': return 'primary';
+                case 'Kuş': return 'info';
+                case 'Balık': return 'info';
+                case 'Tavşan': return 'warning';
+                default: return 'secondary';
+            }
+        }
+        
+        function truncateText(text, maxLength) {
+            if (text && text.length > maxLength) {
+                return text.substring(0, maxLength) + '...';
+            }
+            return text;
+        }
+        
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffSec = Math.round(diffMs / 1000);
+            const diffMin = Math.round(diffSec / 60);
+            const diffHour = Math.round(diffMin / 60);
+            const diffDay = Math.round(diffHour / 24);
+            
+            if (diffSec < 60) {
+                return 'Az önce';
+            } else if (diffMin < 60) {
+                return `${diffMin} dakika önce`;
+            } else if (diffHour < 24) {
+                return `${diffHour} saat önce`;
+            } else if (diffDay < 30) {
+                return `${diffDay} gün önce`;
+            } else {
+                return `${date.getDate()}.${date.getMonth()+1}.${date.getFullYear()}`;
+            }
+        }
+        
+        function startCounters() {
+            $('.counter-number').each(function() {
+                var $this = $(this);
+                var target = parseInt($this.data('counter'));
+                
+                $this.prop('Counter', 0).animate({
+                    Counter: target
+                }, {
+                    duration: 2000,
+                    easing: 'swing',
+                    step: function(now) {
+                        $this.text(Math.ceil(now).toLocaleString('tr-TR'));
+                    }
+                });
+            });
+        }
+    </script>
+}
+
+@section Styles {
+    <style>
+        .hover-elevate {
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .hover-elevate:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        }
+        
+        .counter-section {
+            margin-top: 30px;
+        }
+        
+        .counter-item {
+            padding: 20px;
+        }
+        
+        .counter-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0;
+        }
+        
+        .counter-label {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+        
+        .hero-slide {
+            min-height: 500px;
+            display: flex;
+            align-items: center;
+        }
+
+        @@media (max-width: 768px) {
+            .hero-slide {
+                min-height: 350px;
+            }
+        }
+        
+        /* Dark Mode Compatibility */
+        @@media (prefers-color-scheme: dark) {
+            .bg-light {
+                background-color: #2b3035 !important;
+            }
+            
+            .text-dark {
+                color: #e9ecef !important;
+            }
+            
+            .card {
+                background-color: #343a40;
+                color: #e9ecef;
+            }
+            
+            .text-muted {
+                color: #adb5bd !important;
+            }
+        }
+    </style>
+}

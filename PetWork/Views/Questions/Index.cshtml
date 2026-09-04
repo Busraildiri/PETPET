@@ -1,0 +1,145 @@
+@model QuestionsViewModel
+@{
+    ViewData["Title"] = "Soru-Cevap";
+}
+
+<div class="container py-5">
+    <div class="row">
+        <!-- Content Column -->
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>@ViewData["Title"]</h1>
+                <a asp-controller="Questions" asp-action="Ask" class="btn btn-primary">
+                    <i class="fas fa-plus-circle me-2"></i>Soru Sor
+                </a>
+            </div>
+
+            <!-- Sorting and Filtering -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Kategori:</label>
+                            <select id="categoryFilter" class="form-select" onchange="filterQuestions()">
+                                <option value="">Tüm Kategoriler</option>
+                                @foreach (var category in Model.Categories)
+                                {
+                                    <option value="@category" selected="@(Model.SelectedCategory == category)">@category</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Sıralama:</label>
+                            <select id="sortOrder" class="form-select" onchange="filterQuestions()">
+                                <option value="newest" selected="@(Model.SortBy == "newest")">En Yeni</option>
+                                <option value="oldest" selected="@(Model.SortBy == "oldest")">En Eski</option>
+                                <option value="mostviewed" selected="@(Model.SortBy == "mostviewed")">En Çok Görüntülenen</option>
+                                <option value="mostanswered" selected="@(Model.SortBy == "mostanswered")">En Çok Yanıtlanan</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Questions List -->
+            @if (Model.Questions.Any())
+            {
+                @foreach (var question in Model.Questions)
+                {
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0">
+                                    <img src="~/@question.User.ProfileImage" class="rounded-circle" width="50" height="50" alt="User">
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h4><a asp-controller="Questions" asp-action="Details" asp-route-id="@question.Id">@question.Title</a></h4>
+                                    <p class="text-muted">
+                                        @(question.CreatedDate > DateTime.Now.AddHours(-24)
+                                            ? $"{(DateTime.Now - question.CreatedDate).Hours} saat önce soruldu"
+                                            : $"{(DateTime.Now - question.CreatedDate).Days} gün önce soruldu")
+                                        • Kategori: <span class="badge bg-secondary">@question.Category</span>
+                                        • <i class="fas fa-user me-1"></i>@question.User.Username
+                                    </p>
+                                    <p>@question.Content</p>
+                                    <div class="d-flex align-items-center">
+                                        <span class="badge bg-primary me-2"><i class="fas fa-eye me-1"></i> @question.ViewCount</span>
+                                        <span class="badge bg-success me-2"><i class="fas fa-comment me-1"></i> @(question.Answers?.Count ?? 0) Cevap</span>
+                                        <a asp-controller="Questions" asp-action="Details" asp-route-id="@question.Id" class="btn btn-sm btn-outline-primary">Cevapları Gör</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="alert alert-info">
+                    <p class="mb-0">Seçilen kriterlere uygun soru bulunamadı.</p>
+                </div>
+            }
+        </div>
+
+        <!-- Sidebar Column -->
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">Topluluğa Hoş Geldiniz</h4>
+                </div>
+                <div class="card-body">
+                    <p>Evcil hayvanınızla ilgili sorularınız mı var? Doğru yerdesiniz!</p>
+                    <ul class="list-unstyled mb-0">
+                        <li><i class="fas fa-check-circle text-success me-2"></i> Sorular sorun</li>
+                        <li><i class="fas fa-check-circle text-success me-2"></i> Deneyimli hayvan sahiplerinden cevaplar alın</li>
+                        <li><i class="fas fa-check-circle text-success me-2"></i> Bilgi ve deneyimlerinizi paylaşın</li>
+                        <li><i class="fas fa-check-circle text-success me-2"></i> Topluluk desteği kazanın</li>
+                    </ul>
+                    <div class="mt-3">
+                        <a asp-controller="Questions" asp-action="Ask" class="btn btn-primary w-100">Şimdi Soru Sorun</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">Popüler Kategoriler</h4>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var category in Model.Categories)
+                        {
+                            <a href="?category=@category" class="btn btn-sm @(Model.SelectedCategory == category ? "btn-primary" : "btn-outline-primary")">@category</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function filterQuestions() {
+            const category = document.getElementById('categoryFilter').value;
+            const sortBy = document.getElementById('sortOrder').value;
+            
+            let url = '@Url.Action("Index", "Questions")';
+            let params = [];
+            
+            if (category) {
+                params.push(`category=${encodeURIComponent(category)}`);
+            }
+            
+            if (sortBy) {
+                params.push(`sortBy=${encodeURIComponent(sortBy)}`);
+            }
+            
+            if (params.length > 0) {
+                url += '?' + params.join('&');
+            }
+            
+            window.location.href = url;
+        }
+    </script>
+} 

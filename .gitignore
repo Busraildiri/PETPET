@@ -1,0 +1,23 @@
+## Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## .NET build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+
+## Local tooling and temporary files
+.vscode/
+*.tmp
+*.log
+temp/
+
+## OS files
+.DS_Store
+Thumbs.db

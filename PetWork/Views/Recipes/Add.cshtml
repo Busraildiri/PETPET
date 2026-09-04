@@ -1,0 +1,198 @@
+@model Recipe
+@{
+    ViewData["Title"] = "Tarif Ekle";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Ana Sayfa</a></li>
+                    <li class="breadcrumb-item"><a asp-controller="Recipes" asp-action="Index">Tarifler</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Tarif Ekle</li>
+                </ol>
+            </nav>
+
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">Tarif Ekle</h2>
+                </div>
+                <div class="card-body">
+                    <form asp-controller="Recipes" asp-action="Add" method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label asp-for="Title" class="form-label">Tarif Başlığı</label>
+                            <input asp-for="Title" class="form-control" placeholder="Tarifin adı" required>
+                            <span asp-validation-for="Title" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Description" class="form-label">Kısa Açıklama</label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="Tarifiniz hakkında kısa bir açıklama..." required></textarea>
+                            <span asp-validation-for="Description" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="AnimalType" class="form-label">Hayvan Türü</label>
+                            <select asp-for="AnimalType" class="form-select" required>
+                                <option value="">Hayvan Türü Seçin</option>
+                                <option value="Kedi">Kedi</option>
+                                <option value="Köpek">Köpek</option>
+                                <option value="Kuş">Kuş</option>
+                                <option value="Kemirgen">Kemirgen</option>
+                                <option value="Akvaryum">Akvaryum</option>
+                                <option value="Diğer">Diğer</option>
+                            </select>
+                            <span asp-validation-for="AnimalType" class="text-danger"></span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label asp-for="DietType" class="form-label">Diyet Türü</label>
+                            <select asp-for="DietType" class="form-select">
+                                <option value="">Diyet Türü Seçin (İsteğe Bağlı)</option>
+                                <option value="Standart">Standart</option>
+                                <option value="Düşük Kalorili">Düşük Kalorili</option>
+                                <option value="Yüksek Proteinli">Yüksek Proteinli</option>
+                                <option value="Hassas Mide">Hassas Mide</option>
+                                <option value="Sağlık Takviyesi">Sağlık Takviyesi</option>
+                                <option value="Tamamlayıcı">Tamamlayıcı</option>
+                            </select>
+                            <span asp-validation-for="DietType" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Difficulty" class="form-label">Zorluk Seviyesi</label>
+                            <select asp-for="Difficulty" class="form-select">
+                                <option value="Kolay">Kolay</option>
+                                <option value="Orta" selected>Orta</option>
+                                <option value="Zor">Zor</option>
+                            </select>
+                            <span asp-validation-for="Difficulty" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="PreparationTime" class="form-label">Hazırlama Süresi (dakika)</label>
+                            <input asp-for="PreparationTime" type="number" class="form-control" min="5" max="180" value="30">
+                            <span asp-validation-for="PreparationTime" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Ingredients" class="form-label">Malzemeler</label>
+                            <textarea asp-for="Ingredients" class="form-control" rows="6" placeholder="Her malzemeyi yeni bir satıra yazın..." required></textarea>
+                            <span asp-validation-for="Ingredients" class="text-danger"></span>
+                            <div class="form-text">Örnek: 200g köpek maması, 1 adet havuç, 2 yemek kaşığı yoğurt</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Instructions" class="form-label">Hazırlanışı</label>
+                            <textarea asp-for="Instructions" class="form-control" rows="8" placeholder="Adım adım hazırlama talimatları..." required></textarea>
+                            <span asp-validation-for="Instructions" class="text-danger"></span>
+                            <div class="form-text">Her adımı numara veya madde işareti ile ayırın.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Content" class="form-label">Ek Bilgiler</label>
+                            <textarea asp-for="Content" class="form-control" rows="4" placeholder="Tarifiniz hakkında ek açıklamalar, ipuçları..."></textarea>
+                            <span asp-validation-for="Content" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="ImageFile" class="form-label">Tarif Görseli</label>
+                            <input type="file" class="form-control" id="ImageFile" name="ImageFile" accept="image/*" onchange="previewImage(this)">
+                            <div class="form-text">Tarifin görselini bilgisayarınızdan seçin (jpg, png, gif - max 5MB).</div>
+                            <div class="mt-2" id="imagePreviewContainer" style="display: none;">
+                                <img id="imagePreview" src="#" alt="Görsel Önizleme" class="img-thumbnail" style="max-width: 300px; max-height: 200px;">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="termsCheck" required>
+                                <input type="hidden" name="TermsAccepted" id="termsAccepted" value="false" />
+                                <label class="form-check-label" for="termsCheck">
+                                    <a href="#" target="_blank">Topluluk kurallarını</a> okudum ve kabul ediyorum.
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a asp-controller="Recipes" asp-action="Index" class="btn btn-secondary me-md-2">İptal</a>
+                            <button type="submit" class="btn btn-primary">Tarifi Gönder</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h4 class="mb-0">Etkili Bir Evcil Hayvan Tarifi İçin İpuçları</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="text-success"><i class="fas fa-check-circle me-2"></i> Yapılması Gerekenler</h5>
+                            <ul>
+                                <li>Hayvanınızın ihtiyaçlarına ve sağlık durumuna uygun malzemeler seçin</li>
+                                <li>Miktarları net bir şekilde belirtin</li>
+                                <li>Olası alerjenleri vurgulayın</li>
+                                <li>Hazırlama adımlarını anlaşılır bir şekilde açıklayın</li>
+                                <li>Porsiyonu ve saklama koşullarını belirtin</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="text-danger"><i class="fas fa-times-circle me-2"></i> Yapılmaması Gerekenler</h5>
+                            <ul>
+                                <li>Sağlıksız veya tehlikeli malzemeler eklemeyin</li>
+                                <li>Hayvanınızın günlük besin ihtiyacını aşan tarifler paylaşmayın</li>
+                                <li>Veteriner onayı olmadan tedavi amaçlı tarifler paylaşmayın</li>
+                                <li>İnsan yiyeceklerini sorgulamadan evcil hayvan tarifleri olarak sunmayın</li>
+                                <li>Şeker, çikolata, soğan gibi hayvanlara zararlı olabilecek malzemeler kullanmayın</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        // Terms checkbox durumunu hidden field'a aktar
+        $(document).ready(function() {
+            $("#termsCheck").change(function() {
+                $("#termsAccepted").val($(this).is(":checked"));
+            });
+            
+            // Form gönderilirken terms checkbox kontrolü
+            $("form").submit(function(e) {
+                if (!$("#termsCheck").is(":checked")) {
+                    e.preventDefault();
+                    alert("Devam etmek için topluluk kurallarını kabul etmelisiniz.");
+                    return false;
+                }
+                return true;
+            });
+        });
+        
+        // Görsel önizleme için fonksiyon
+        function previewImage(input) {
+            var preview = document.getElementById('imagePreview');
+            var previewContainer = document.getElementById('imagePreviewContainer');
+            
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    previewContainer.style.display = 'block';
+                }
+                
+                reader.readAsDataURL(input.files[0]);
+            } else {
+                previewContainer.style.display = 'none';
+            }
+        }
+    </script>
+} 

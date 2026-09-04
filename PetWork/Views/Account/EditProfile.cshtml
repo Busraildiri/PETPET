@@ -1,0 +1,148 @@
+@model EditProfileViewModel
+@{
+    ViewData["Title"] = "Profil Düzenle";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Ana Sayfa</a></li>
+                    <li class="breadcrumb-item"><a asp-controller="Account" asp-action="Profile">Profilim</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Profil Düzenle</li>
+                </ol>
+            </nav>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">@ViewData["Title"]</h2>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-controller="Account" asp-action="EditProfile" method="post" enctype="multipart/form-data">
+                        <div class="text-danger" asp-validation-summary="ModelOnly"></div>
+
+                        <div class="mb-4">
+                            <h4>Profil Bilgileri</h4>
+                            <hr />
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-floating mb-3">
+                                        <input asp-for="Username" class="form-control" placeholder="Kullanıcı adı" required>
+                                        <label asp-for="Username">Kullanıcı Adı</label>
+                                        <span asp-validation-for="Username" class="text-danger"></span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-floating mb-3">
+                                        <input asp-for="Email" class="form-control" placeholder="E-posta" required>
+                                        <label asp-for="Email">E-posta</label>
+                                        <span asp-validation-for="Email" class="text-danger"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="Bio" class="form-label">Hakkımda</label>
+                                <textarea asp-for="Bio" class="form-control" rows="4" placeholder="Kendinizi tanıtın..."></textarea>
+                                <span asp-validation-for="Bio" class="text-danger"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="ProfileImage" class="form-label">Profil Resmi</label>
+                                <input asp-for="ProfileImage" class="form-control" type="file" accept="image/*">
+                                <span asp-validation-for="ProfileImage" class="text-danger"></span>
+                                <div class="form-text">Maksimum dosya boyutu: 2MB. İzin verilen formatlar: JPG, PNG, GIF.</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h4>Şifre Değiştir <span class="text-muted small">(İsteğe bağlı)</span></h4>
+                            <hr />
+                            
+                            <div class="form-floating mb-3">
+                                <input asp-for="CurrentPassword" class="form-control" placeholder="Mevcut Şifre">
+                                <label asp-for="CurrentPassword">Mevcut Şifre</label>
+                                <span asp-validation-for="CurrentPassword" class="text-danger"></span>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-floating mb-3">
+                                        <input asp-for="NewPassword" class="form-control" placeholder="Yeni Şifre">
+                                        <label asp-for="NewPassword">Yeni Şifre</label>
+                                        <span asp-validation-for="NewPassword" class="text-danger"></span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-floating mb-3">
+                                        <input asp-for="ConfirmNewPassword" class="form-control" placeholder="Yeni Şifre Onayı">
+                                        <label asp-for="ConfirmNewPassword">Yeni Şifre Onayı</label>
+                                        <span asp-validation-for="ConfirmNewPassword" class="text-danger"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a asp-controller="Account" asp-action="Profile" class="btn btn-secondary me-md-2">İptal</a>
+                            <button type="submit" class="btn btn-primary">Değişiklikleri Kaydet</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-4 border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">Hesap Silme</h4>
+                </div>
+                <div class="card-body">
+                    <p>Hesabınızı silmek geri alınamaz bir işlemdir. Tüm verileriniz kalıcı olarak silinecektir.</p>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
+                            Hesabımı Sil
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Account Modal -->
+<div class="modal fade" id="deleteAccountModal" tabindex="-1" aria-labelledby="deleteAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteAccountModalLabel">Hesap Silme Onayı</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold">Bu işlem geri alınamaz!</p>
+                <p>Hesabınızı silmek istediğinizden emin misiniz? Aşağıdaki veriler kalıcı olarak silinecektir:</p>
+                <ul>
+                    <li>Profil bilgileriniz</li>
+                    <li>Sorularınız ve cevaplarınız</li>
+                    <li>Evcil hayvan bilgileriniz</li>
+                    <li>Kaydedilmiş içerikleriniz</li>
+                </ul>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i> Onaylamak için lütfen şifrenizi girin:
+                </div>
+                <div class="form-floating mb-3">
+                    <input type="password" class="form-control" id="confirmPassword" placeholder="Şifre">
+                    <label for="confirmPassword">Şifre</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                <button type="button" class="btn btn-danger">Hesabımı Kalıcı Olarak Sil</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+} 

@@ -1,0 +1,169 @@
+﻿<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - PetWork</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="~/css/style.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+            <div class="container">
+                <a class="navbar-brand" asp-controller="Home" asp-action="Index">
+                    <img src="~/img/logo.png" alt="PetWork Logo" height="40" class="d-inline-block align-text-top me-2">
+                    PetWork
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Home" asp-action="Index">Ana Sayfa</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Questions" asp-action="Index">Soru-Cevap</a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                İçerikler
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+                                <li><a class="dropdown-item" asp-controller="Blog" asp-action="Index">Blog</a></li>
+                                <li><a class="dropdown-item" asp-controller="Recipes" asp-action="Index">Tarifler</a></li>
+                                <li><a class="dropdown-item" asp-controller="Diseases" asp-action="Index">Hastalık Bilgileri</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" asp-controller="Guide" asp-action="Index">Bakım Rehberleri</a></li>
+                            </ul>
+                        </li>
+                        @if (Context.Session.GetInt32("UserId").HasValue)
+                        {
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="createDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-plus-circle me-1"></i>İçerik Ekle
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="createDropdown">
+                                    <li><a class="dropdown-item" asp-controller="Questions" asp-action="Ask">Soru Sor</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Recipes" asp-action="Add">Tarif Ekle</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Blog" asp-action="Add">Blog Yazısı Ekle</a></li>
+                                </ul>
+                            </li>
+                        }
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Home" asp-action="About">Hakkımızda</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Home" asp-action="Privacy">Gizlilik</a>
+                        </li>
+                    </ul>
+                    <form class="d-flex me-2">
+                        <div class="input-group">
+                            <input class="form-control" type="search" placeholder="Ara..." aria-label="Ara">
+                            <button class="btn btn-light" type="submit">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </form>
+                    <partial name="_LoginPartial" />
+                </div>
+            </div>
+        </nav>
+    </header>
+    
+    <main role="main">
+        <!-- Bildirimler için alan -->
+        <div class="container mt-3">
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+            
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+            
+            @if (TempData["InfoMessage"] != null)
+            {
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>@TempData["InfoMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+        </div>
+        
+        @RenderBody()
+    </main>
+    
+    <footer class="border-top footer bg-light py-4">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-3 mb-md-0">
+                    <h5>PetWork</h5>
+                    <p class="text-muted">
+                        Evcil hayvan sahipleri için bilgi ve deneyim paylaşım platformu
+                    </p>
+                    <div class="social-icons">
+                        <a href="#" class="me-2"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="me-2"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="me-2"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="me-2"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3 mb-md-0">
+                    <h5>Bağlantılar</h5>
+                    <ul class="list-unstyled">
+                        <li><a asp-controller="Home" asp-action="Index">Ana Sayfa</a></li>
+                        <li><a asp-controller="Questions" asp-action="Index">Soru-Cevap</a></li>
+                        <li><a asp-controller="Blog" asp-action="Index">Blog</a></li>
+                        <li><a asp-controller="Home" asp-action="About">Hakkımızda</a></li>
+                        <li><a asp-controller="Home" asp-action="Privacy">Gizlilik</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3 mb-3 mb-md-0">
+                    <h5>Kategoriler</h5>
+                    <ul class="list-unstyled">
+                        <li><a asp-controller="Blog" asp-action="Index" asp-route-category="Kedi Bakımı">Kedi Bakımı</a></li>
+                        <li><a asp-controller="Blog" asp-action="Index" asp-route-category="Köpek Bakımı">Köpek Bakımı</a></li>
+                        <li><a asp-controller="Blog" asp-action="Index" asp-route-category="Kuş Bakımı">Kuş Bakımı</a></li>
+                        <li><a asp-controller="Blog" asp-action="Index" asp-route-category="Kemirgen Bakımı">Kemirgen Bakımı</a></li>
+                        <li><a asp-controller="Blog" asp-action="Index" asp-route-category="Genel Bakım">Diğer Evcil Hayvanlar</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h5>İletişim</h5>
+                    <address>
+                        <strong>PetWork</strong><br>
+                        Ataşehir, İstanbul<br>
+                        <i class="far fa-envelope me-1"></i> <a href="mailto:info@petwork.com">info@petwork.com</a><br>
+                        <i class="fas fa-phone me-1"></i> <a href="tel:+902121234567">+90 212 123 45 67</a>
+                    </address>
+                </div>
+            </div>
+            <div class="text-center mt-3">
+                <p class="mb-0">&copy; @DateTime.Now.Year - PetWork. Tüm hakları saklıdır.</p>
+            </div>
+        </div>
+    </footer>
+    
+    <button id="scrollToTop" class="btn btn-primary rounded-circle position-fixed bottom-0 end-0 m-3 p-2">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+    
+    <!-- JavaScript Libraries -->
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

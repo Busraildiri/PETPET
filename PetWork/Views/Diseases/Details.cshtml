@@ -1,0 +1,141 @@
+@model PetWork.Models.Disease
+
+@{
+    ViewData["Title"] = Model.Name;
+}
+
+<section class="py-5">
+    <div class="container">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Ana Sayfa</a></li>
+                <li class="breadcrumb-item"><a asp-controller="Diseases" asp-action="Index">Hastalıklar</a></li>
+                <li class="breadcrumb-item active" aria-current="page">@Model.Name</li>
+            </ol>
+        </nav>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <h1 class="mb-3">@Model.Name</h1>
+                
+                <div class="d-flex mb-4">
+                    <span class="badge @(Model.AnimalType == "Kedi" ? "bg-success" : (Model.AnimalType == "Köpek" ? "bg-primary" : "bg-info")) me-2">@Model.AnimalType</span>
+                    <span class="badge bg-secondary me-2">@Model.Category</span>
+                    <span class="badge @(Model.SeverityLevel == "Yüksek" ? "bg-danger" : (Model.SeverityLevel == "Orta" ? "bg-warning" : "bg-success"))">
+                        @Model.SeverityLevel Riskli
+                    </span>
+                    <span class="text-muted ms-auto"><i class="far fa-eye me-1"></i> @Model.ViewCount görüntüleme</span>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Hastalık Tanımı</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>@Model.Description</p>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Belirtiler</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(Model.Symptoms))
+                        {
+                            @Html.Raw(Model.Symptoms)
+                        }
+                        else
+                        {
+                            <p class="text-muted">Belirti bilgisi belirtilmemiş.</p>
+                        }
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Tedavi</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(Model.Treatment))
+                        {
+                            @Html.Raw(Model.Treatment)
+                        }
+                        else if (!string.IsNullOrEmpty(Model.Treatments))
+                        {
+                            <p>@Model.Treatments</p>
+                        }
+                        else
+                        {
+                            <p class="text-muted">Tedavi bilgisi belirtilmemiş.</p>
+                        }
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Korunma Yöntemleri</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(Model.Prevention))
+                        {
+                            @Html.Raw(Model.Prevention)
+                        }
+                        else
+                        {
+                            <p class="text-muted">Korunma bilgisi belirtilmemiş.</p>
+                        }
+                    </div>
+                </div>
+
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-exclamation-triangle me-2"></i> Önemli Not</h5>
+                    <p class="mb-0">Bu bilgiler sadece genel bilgi amaçlıdır ve veteriner hekiminizin yerini tutmaz. Evcil hayvanınızda herhangi bir sağlık sorunu olduğunu düşünüyorsanız, lütfen vakit kaybetmeden veteriner hekiminize başvurunuz.</p>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Benzer Hastalıklar</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Bu hayvan türü için daha fazla hastalık bilgisi...</p>
+                        <a asp-controller="Diseases" asp-action="Index" asp-route-animalType="@Model.AnimalType" class="btn btn-outline-primary w-100 mb-2">
+                            @Model.AnimalType Hastalıkları
+                        </a>
+                        <a asp-controller="Diseases" asp-action="Index" asp-route-category="@Model.Category" class="btn btn-outline-secondary w-100">
+                            @Model.Category Kategorisi
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">İlgili Bakım Rehberleri</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Bu hayvan türü için bakım rehberlerine göz atın.</p>
+                        <a asp-controller="Guide" asp-action="Index" asp-route-animalType="@Model.AnimalType" class="btn btn-outline-primary w-100">
+                            @Model.AnimalType Bakım Rehberleri
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Paylaş</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-around">
+                            <a href="#" class="text-primary"><i class="fab fa-facebook-f fa-2x"></i></a>
+                            <a href="#" class="text-info"><i class="fab fa-twitter fa-2x"></i></a>
+                            <a href="#" class="text-danger"><i class="fab fa-pinterest fa-2x"></i></a>
+                            <a href="#" class="text-success"><i class="fab fa-whatsapp fa-2x"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section> 

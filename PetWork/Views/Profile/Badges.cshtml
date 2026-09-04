@@ -1,0 +1,140 @@
+@model PetWork.Models.User
+
+@{
+    ViewData["Title"] = "Rozetlerim";
+}
+
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>@ViewData["Title"]</h1>
+        <a asp-action="Index" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i> Profilime Dön
+        </a>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="mb-4 text-primary">Deneyim Puanı ve Rozetler</h5>
+            <p>Aşağıdaki aktiviteler ile deneyim puanı kazanabilir ve rozetler elde edebilirsiniz:</p>
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <ul class="list-group mb-3">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Soru Sormak
+                            <span class="badge bg-primary rounded-pill">+10 XP</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Soruya Cevap Vermek
+                            <span class="badge bg-primary rounded-pill">+15 XP</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Cevabınızın Kabul Edilmesi
+                            <span class="badge bg-primary rounded-pill">+25 XP</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Tarif Eklemek
+                            <span class="badge bg-primary rounded-pill">+30 XP</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Rehber Yazısı Eklemek
+                            <span class="badge bg-primary rounded-pill">+50 XP</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Günlük Giriş
+                            <span class="badge bg-primary rounded-pill">+5 XP</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Profil Bilgilerini Tamamlamak
+                            <span class="badge bg-primary rounded-pill">+20 XP</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Evcil Hayvan Eklemek
+                            <span class="badge bg-primary rounded-pill">+15 XP</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="progress mb-4" style="height: 25px;">
+                @{
+                    int nextLevel = 0;
+                    string levelName = "";
+                    
+                    if (Model.ExperiencePoints < 100) { nextLevel = 100; levelName = "Yeni Başlayan"; }
+                    else if (Model.ExperiencePoints < 500) { nextLevel = 500; levelName = "Aktif Üye"; }
+                    else if (Model.ExperiencePoints < 1000) { nextLevel = 1000; levelName = "Deneyimli Üye"; }
+                    else if (Model.ExperiencePoints < 5000) { nextLevel = 5000; levelName = "Uzman Üye"; }
+                    else if (Model.ExperiencePoints < 10000) { nextLevel = 10000; levelName = "Guru"; }
+                    else { nextLevel = Model.ExperiencePoints; levelName = "Guru"; }
+                    
+                    var percentage = (nextLevel > 0) ? Math.Min(100, (Model.ExperiencePoints * 100) / nextLevel) : 100;
+                }
+                <div class="progress-bar bg-success" role="progressbar" style="width: @percentage%;" aria-valuenow="@percentage" aria-valuemin="0" aria-valuemax="100">
+                    <strong>@Model.ExperiencePoints XP / @nextLevel XP (@percentage%)</strong>
+                </div>
+            </div>
+            
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i> Şu anki seviyeniz: <strong>@(Model.ExperiencePoints >= 10000 ? "Guru" : (Model.ExperiencePoints >= 5000 ? "Uzman Üye" : (Model.ExperiencePoints >= 1000 ? "Deneyimli Üye" : (Model.ExperiencePoints >= 500 ? "Aktif Üye" : (Model.ExperiencePoints >= 100 ? "Yeni Başlayan" : "Yeni Üye")))))</strong>. Sonraki seviye: <strong>@levelName</strong>
+            </div>
+        </div>
+    </div>
+    
+    <h2 class="mb-4">Kazanılan Rozetler</h2>
+    
+    <div class="row mb-5">
+        @if (Model.Badges == null || !Model.Badges.Any())
+        {
+            <div class="col-12">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i> Henüz rozet kazanmadınız. Etkinliklere katılarak rozetler kazanabilirsiniz.
+                </div>
+            </div>
+        }
+        else
+        {
+            @foreach (var badge in Model.Badges)
+            {
+                <div class="col-md-4 col-lg-3 mb-4">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <img src="~/@badge.IconUrl" alt="@badge.Name" class="img-fluid mb-3" style="max-width: 80px;">
+                            <h5 class="card-title">@badge.Name</h5>
+                            <p class="card-text small text-muted">@badge.Description</p>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+    
+    <h2 class="mb-4">Mevcut Tüm Rozetler</h2>
+    
+    <div class="row">
+        @foreach (var badge in ViewBag.AllBadges)
+        {
+            bool hasEarned = Model.Badges?.Any(b => b.Id == badge.Id) ?? false;
+            <div class="col-md-4 col-lg-3 mb-4">
+                <div class="card text-center h-100 @(hasEarned ? "border-success" : "")">
+                    <div class="card-body @(hasEarned ? "" : "opacity-50")">
+                        <img src="~/@badge.IconUrl" alt="@badge.Name" class="img-fluid mb-3" style="max-width: 80px;">
+                        <h5 class="card-title">@badge.Name</h5>
+                        <p class="card-text small text-muted">@badge.Description</p>
+                        @if (hasEarned)
+                        {
+                            <span class="badge bg-success">Kazanıldı</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Kazanılmadı</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div> 

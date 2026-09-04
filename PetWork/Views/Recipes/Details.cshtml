@@ -1,0 +1,142 @@
+@model PetWork.Models.Recipe
+
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<section class="py-5">
+    <div class="container">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Ana Sayfa</a></li>
+                <li class="breadcrumb-item"><a asp-controller="Recipes" asp-action="Index">Tarifler</a></li>
+                <li class="breadcrumb-item active" aria-current="page">@Model.Title</li>
+            </ol>
+        </nav>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <h1 class="mb-3">@Model.Title</h1>
+                
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="d-flex align-items-center">
+                        <img src="~/@(string.IsNullOrEmpty(Model.User?.ProfileImage) ? "img/user-profile.jpg" : Model.User.ProfileImage)" alt="@Model.User?.Username" class="rounded-circle me-2" width="40" height="40">
+                        <span class="text-muted">@Model.User?.Username</span>
+                    </div>
+                    <div>
+                        <span class="badge @(Model.AnimalType == "Kedi" ? "bg-success" : (Model.AnimalType == "Köpek" ? "bg-primary" : "bg-info"))">@Model.AnimalType</span>
+                        <span class="badge bg-secondary ms-2">@Model.Difficulty</span>
+                        <span class="text-muted ms-3 small"><i class="far fa-clock me-1"></i> @Model.PreparationTime dk</span>
+                        <span class="text-muted ms-3 small"><i class="far fa-eye me-1"></i> @Model.ViewCount görüntüleme</span>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <img src="~/@(string.IsNullOrEmpty(Model.ImageUrl) ? "img/recipe-default.jpg" : Model.ImageUrl)" class="img-fluid rounded" alt="@Model.Title">
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Tarif Açıklaması</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>@Model.Description</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">Malzemeler</h5>
+                            </div>
+                            <div class="card-body">
+                                @if (!string.IsNullOrEmpty(Model.Ingredients))
+                                {
+                                    <ul class="list-group list-group-flush">
+                                        @foreach (var ingredient in Model.Ingredients.Split('\n'))
+                                        {
+                                            <li class="list-group-item">@ingredient.Trim()</li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <p class="text-muted">Malzeme bilgisi belirtilmemiş.</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">Hazırlama Bilgileri</h5>
+                            </div>
+                            <div class="card-body">
+                                <dl class="row mb-0">
+                                    <dt class="col-sm-6">Hazırlama Süresi:</dt>
+                                    <dd class="col-sm-6">@Model.PreparationTime dakika</dd>
+                                    
+                                    <dt class="col-sm-6">Zorluk Seviyesi:</dt>
+                                    <dd class="col-sm-6">@Model.Difficulty</dd>
+                                    
+                                    <dt class="col-sm-6">Hayvan Türü:</dt>
+                                    <dd class="col-sm-6">@Model.AnimalType</dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Hazırlanışı</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(Model.Instructions))
+                        {
+                            @Html.Raw(Model.Instructions)
+                        }
+                        else
+                        {
+                            <p class="text-muted">Hazırlanış bilgisi belirtilmemiş.</p>
+                        }
+                    </div>
+                </div>
+
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-exclamation-triangle me-2"></i> Önemli Not</h5>
+                    <p class="mb-0">Bu tarif sadece genel bilgi amaçlıdır. Evcil hayvanınızın özel sağlık durumları, alerjileri veya diyet kısıtlamaları varsa, tarifi uygulamadan önce mutlaka veteriner hekiminize danışınız.</p>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Benzer Tarifler</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Bu hayvan türü için daha fazla tarif...</p>
+                        <a asp-controller="Recipes" asp-action="Index" asp-route-animalType="@Model.AnimalType" class="btn btn-outline-primary w-100">
+                            @Model.AnimalType Tarifleri
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Paylaş</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-around">
+                            <a href="#" class="text-primary"><i class="fab fa-facebook-f fa-2x"></i></a>
+                            <a href="#" class="text-info"><i class="fab fa-twitter fa-2x"></i></a>
+                            <a href="#" class="text-danger"><i class="fab fa-pinterest fa-2x"></i></a>
+                            <a href="#" class="text-success"><i class="fab fa-whatsapp fa-2x"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section> 

@@ -1,0 +1,103 @@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "Giriş Yap";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white text-center py-3">
+                    <h2 class="mb-0">@ViewData["Title"]</h2>
+                </div>
+                <div class="card-body p-4">
+                    @if (TempData["SuccessMessage"] != null)
+                    {
+                        <div class="alert alert-success mb-3">
+                            @TempData["SuccessMessage"]
+                        </div>
+                    }
+                    
+                    @if (ViewBag.Error != null)
+                    {
+                        <div class="alert alert-danger mb-3">
+                            <p>Giriş yapılırken bir hata oluştu. Lütfen tekrar deneyin.</p>
+                            <div style="display: none;">@ViewBag.Error</div>
+                        </div>
+                        <script>
+                            console.error('Login error:', '@Html.Raw(ViewBag.Error?.ToString().Replace("'", "\\'"))');
+                        </script>
+                    }
+                    
+                    <form asp-controller="Account" asp-action="Login" method="post">
+                        <div class="text-danger" asp-validation-summary="ModelOnly"></div>
+
+                        <div class="form-floating mb-3">
+                            <input asp-for="UsernameOrEmail" class="form-control" placeholder="Kullanıcı adı veya e-posta" autocomplete="username" required>
+                            <label asp-for="UsernameOrEmail">Kullanıcı Adı veya E-posta</label>
+                            <span asp-validation-for="UsernameOrEmail" class="text-danger"></span>
+                        </div>
+
+                        <div class="form-floating mb-3">
+                            <input asp-for="Password" class="form-control" placeholder="Şifre" autocomplete="current-password" required>
+                            <label asp-for="Password">Şifre</label>
+                            <span asp-validation-for="Password" class="text-danger"></span>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input asp-for="RememberMe" class="form-check-input">
+                            <label asp-for="RememberMe" class="form-check-label">Beni Hatırla</label>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">Giriş Yap</button>
+                        </div>
+
+                        <div class="text-center mt-3">
+                            <a href="#" class="text-decoration-none">Şifremi Unuttum</a>
+                        </div>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <div class="text-center">
+                        <p class="mb-3">Sosyal medya hesabınızla giriş yapın:</p>
+                        <div class="d-flex justify-content-center gap-3">
+                            <button class="btn btn-outline-primary rounded-circle">
+                                <i class="fab fa-facebook-f"></i>
+                            </button>
+                            <button class="btn btn-outline-info rounded-circle">
+                                <i class="fab fa-twitter"></i>
+                            </button>
+                            <button class="btn btn-outline-danger rounded-circle">
+                                <i class="fab fa-google"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <p class="mb-0">Hesabınız yok mu? <a asp-controller="Account" asp-action="Register">Üye Olun</a></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h4 class="mb-0">PetWork'e Hoş Geldiniz!</h4>
+                            <p class="mb-0">Evcil hayvanınız için bilgi, destek ve topluluk bir arada.</p>
+                        </div>
+                        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                            <a href="#" class="btn btn-outline-primary">Daha Fazla Bilgi</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+} 

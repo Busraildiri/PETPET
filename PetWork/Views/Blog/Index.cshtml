@@ -1,0 +1,183 @@
+@using PetWork.Models.ViewModels
+@model BlogViewModel
+@{
+    ViewData["Title"] = "Blog";
+}
+
+<div class="container py-5">
+    <div class="row">
+        <!-- İçerik Sütunu -->
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>@ViewData["Title"]</h1>
+                @if (User.Identity.IsAuthenticated)
+                {
+                    <a href="#" class="btn btn-primary">
+                        <i class="fas fa-pen me-2"></i>Yeni Yazı
+                    </a>
+                }
+            </div>
+
+            <!-- Sıralama ve Filtreleme -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Kategori:</label>
+                            <select id="categoryFilter" class="form-select" onchange="filterBlogs()">
+                                <option value="">Tüm Kategoriler</option>
+                                @foreach (var category in Model.Categories)
+                                {
+                                    <option value="@category" selected="@(Model.SelectedCategory == category)">@category</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Sıralama:</label>
+                            <select id="sortOrder" class="form-select" onchange="filterBlogs()">
+                                <option value="newest" selected="@(Model.SortBy == "newest")">En Yeni</option>
+                                <option value="oldest" selected="@(Model.SortBy == "oldest")">En Eski</option>
+                                <option value="mostviewed" selected="@(Model.SortBy == "mostviewed")">En Çok Okunan</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blog Yazıları Listesi -->
+            @if (Model.BlogPosts.Any())
+            {
+                foreach (var blog in Model.BlogPosts)
+                {
+                    <div class="card mb-4">
+                        <div class="row g-0">
+                            <div class="col-md-4">
+                                <img src="~/@blog.ImageUrl" class="img-fluid rounded-start h-100" style="object-fit: cover;" alt="@blog.Title">
+                            </div>
+                            <div class="col-md-8">
+                                <div class="card-body d-flex flex-column h-100">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="badge bg-primary">@blog.Category</span>
+                                        <small class="text-muted">
+                                            @(blog.PublishDate > DateTime.Now.AddHours(-24)
+                                                ? $"{(DateTime.Now - blog.PublishDate).Hours} saat önce"
+                                                : $"{(DateTime.Now - blog.PublishDate).Days} gün önce")
+                                        </small>
+                                    </div>
+                                    <h4 class="card-title">
+                                        <a asp-controller="Blog" asp-action="Details" asp-route-id="@blog.Id" class="text-decoration-none">@blog.Title</a>
+                                    </h4>
+                                    <p class="card-text">@(blog.Content.Length > 150 ? blog.Content.Substring(0, 150) + "..." : blog.Content)</p>
+                                    
+                                    <div class="mt-auto d-flex justify-content-between align-items-center">
+                                        <div class="d-flex align-items-center">
+                                            <img src="~/@blog.User.ProfileImage" class="rounded-circle me-2" width="30" height="30" alt="@blog.User.Username">
+                                            <span class="text-muted small">@blog.User.Username</span>
+                                        </div>
+                                        <a asp-controller="Blog" asp-action="Details" asp-route-id="@blog.Id" class="btn btn-sm btn-outline-primary">
+                                            Devamını Oku <i class="fas fa-arrow-right ms-1"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="alert alert-info">
+                    <p class="mb-0">Seçilen kriterlere uygun blog yazısı bulunamadı.</p>
+                </div>
+            }
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">Kategoriler</h4>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var category in Model.Categories)
+                        {
+                            <a href="?category=@category" class="btn btn-sm @(Model.SelectedCategory == category ? "btn-primary" : "btn-outline-primary")">@category</a>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">En Çok Okunanlar</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        @foreach (var blog in Model.BlogPosts.OrderByDescending(b => b.ViewCount).Take(5))
+                        {
+                            <li class="list-group-item px-0">
+                                <a asp-controller="Blog" asp-action="Details" asp-route-id="@blog.Id" class="text-decoration-none">
+                                    <div class="d-flex">
+                                        <img src="~/@blog.ImageUrl" class="rounded me-2" width="60" height="60" style="object-fit: cover;" alt="@blog.Title">
+                                        <div>
+                                            <h6 class="mb-1">@blog.Title</h6>
+                                            <small class="text-muted">
+                                                <i class="fas fa-eye me-1"></i> @blog.ViewCount görüntüleme
+                                            </small>
+                                        </div>
+                                    </div>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Blog'a Katkıda Bulunun</h4>
+                </div>
+                <div class="card-body">
+                    <p>Evcil hayvanlar hakkında bilginizi paylaşmak ister misiniz? Hikayelerinizi, ipuçlarınızı ve deneyimlerinizi toplulukla paylaşın.</p>
+                    @if (User.Identity.IsAuthenticated)
+                    {
+                        <a href="#" class="btn btn-primary w-100">Yeni Yazı Ekle</a>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning mb-0">
+                            Blog yazısı eklemek için lütfen <a asp-controller="Account" asp-action="Login">giriş yapın</a> veya <a asp-controller="Account" asp-action="Register">üye olun</a>.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function filterBlogs() {
+            const category = document.getElementById('categoryFilter').value;
+            const sortBy = document.getElementById('sortOrder').value;
+            
+            let url = '@Url.Action("Index", "Blog")';
+            let params = [];
+            
+            if (category) {
+                params.push(`category=${encodeURIComponent(category)}`);
+            }
+            
+            if (sortBy) {
+                params.push(`sortBy=${encodeURIComponent(sortBy)}`);
+            }
+            
+            if (params.length > 0) {
+                url += '?' + params.join('&');
+            }
+            
+            window.location.href = url;
+        }
+    </script>
+} 

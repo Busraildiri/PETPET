@@ -1,0 +1,130 @@
+@model RegisterViewModel
+@{
+    ViewData["Title"] = "Üye Ol";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white text-center py-3">
+                    <h2 class="mb-0">@ViewData["Title"]</h2>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-controller="Account" asp-action="Register" method="post">
+                        <div class="text-danger" asp-validation-summary="ModelOnly"></div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-floating mb-3">
+                                    <input asp-for="Username" class="form-control" placeholder="Kullanıcı adı" required>
+                                    <label asp-for="Username">Kullanıcı Adı</label>
+                                    <span asp-validation-for="Username" class="text-danger"></span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating mb-3">
+                                    <input asp-for="Email" class="form-control" placeholder="E-posta" required>
+                                    <label asp-for="Email">E-posta</label>
+                                    <span asp-validation-for="Email" class="text-danger"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-floating mb-3">
+                                    <input asp-for="Password" class="form-control" placeholder="Şifre" required>
+                                    <label asp-for="Password">Şifre</label>
+                                    <span asp-validation-for="Password" class="text-danger"></span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating mb-3">
+                                    <input asp-for="ConfirmPassword" class="form-control" placeholder="Şifre Onayı" required>
+                                    <label asp-for="ConfirmPassword">Şifre Onayı</label>
+                                    <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input type="checkbox" id="AcceptTerms" name="AcceptTerms" class="form-check-input" value="true" />
+                            <input name="AcceptTerms" type="hidden" value="false" />
+                            <label class="form-check-label" for="AcceptTerms">
+                                <a href="#" target="_blank">Kullanım koşullarını</a> ve <a href="#" target="_blank">gizlilik politikasını</a> okudum ve kabul ediyorum.
+                            </label>
+                            <span asp-validation-for="AcceptTerms" class="text-danger d-block"></span>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">Üye Ol</button>
+                        </div>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <div class="text-center">
+                        <p class="mb-3">Sosyal medya hesabınızla üye olun:</p>
+                        <div class="d-flex justify-content-center gap-3">
+                            <button class="btn btn-outline-primary rounded-circle">
+                                <i class="fab fa-facebook-f"></i>
+                            </button>
+                            <button class="btn btn-outline-info rounded-circle">
+                                <i class="fab fa-twitter"></i>
+                            </button>
+                            <button class="btn btn-outline-danger rounded-circle">
+                                <i class="fab fa-google"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <p class="mb-0">Zaten bir hesabınız var mı? <a asp-controller="Account" asp-action="Login">Giriş Yapın</a></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h4 class="mb-0">Üyelik Avantajları</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Sorulara cevap verebilirsiniz</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Kendi sorularınızı sorabilirsiniz</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> İçeriklere yorum yapabilirsiniz</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Favori içerikleri kaydedebilirsiniz</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Evcil hayvanlarınızı profil sayfanıza ekleyebilirsiniz</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Diğer hayvan severlerle bağlantı kurabilirsiniz</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function() {
+            $('form').submit(function(e) {
+                if (!$('#AcceptTerms').is(':checked')) {
+                    e.preventDefault();
+                    alert('Devam etmek için kullanım koşullarını kabul etmelisiniz.');
+                    $('#AcceptTerms').focus();
+                    return false;
+                }
+                return true;
+            });
+        });
+    </script>
+} 

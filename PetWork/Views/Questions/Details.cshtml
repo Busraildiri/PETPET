@@ -1,0 +1,225 @@
+@model Question
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<div class="container py-5">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Ana Sayfa</a></li>
+            <li class="breadcrumb-item"><a asp-controller="Questions" asp-action="Index">Soru-Cevap</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@Model.Title</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Main Content Column -->
+        <div class="col-lg-8">
+            <!-- Question Card -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">@Model.Title</h2>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex mb-3">
+                        <div class="flex-shrink-0">
+                            <img src="~/@Model.User.ProfileImage" class="rounded-circle" width="50" height="50" alt="User">
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">@Model.User.Username</h5>
+                                <span class="text-muted">
+                                    <i class="fas fa-calendar-alt me-1"></i> @Model.CreatedDate.ToString("dd MMMM yyyy HH:mm")
+                                </span>
+                            </div>
+                            <div>
+                                <span class="badge bg-secondary">@Model.Category</span>
+                                <span class="badge bg-info"><i class="fas fa-eye me-1"></i> @Model.ViewCount görüntülenme</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="question-content mb-3">
+                        <p>@Model.Content</p>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2">
+                                <i class="fas fa-share-alt me-1"></i> Paylaş
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-bookmark me-1"></i> Kaydet
+                            </button>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-flag me-1"></i> Bildir
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Answers Section -->
+            <div class="mb-4">
+                <h3 class="mb-3">
+                    <span class="badge bg-success me-2">@(Model.Answers?.Count ?? 0)</span> Cevap
+                </h3>
+
+                @if (Model.Answers != null && Model.Answers.Any())
+                {
+                    @foreach (var answer in Model.Answers.OrderByDescending(a => a.IsAccepted).ThenByDescending(a => a.UpVotes - a.DownVotes))
+                    {
+                        <div class="card mb-3 @(answer.IsAccepted ? "border-success" : "")">
+                            @if (answer.IsAccepted)
+                            {
+                                <div class="card-header bg-success text-white">
+                                    <i class="fas fa-check-circle me-2"></i> Kabul Edilen Cevap
+                                </div>
+                            }
+                            <div class="card-body">
+                                <div class="d-flex">
+                                    <div class="flex-shrink-0 me-3 text-center">
+                                        <button class="btn btn-sm btn-outline-success d-block mb-1 vote-btn" onclick="vote(this, @answer.Id, 'up')">
+                                            <i class="fas fa-chevron-up"></i>
+                                        </button>
+                                        <div class="vote-count my-1">@(answer.UpVotes - answer.DownVotes)</div>
+                                        <button class="btn btn-sm btn-outline-danger d-block vote-btn" onclick="vote(this, @answer.Id, 'down')">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex mb-3">
+                                            <div class="flex-shrink-0">
+                                                <img src="~/@answer.User.ProfileImage" class="rounded-circle" width="40" height="40" alt="User">
+                                            </div>
+                                            <div class="flex-grow-1 ms-3">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <h5 class="mb-0">@answer.User.Username</h5>
+                                                    <span class="text-muted">
+                                                        <i class="fas fa-calendar-alt me-1"></i> @answer.CreatedDate.ToString("dd MMMM yyyy HH:mm")
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="answer-content mb-3">
+                                            <p>@answer.Content</p>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <button class="btn btn-sm btn-outline-primary me-2" onclick="showCommentForm(@answer.Id)">
+                                                    <i class="fas fa-comment me-1"></i> Yorum Ekle
+                                                </button>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-flag me-1"></i> Bildir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <p class="mb-0">Henüz cevap yok. İlk cevabı siz verin!</p>
+                    </div>
+                }
+            </div>
+
+            <!-- Add Answer Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Cevabınız</h4>
+                </div>
+                <div class="card-body">
+                    <form asp-controller="Questions" asp-action="Answer" asp-route-id="@Model.Id" method="post">
+                        <div class="mb-3">
+                            <textarea class="form-control" rows="6" placeholder="Cevabınızı buraya yazın..." required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Cevabı Gönder</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Column -->
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">İlgili Sorular</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <a href="#">Kedim son zamanlarda iştahsız, sebebi ne olabilir?</a>
+                            <div class="text-muted small">3 cevap • 2 gün önce</div>
+                        </li>
+                        <li class="list-group-item">
+                            <a href="#">En iyi kedi maması markaları hangileri?</a>
+                            <div class="text-muted small">8 cevap • 4 gün önce</div>
+                        </li>
+                        <li class="list-group-item">
+                            <a href="#">British Shorthair kedilerin bakımı nasıl olmalı?</a>
+                            <div class="text-muted small">5 cevap • 1 hafta önce</div>
+                        </li>
+                        <li class="list-group-item">
+                            <a href="#">Kediler için ev yapımı mama tarifi önerir misiniz?</a>
+                            <div class="text-muted small">12 cevap • 2 hafta önce</div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">Soru Sorma İpuçları</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i> 
+                            Net ve açık sorular sorun
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i> 
+                            Evcil hayvanınızın yaşı, cinsi ve ırkı gibi detayları paylaşın
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i> 
+                            Mümkünse fotoğraf ekleyin
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle text-success me-2"></i> 
+                            Daha önce denediğiniz çözümleri belirtin
+                        </li>
+                    </ul>
+                    <div class="mt-3">
+                        <a asp-controller="Questions" asp-action="Ask" class="btn btn-primary w-100">Yeni Soru Sor</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function vote(button, answerId, voteType) {
+            // In a real application, this would make an AJAX call to the server
+            console.log(`Vote ${voteType} for answer ${answerId}`);
+            
+            const voteCount = button.parentElement.querySelector('.vote-count');
+            const currentCount = parseInt(voteCount.innerText);
+            
+            if (voteType === 'up') {
+                voteCount.innerText = currentCount + 1;
+            } else {
+                voteCount.innerText = currentCount - 1;
+            }
+        }
+        
+        function showCommentForm(answerId) {
+            alert(`Comment form for answer ${answerId} would show here`);
+        }
+    </script>
+} 

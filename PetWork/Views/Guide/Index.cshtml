@@ -1,0 +1,88 @@
+@model PetWork.Models.ViewModels.GuideViewModel
+
+@{
+    ViewData["Title"] = "Evcil Hayvan Bakım Rehberleri";
+}
+
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h1 class="mb-3">Evcil Hayvan Bakım Rehberleri</h1>
+                <p class="lead">Evcil hayvanınızın sağlıklı ve mutlu bir yaşam sürmesi için kapsamlı bakım rehberleri</p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <button class="btn btn-outline-primary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
+                    <i class="fas fa-filter me-2"></i> Filtreleme Seçenekleri
+                </button>
+            </div>
+        </div>
+        
+        <div class="collapse mb-4" id="filterCollapse">
+            <div class="card card-body">
+                <form asp-controller="Guide" asp-action="Index" method="get" class="row g-3">
+                    <div class="col-md-5">
+                        <label class="form-label">Hayvan Türü</label>
+                        <select name="animalType" class="form-select">
+                            <option value="">Tümü</option>
+                            @foreach (var animalType in Model.AnimalTypes)
+                            {
+                                <option value="@animalType" selected="@(Model.SelectedAnimalType == animalType)">@animalType</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label">Kategori</label>
+                        <select name="category" class="form-select">
+                            <option value="">Tümü</option>
+                            @foreach (var category in Model.Categories)
+                            {
+                                <option value="@category" selected="@(Model.SelectedCategory == category)">@category</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Filtrele</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        @if (!Model.Guides.Any())
+        {
+            <div class="alert alert-info">
+                <p class="mb-0">Arama kriterlerinize uygun rehber bulunamadı. Lütfen farklı filtreler deneyiniz.</p>
+            </div>
+        }
+        else
+        {
+            <div class="row">
+                @foreach (var guide in Model.Guides)
+                {
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-transparent border-0">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge @(guide.AnimalType == "Kedi" ? "bg-success" : (guide.AnimalType == "Köpek" ? "bg-primary" : "bg-info"))">@guide.AnimalType</span>
+                                    <span class="badge bg-secondary">@guide.Category</span>
+                                    <span class="badge @(guide.Level == "Başlangıç" ? "bg-success" : (guide.Level == "Orta" ? "bg-warning" : "bg-danger"))">@guide.Level</span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title">@guide.Title</h5>
+                                <p class="card-text">@guide.Description</p>
+                            </div>
+                            <div class="card-footer bg-transparent border-0 d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <img src="~/@(string.IsNullOrEmpty(guide.User?.ProfileImage) ? "img/user-profile.jpg" : guide.User.ProfileImage)" alt="@guide.User?.Username" class="rounded-circle me-2" width="25" height="25">
+                                    <span class="text-muted small">@guide.User?.Username</span>
+                                </div>
+                                <a asp-controller="Guide" asp-action="Details" asp-route-id="@guide.Id" class="btn btn-sm btn-outline-primary">Rehberi Gör</a>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</section> 

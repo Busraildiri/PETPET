@@ -1,0 +1,207 @@
+@model BlogPost
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<div class="container py-5">
+    <div class="row">
+        <!-- Blog İçerik Sütunu -->
+        <div class="col-lg-8">
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Ana Sayfa</a></li>
+                    <li class="breadcrumb-item"><a asp-controller="Blog" asp-action="Index">Blog</a></li>
+                    <li class="breadcrumb-item"><a asp-controller="Blog" asp-action="Index" asp-route-category="@Model.Category">@Model.Category</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">@Model.Title</li>
+                </ol>
+            </nav>
+
+            <div class="blog-header mb-4">
+                <h1 class="mb-3">@Model.Title</h1>
+                
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="d-flex align-items-center">
+                        <img src="~/@Model.User.ProfileImage" class="rounded-circle me-2" width="40" height="40" alt="@Model.User.Username">
+                        <div>
+                            <h6 class="mb-0">@Model.User.Username</h6>
+                            <small class="text-muted">@Model.PublishDate.ToString("dd MMMM yyyy")</small>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="badge bg-primary">@Model.Category</span>
+                        <span class="ms-2 text-muted">
+                            <i class="fas fa-eye me-1"></i> @Model.ViewCount
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="blog-featured-image mb-4">
+                <img src="~/@Model.ImageUrl" class="img-fluid rounded" alt="@Model.Title">
+            </div>
+
+            <div class="blog-content mb-5">
+                @Html.Raw(Model.Content)
+            </div>
+
+            <div class="blog-tags mb-4">
+                <h5>Etiketler</h5>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="#" class="badge bg-light text-dark text-decoration-none p-2">Kedi</a>
+                    <a href="#" class="badge bg-light text-dark text-decoration-none p-2">Diş Sağlığı</a>
+                    <a href="#" class="badge bg-light text-dark text-decoration-none p-2">Bakım</a>
+                    <a href="#" class="badge bg-light text-dark text-decoration-none p-2">Hayvan Sağlığı</a>
+                </div>
+            </div>
+
+            <div class="blog-share mb-5">
+                <h5>Paylaş</h5>
+                <div class="d-flex gap-2">
+                    <a href="#" class="btn btn-outline-primary">
+                        <i class="fab fa-facebook-f me-2"></i> Facebook
+                    </a>
+                    <a href="#" class="btn btn-outline-info">
+                        <i class="fab fa-twitter me-2"></i> Twitter
+                    </a>
+                    <a href="#" class="btn btn-outline-success">
+                        <i class="fab fa-whatsapp me-2"></i> WhatsApp
+                    </a>
+                    <a href="#" class="btn btn-outline-secondary">
+                        <i class="fas fa-envelope me-2"></i> E-posta
+                    </a>
+                </div>
+            </div>
+
+            <!-- İlgili Sorular -->
+            <div class="related-questions mb-5">
+                <h4 class="mb-3">İlgili Sorular</h4>
+                <div class="card">
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item px-0">
+                                <a asp-controller="Questions" asp-action="Details" asp-route-id="1" class="text-decoration-none">
+                                    <i class="fas fa-question-circle me-2 text-primary"></i> Kedimin dişlerini fırçalarken hangi diş macununu kullanmalıyım?
+                                </a>
+                            </li>
+                            <li class="list-group-item px-0">
+                                <a asp-controller="Questions" asp-action="Details" asp-route-id="2" class="text-decoration-none">
+                                    <i class="fas fa-question-circle me-2 text-primary"></i> Kedimin dişlerinde tartar oluştuğunu nasıl anlarım?
+                                </a>
+                            </li>
+                            <li class="list-group-item px-0">
+                                <a asp-controller="Questions" asp-action="Details" asp-route-id="3" class="text-decoration-none">
+                                    <i class="fas fa-question-circle me-2 text-primary"></i> Kedim diş fırçalamaya izin vermezse ne yapmalıyım?
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Yorum Alanı -->
+            <div class="comments-section">
+                <h4 class="mb-3">Yorumlar (0)</h4>
+                
+                @if (User.Identity.IsAuthenticated)
+                {
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <form>
+                                <div class="mb-3">
+                                    <textarea class="form-control" rows="3" placeholder="Yorumunuzu yazın..."></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Yorum Yap</button>
+                            </form>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        Yorum yapmak için lütfen <a asp-controller="Account" asp-action="Login">giriş yapın</a> veya <a asp-controller="Account" asp-action="Register">üye olun</a>.
+                    </div>
+                }
+                
+                <div class="comments-list">
+                    <p class="text-muted">Henüz yorum yapılmamış. İlk yorumu sen yap!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">Benzer Yazılar</h4>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex mb-3">
+                        <img src="~/img/blog1.jpg" class="rounded me-2" width="80" height="80" style="object-fit: cover;" alt="Blog">
+                        <div>
+                            <h6 class="mb-1"><a href="#" class="text-decoration-none">Kedinizin Tüy Bakımı İçin Pratik İpuçları</a></h6>
+                            <small class="text-muted">3 gün önce</small>
+                        </div>
+                    </div>
+                    <div class="d-flex mb-3">
+                        <img src="~/img/hero2.jpg" class="rounded me-2" width="80" height="80" style="object-fit: cover;" alt="Blog">
+                        <div>
+                            <h6 class="mb-1"><a href="#" class="text-decoration-none">Kedi Beslenmesinde Dikkat Edilmesi Gerekenler</a></h6>
+                            <small class="text-muted">1 hafta önce</small>
+                        </div>
+                    </div>
+                    <div class="d-flex">
+                        <img src="~/img/hero3.jpg" class="rounded me-2" width="80" height="80" style="object-fit: cover;" alt="Blog">
+                        <div>
+                            <h6 class="mb-1"><a href="#" class="text-decoration-none">Kedilerde Yaygın Görülen Hastalıklar ve Belirtileri</a></h6>
+                            <small class="text-muted">2 hafta önce</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">Kategoriler</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <a href="#" class="text-decoration-none">Kedi Bakımı</a>
+                            <span class="badge bg-primary rounded-pill">14</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <a href="#" class="text-decoration-none">Köpek Bakımı</a>
+                            <span class="badge bg-primary rounded-pill">22</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <a href="#" class="text-decoration-none">Kuş Bakımı</a>
+                            <span class="badge bg-primary rounded-pill">9</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <a href="#" class="text-decoration-none">Kemirgen Bakımı</a>
+                            <span class="badge bg-primary rounded-pill">5</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <a href="#" class="text-decoration-none">Beslenme</a>
+                            <span class="badge bg-primary rounded-pill">18</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <a href="#" class="text-decoration-none">Eğitim</a>
+                            <span class="badge bg-primary rounded-pill">12</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Yazara Soru Sor</h4>
+                </div>
+                <div class="card-body">
+                    <p>Bu yazı hakkında bir sorun mu var? Yazarımıza soru sorabilirsiniz.</p>
+                    <a asp-controller="Questions" asp-action="Ask" class="btn btn-primary w-100">Soru Sor</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

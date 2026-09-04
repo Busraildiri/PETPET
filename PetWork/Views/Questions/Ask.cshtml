@@ -1,0 +1,134 @@
+@model Question
+@{
+    ViewData["Title"] = "Soru Sor";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Ana Sayfa</a></li>
+                    <li class="breadcrumb-item"><a asp-controller="Questions" asp-action="Index">Soru-Cevap</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Soru Sor</li>
+                </ol>
+            </nav>
+
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">Soru Sor</h2>
+                </div>
+                <div class="card-body">
+                    <form asp-controller="Questions" asp-action="Ask" method="post">
+                        <div class="mb-3">
+                            <label for="Title" class="form-label">Soru Başlığı</label>
+                            <input asp-for="Title" class="form-control" placeholder="Soru başlığı" required>
+                            <span asp-validation-for="Title" class="text-danger"></span>
+                            <div class="form-text">Sorunuzu kısa ve net bir şekilde özetleyen bir başlık yazın.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="Category" class="form-label">Kategori</label>
+                            <select asp-for="Category" class="form-select" required>
+                                <option value="">Kategori Seçin</option>
+                                <option value="Kedi Sağlığı">Kedi Sağlığı</option>
+                                <option value="Köpek Sağlığı">Köpek Sağlığı</option>
+                                <option value="Kedi Beslenmesi">Kedi Beslenmesi</option>
+                                <option value="Köpek Beslenmesi">Köpek Beslenmesi</option>
+                                <option value="Kuş Bakımı">Kuş Bakımı</option>
+                                <option value="Kemirgen Bakımı">Kemirgen Bakımı</option>
+                                <option value="Eğitim">Eğitim</option>
+                                <option value="Davranış Problemleri">Davranış Problemleri</option>
+                                <option value="Genel">Genel</option>
+                            </select>
+                            <span asp-validation-for="Category" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="Content" class="form-label">Soru Detayları</label>
+                            <textarea asp-for="Content" class="form-control" rows="10" placeholder="Sorunuzu detaylı bir şekilde açıklayın..." required></textarea>
+                            <span asp-validation-for="Content" class="text-danger"></span>
+                            <div class="form-text">
+                                Evcil hayvanınız hakkında detaylı bilgi verin
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="Tags" class="form-label">Etiketler</label>
+                            <input asp-for="Tags" class="form-control" placeholder="Örn: kedi, tüy dökme, british shorthair">
+                            <span asp-validation-for="Tags" class="text-danger"></span>
+                            <div class="form-text">Etiketleri virgülle ayırın. En az bir, en fazla beş etiket ekleyin.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="termsCheck" required>
+                                <input type="hidden" name="TermsAccepted" id="termsAccepted" value="false" />
+                                <label class="form-check-label" for="termsCheck">
+                                    <a href="#" target="_blank">Topluluk kurallarını</a> okudum ve kabul ediyorum.
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a asp-controller="Questions" asp-action="Index" class="btn btn-secondary me-md-2">İptal</a>
+                            <button type="submit" class="btn btn-primary">Soruyu Gönder</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h4 class="mb-0">Etkili Bir Soru Nasıl Sorulur?</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="text-success"><i class="fas fa-check-circle me-2"></i> Yapılması Gerekenler</h5>
+                            <ul>
+                                <li>Net ve açık bir soru başlığı kullanın</li>
+                                <li>Evcil hayvanınız hakkında detaylı bilgi verin</li>
+                                <li>Sorunu ne zaman fark ettiğinizi belirtin</li>
+                                <li>Daha önce denediğiniz çözümleri paylaşın</li>
+                                <li>Mümkünse ilgili fotoğraflar ekleyin</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="text-danger"><i class="fas fa-times-circle me-2"></i> Yapılmaması Gerekenler</h5>
+                            <ul>
+                                <li>Çok genel veya belirsiz sorular sormayın</li>
+                                <li>Acil veteriner gerektiren durumlarda burada cevap beklemeyin</li>
+                                <li>Kişisel bilgilerinizi paylaşmayın</li>
+                                <li>Konu dışı içerik eklemeyin</li>
+                                <li>Aynı soruyu birden fazla gönderi olarak paylaşmayın</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        // Terms checkbox durumunu hidden field'a aktar
+        $(document).ready(function() {
+            $("#termsCheck").change(function() {
+                $("#termsAccepted").val($(this).is(":checked"));
+            });
+            
+            // Form gönderilirken terms checkbox kontrolü
+            $("form").submit(function(e) {
+                if (!$("#termsCheck").is(":checked")) {
+                    e.preventDefault();
+                    alert("Devam etmek için topluluk kurallarını kabul etmelisiniz.");
+                    return false;
+                }
+                return true;
+            });
+        });
+    </script>
+} 

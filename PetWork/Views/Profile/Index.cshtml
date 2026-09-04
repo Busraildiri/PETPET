@@ -1,0 +1,179 @@
+@model PetWork.Models.User
+
+@{
+    ViewData["Title"] = "Profilim";
+}
+
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-body text-center">
+                    <img src="~/@Model.ProfileImage" alt="@Model.Username" class="rounded-circle img-fluid" style="width: 150px; height: 150px; object-fit: cover;">
+                    <h5 class="my-3">@Model.Username</h5>
+                    <p class="text-muted mb-1">@Model.Email</p>
+                    <p class="text-muted mb-4">Üyelik: @Model.RegistrationDate.ToString("dd.MM.yyyy")</p>
+                    <div class="d-flex justify-content-center mb-2">
+                        <a asp-action="Edit" class="btn btn-primary me-2">Profili Düzenle</a>
+                        <a asp-action="Badges" class="btn btn-outline-primary">Rozetlerim</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <h5 class="mb-3 text-primary">
+                                <i class="fas fa-award me-2"></i> Deneyim Puanı
+                            </h5>
+                            <div class="progress mb-3" style="height: 20px;">
+                                @{
+                                    int nextLevel = 0;
+                                    string levelName = "";
+                                    
+                                    if (Model.ExperiencePoints < 100) { nextLevel = 100; levelName = "Yeni Başlayan"; }
+                                    else if (Model.ExperiencePoints < 500) { nextLevel = 500; levelName = "Aktif Üye"; }
+                                    else if (Model.ExperiencePoints < 1000) { nextLevel = 1000; levelName = "Deneyimli Üye"; }
+                                    else if (Model.ExperiencePoints < 5000) { nextLevel = 5000; levelName = "Uzman Üye"; }
+                                    else if (Model.ExperiencePoints < 10000) { nextLevel = 10000; levelName = "Guru"; }
+                                    else { nextLevel = Model.ExperiencePoints; levelName = "Guru"; }
+                                    
+                                    var percentage = (nextLevel > 0) ? Math.Min(100, (Model.ExperiencePoints * 100) / nextLevel) : 100;
+                                }
+                                <div class="progress-bar bg-success" role="progressbar" style="width: @percentage%;" aria-valuenow="@percentage" aria-valuemin="0" aria-valuemax="100">@Model.ExperiencePoints XP</div>
+                            </div>
+                            <p class="mb-0">Sonraki seviye: @levelName (@Model.ExperiencePoints / @nextLevel)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="mb-3 text-primary">
+                        <i class="fas fa-award me-2"></i> Rozetlerim
+                    </h5>
+                    @if (Model.Badges == null || !Model.Badges.Any())
+                    {
+                        <p class="text-muted">Henüz rozet kazanmadınız. Etkinliklere katılarak rozetler kazanabilirsiniz.</p>
+                    }
+                    else
+                    {
+                        <div class="row">
+                            @foreach (var badge in Model.Badges.Take(6))
+                            {
+                                <div class="col-4 mb-3 text-center">
+                                    <img src="~/@badge.IconUrl" alt="@badge.Name" class="img-fluid mb-2" style="max-width: 50px;">
+                                    <p class="mb-0 small">@badge.Name</p>
+                                </div>
+                            }
+                        </div>
+                        @if (Model.Badges.Count > 6)
+                        {
+                            <div class="text-center mt-2">
+                                <a asp-action="Badges" class="btn btn-sm btn-outline-primary">Tümünü Gör</a>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="mb-4 text-primary">Hakkımda</h5>
+                    @if (string.IsNullOrEmpty(Model.Bio))
+                    {
+                        <p class="text-muted">Henüz bir biyografi eklenmemiş. <a asp-action="Edit">Profili düzenle</a> sayfasından kendiniz hakkında bilgi ekleyebilirsiniz.</p>
+                    }
+                    else
+                    {
+                        <p>@Model.Bio</p>
+                    }
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="text-primary mb-0">Evcil Hayvanlarım</h5>
+                        <a asp-action="AddPet" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-plus me-2"></i> Evcil Hayvan Ekle
+                        </a>
+                    </div>
+                    
+                    @if (Model.Pets == null || !Model.Pets.Any())
+                    {
+                        <p class="text-muted">Henüz evcil hayvan eklenmemiş. "Evcil Hayvan Ekle" butonuna tıklayarak evcil hayvanınızı ekleyebilirsiniz.</p>
+                    }
+                    else
+                    {
+                        <div class="row">
+                            @foreach (var pet in Model.Pets)
+                            {
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <div class="d-flex align-items-center mb-3">
+                                                <img src="~/@(string.IsNullOrEmpty(pet.Image) ? "img/pet-default.jpg" : pet.Image)" alt="@pet.Name" class="rounded-circle me-3" width="50" height="50" style="object-fit: cover;">
+                                                <div>
+                                                    <h6 class="mb-0">@pet.Name</h6>
+                                                    <span class="badge @(pet.PetType == "Kedi" ? "bg-success" : (pet.PetType == "Köpek" ? "bg-primary" : "bg-info"))">@pet.PetType</span>
+                                                </div>
+                                            </div>
+                                            <p class="small text-muted mb-2">Tür: @pet.Breed</p>
+                                            <p class="small text-muted mb-2">Yaş: @pet.Age</p>
+                                            <p class="small text-muted mb-0">Cinsiyet: @pet.Gender</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="mb-4 text-primary">Aktivitelerim</h5>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <div class="card text-center h-100">
+                                <div class="card-body">
+                                    <h1 class="display-4">@ViewBag.Questions</h1>
+                                    <p class="mb-0">Sorular</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card text-center h-100">
+                                <div class="card-body">
+                                    <h1 class="display-4">@ViewBag.Answers</h1>
+                                    <p class="mb-0">Cevaplar</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card text-center h-100">
+                                <div class="card-body">
+                                    <h1 class="display-4">@ViewBag.Recipes</h1>
+                                    <p class="mb-0">Tarifler</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card text-center h-100">
+                                <div class="card-body">
+                                    <h1 class="display-4">@ViewBag.Guides</h1>
+                                    <p class="mb-0">Rehberler</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 
