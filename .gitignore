@@ -18,6 +18,15 @@ artifacts/
 *.log
 temp/
 
+## Local database migration artifacts and secrets
+PetWork/local-backups/
+PetWork/local-migration-data/
+*.bak
+*.bacpac
+*.bcp
+*.dump
+*.secrets.json
+
 ## OS files
 .DS_Store
 Thumbs.db

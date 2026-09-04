@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace PetWork.Models
 {
@@ -14,9 +15,11 @@ namespace PetWork.Models
         
         [Required]
         [EmailAddress]
+        [JsonIgnore]
         public string Email { get; set; }
         
         [Required]
+        [JsonIgnore]
         public string PasswordHash { get; set; }
         
         public string? Bio { get; set; }
@@ -27,14 +30,19 @@ namespace PetWork.Models
         
         public int ExperiencePoints { get; set; } = 0;
         
+        [JsonIgnore]
         public bool IsAdmin { get; set; } = false;
         
+        [JsonIgnore]
         public List<Pet>? Pets { get; set; }
         
+        [JsonIgnore]
         public List<Question>? Questions { get; set; }
         
+        [JsonIgnore]
         public List<Answer>? Answers { get; set; }
         
+        [JsonIgnore]
         public List<Badge>? Badges { get; set; }
     }
 } 

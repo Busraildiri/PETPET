@@ -7,9 +7,9 @@ namespace PetWork.Data
 {
     public class PetWorkDbContext : DbContext
     {
-        private readonly ILogger<PetWorkDbContext> _logger;
+        private readonly ILogger<PetWorkDbContext>? _logger;
         
-        public PetWorkDbContext(DbContextOptions<PetWorkDbContext> options, ILogger<PetWorkDbContext> logger = null)
+        public PetWorkDbContext(DbContextOptions options, ILogger<PetWorkDbContext>? logger = null)
             : base(options)
         {
             _logger = logger;
@@ -56,6 +56,40 @@ namespace PetWork.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            if (Database.IsNpgsql())
+            {
+                modelBuilder.HasDefaultSchema(PostgresPetWorkDbContext.SchemaName);
+                modelBuilder.HasPostgresExtension("citext");
+
+                modelBuilder.Entity<User>().Property(user => user.Username).HasColumnType("citext");
+                modelBuilder.Entity<User>().Property(user => user.Email).HasColumnType("citext");
+                modelBuilder.Entity<User>().HasIndex(user => user.Username).IsUnique();
+                modelBuilder.Entity<User>().HasIndex(user => user.Email).IsUnique();
+
+                // Kaynak SQL Server datetime2 değerleri saat dilimi taşımıyor. İlk aktarımda
+                // saat kaymasını önlemek için olay zamanlarını timestamp without time zone
+                // olarak koruyoruz. DateOfBirth yalnızca takvim tarihidir.
+                foreach (var property in modelBuilder.Model.GetEntityTypes()
+                             .SelectMany(entityType => entityType.GetProperties())
+                             .Where(property => property.ClrType == typeof(DateTime) ||
+                                                property.ClrType == typeof(DateTime?)))
+                {
+                    property.SetColumnType("timestamp without time zone");
+                }
+
+                modelBuilder.Entity<Pet>()
+                    .Property(pet => pet.DateOfBirth)
+                    .HasColumnType("date");
+
+                modelBuilder.Entity<User>().Property(user => user.IsAdmin).HasDefaultValue(false);
+                modelBuilder.Entity<Disease>().Property(disease => disease.ViewCount).HasDefaultValue(0);
+                modelBuilder.Entity<Disease>().Property(disease => disease.PublishDate)
+                    .HasDefaultValue(new DateTime(1, 1, 1));
+                modelBuilder.Entity<Recipe>().Property(recipe => recipe.Description).HasDefaultValue(string.Empty);
+                modelBuilder.Entity<Recipe>().Property(recipe => recipe.PreparationTime).HasDefaultValue(0);
+                modelBuilder.Entity<Pet>().Property(pet => pet.PetType).HasDefaultValue(string.Empty);
+            }
 
             // Question - User ilişkisi
             modelBuilder.Entity<Question>()
