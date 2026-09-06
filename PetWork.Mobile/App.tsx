@@ -5,10 +5,10 @@ import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, ImageBackground, Platform, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Alert, Image, ImageBackground, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { apiUrl, getHome, HomePayload, mediaUrl, Question, Story, type AuthResponse } from './src/api';
+import { apiUrl, getHome, getNearbyGroomers, getNearbyPetHotels, getNearbyVeterinarians, HomePayload, mediaUrl, Question, searchGroomersByArea, searchPetHotelsByArea, searchVeterinariansByArea, Story, type AuthResponse, type NearbyVeterinarian } from './src/api';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
@@ -21,6 +21,7 @@ type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
 type PageKey = 'root' | 'login' | 'register' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting';
 
 const communityDemoImage = require('./assets/community-demo.png');
+const locationConsentKey = 'petwork_location_consent_v1';
 
 const categories = [
   { title: 'Soru-Cevap', icon: 'help-circle-outline' as const, color: colors.lilacSoft, ink: colors.primary },
@@ -46,6 +47,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>('posts');
+  const [nearbyCategory, setNearbyCategory] = useState<'veterinarian' | 'groomer' | 'hotel'>('veterinarian');
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 1600);
@@ -90,7 +92,7 @@ export default function App() {
   else if (page === 'register') screen = <AuthScreen initialMode="register" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
   else if (page === 'account' && currentUser) screen = <AccountScreen username={currentUser} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} />;
   else if (page === 'pets' && authToken) screen = <PetsScreen token={authToken} onBack={() => setPage('account')} />;
-  else if (page === 'nearby') screen = <NearbyScreen onBack={() => setPage('root')} />;
+  else if (page === 'nearby') screen = <NearbyScreen category={nearbyCategory} onBack={() => setPage('root')} />;
   else if (page === 'adoption') screen = <AdoptionScreen onBack={() => setPage('root')} />;
   else if (page === 'reviews') screen = <ReviewsScreen onBack={() => setPage('root')} />;
   else if (page === 'lost-form') screen = <LostPetForm mode="lost" onBack={() => setPage('root')} />;
@@ -104,7 +106,10 @@ export default function App() {
     authToken={authToken}
     onOpenAccount={() => setPage('account')}
     onLogin={() => setPage('login')}
-    onOpenNearby={() => setPage('nearby')}
+    onOpenNearby={category => {
+      setNearbyCategory(category);
+      setPage('nearby');
+    }}
     onOpenAdoption={() => setPage('adoption')}
     onOpenReviews={() => setPage('reviews')}
     onOpenLost={openLost}
@@ -303,13 +308,6 @@ function LostHomeBanner({ onPress }: { onPress: () => void }) {
   </Pressable>;
 }
 
-const nearbyPlaces = [
-  { title: 'Veterinerler', icon: 'medical-outline' as const, count: '12 yakın sonuç' },
-  { title: 'Pet Kuaförleri', icon: 'cut-outline' as const, count: '8 yakın sonuç' },
-  { title: 'Pet Otelleri', icon: 'bed-outline' as const, count: '5 yakın sonuç' },
-  { title: 'Park ve Oyun Alanları', icon: 'leaf-outline' as const, count: '9 yakın sonuç' },
-];
-
 function ScreenShell({ title, subtitle, onBack, children }: { title: string; subtitle?: string; onBack?: () => void; children: React.ReactNode }) {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.subScreenContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
     <View style={styles.subHeader}>
@@ -320,40 +318,177 @@ function ScreenShell({ title, subtitle, onBack, children }: { title: string; sub
   </ScrollView>;
 }
 
-function NearbyShortcuts({ onOpen }: { onOpen: () => void }) {
-  return <View><View style={styles.sectionHeader}><View><Text style={styles.cardSectionTitle}>Yakınındakiler</Text><Text style={styles.cardSectionHint}>Konumunu yalnızca sen istediğinde kullanırız.</Text></View></View>
-    <View style={styles.nearbyGrid}>{nearbyPlaces.map((place, index) => <Pressable key={place.title} onPress={onOpen}
-      style={({ pressed }) => [styles.nearbyShortcut, { backgroundColor: index % 2 ? colors.sageSoft : colors.lilacSoft }, pressed && styles.cardPressed]}>
-      <Ionicons name={place.icon} size={27} color={index % 2 ? '#4E7458' : colors.primary} /><Text style={styles.nearbyTitle}>{place.title}</Text><Text style={styles.nearbyCount}>{place.count}</Text>
-    </Pressable>)}</View>
-    <Text style={styles.privacyNote}><Ionicons name="lock-closed-outline" size={12} /> Kesin konumun herkese açık gösterilmez.</Text>
-  </View>;
-}
-
-function NearbyScreen({ onBack }: { onBack: () => void }) {
+function NearbyScreen({ category, onBack }: { category: 'veterinarian' | 'groomer' | 'hotel'; onBack: () => void }) {
+  const isGroomer = category === 'groomer';
+  const isHotel = category === 'hotel';
+  const placeLabel = isHotel ? 'pet oteli' : isGroomer ? 'pet kuaförü' : 'veteriner';
+  const placeLabelPlural = isHotel ? 'pet oteli' : isGroomer ? 'pet kuaförü' : 'veteriner';
+  const placeTitle = isHotel ? 'Pet Otelleri' : isGroomer ? 'Pet Kuaförleri' : 'Veterinerler';
   const [locationText, setLocationText] = useState('Konum kullanılmadı');
   const [city, setCity] = useState('');
   const [district, setDistrict] = useState('');
-  const askLocation = async () => {
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (!permission.granted) { setLocationText('İzin verilmedi; şehir ve ilçe ile arayabilirsin.'); return; }
-    setLocationText('Konum izni açık · yakın sonuçlar güncellendi');
+  const [places, setPlaces] = useState<NearbyVeterinarian[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [privacyVisible, setPrivacyVisible] = useState(false);
+  const [locationConsent, setLocationConsent] = useState(false);
+
+  useEffect(() => {
+    void SecureStore.getItemAsync(locationConsentKey).then(value => setLocationConsent(value === 'accepted'));
+  }, []);
+
+  const performLocationSearch = async () => {
+    setLoading(true);
+    setError(null);
+    setLocationText('Konum izni kontrol ediliyor…');
+    try {
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) {
+        const message = 'Telefonunun konum servisi kapalı. Ayarlardan konumu açıp tekrar dene.';
+        setLocationText('Konum servisi kapalı');
+        setError(message);
+        Alert.alert('Konum kapalı', message, [
+          { text: 'Vazgeç', style: 'cancel' },
+          { text: 'Ayarları aç', onPress: () => void Linking.openSettings() },
+        ]);
+        return;
+      }
+
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted) permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        const message = 'Yakındaki veterinerleri gösterebilmemiz için konum izni vermelisin.';
+        setLocationText('Konum izni verilmedi');
+        setError(message);
+        Alert.alert('Konum izni gerekli', message, [
+          { text: 'Vazgeç', style: 'cancel' },
+          { text: 'Ayarları aç', onPress: () => void Linking.openSettings() },
+        ]);
+        return;
+      }
+
+      setLocationText('Konum alınıyor…');
+      const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: 5 * 60 * 1000, requiredAccuracy: 1500 });
+      const current = lastKnown ?? await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<never>((_, reject) => setTimeout(
+          () => reject(new Error('Konum alınması uzun sürdü. Açık bir alanda tekrar dene.')),
+          15_000,
+        )),
+      ]);
+      setLocationText(`Konum bulundu · ${placeLabelPlural} aranıyor…`);
+      const results = isHotel
+        ? await getNearbyPetHotels(current.coords.latitude, current.coords.longitude)
+        : isGroomer
+          ? await getNearbyGroomers(current.coords.latitude, current.coords.longitude)
+          : await getNearbyVeterinarians(current.coords.latitude, current.coords.longitude);
+      setPlaces(results);
+      setLocationText(`Konum izni açık · ${results.length} ${placeLabel} bulundu`);
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : `Yakındaki ${placeLabelPlural} sonuçları alınamadı.`;
+      setError(message);
+      setLocationText('Konum kullanıldı ancak sonuçlar alınamadı');
+      Alert.alert(`${placeTitle} alınamadı`, message);
+    } finally {
+      setLoading(false);
+    }
   };
-  return <ScreenShell title="Yakınındakiler" subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
+  const askLocation = () => {
+    if (!locationConsent) {
+      setPrivacyVisible(true);
+      return;
+    }
+    void performLocationSearch();
+  };
+  const acceptLocationUse = async () => {
+    await SecureStore.setItemAsync(locationConsentKey, 'accepted');
+    setLocationConsent(true);
+    setPrivacyVisible(false);
+    await performLocationSearch();
+  };
+  const withdrawLocationUse = async () => {
+    await SecureStore.deleteItemAsync(locationConsentKey);
+    setLocationConsent(false);
+    setPlaces([]);
+    setLocationText('Konum kullanımı tercihi kaldırıldı');
+    setPrivacyVisible(false);
+    Alert.alert('Tercihin kaldırıldı', 'Cihaz iznini de kaldırmak istersen uygulama ayarlarından konum erişimini kapatabilirsin.', [
+      { text: 'Tamam', style: 'cancel' },
+      { text: 'Ayarları aç', onPress: () => void Linking.openSettings() },
+    ]);
+  };
+  const applyManualLocation = async () => {
+    const trimmedCity = city.trim();
+    const trimmedDistrict = district.trim();
+    if (!trimmedCity && !trimmedDistrict) {
+      Alert.alert('Konum bilgisi gerekli', 'Şehir veya ilçe alanlarından en az birini yaz.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setLocationText(`${[trimmedDistrict, trimmedCity].filter(Boolean).join(', ')} için ${placeLabelPlural} aranıyor…`);
+    try {
+      const results = isHotel
+        ? await searchPetHotelsByArea(trimmedCity, trimmedDistrict)
+        : isGroomer
+          ? await searchGroomersByArea(trimmedCity, trimmedDistrict)
+          : await searchVeterinariansByArea(trimmedCity, trimmedDistrict);
+      setPlaces(results);
+      setLocationText(`Manuel konum uygulandı · ${results.length} ${placeLabel} bulundu`);
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : `Bu konumdaki ${placeLabelPlural} sonuçları alınamadı.`;
+      setError(message);
+      setLocationText('Manuel konum uygulanamadı');
+      Alert.alert(`${placeTitle} alınamadı`, message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return <><ScreenShell title={placeTitle} subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
     <View style={styles.mapCard}><Ionicons name="map-outline" size={54} color={colors.primary} /><Text style={styles.mapTitle}>Harita ve liste görünümü</Text><Text style={styles.mapText}>{locationText}</Text>
-      <ActionButton label="Konumumu kullan" icon="navigate-outline" onPress={askLocation} />
+      <ActionButton label={loading ? `${placeTitle} aranıyor…` : 'Konumumu kullan'} icon="navigate-outline" onPress={() => { if (!loading) askLocation(); }} />
+      <Pressable onPress={() => setPrivacyVisible(true)} hitSlop={8}><Text style={styles.locationPrivacyLink}>Konum ve gizlilik bilgisi</Text></Pressable>
     </View>
-    <Text style={styles.formLabel}>Manuel konum</Text><View style={styles.inlineFields}><FormInput value={city} onChangeText={setCity} placeholder="Şehir" /><FormInput value={district} onChangeText={setDistrict} placeholder="İlçe" /></View>
-    <SectionTitle title="Yakın sonuçlar" />
-    <SampleBadge />
-    <PlaceCard title="Pati Dostu Veteriner Kliniği" kind="Veteriner" distance="850 m" rating="4,8" open />
-  </ScreenShell>;
+    <Text style={styles.formLabel}>Manuel konum (isteğe bağlı)</Text><View style={styles.inlineFields}><FormInput value={city} onChangeText={setCity} placeholder="Şehir (isteğe bağlı)" /><FormInput value={district} onChangeText={setDistrict} placeholder="İlçe (isteğe bağlı)" /></View>
+    <ActionButton label={loading ? 'Aranıyor…' : 'Uygula'} icon="search-outline" onPress={() => { if (!loading) void applyManualLocation(); }} />
+    <SectionTitle title={`Yakındaki ${placeLabelPlural}`} />
+    {loading ? <View style={styles.nearbyState}><ActivityIndicator color={colors.primary} /><Text style={styles.mapText}>Google Places sonuçları alınıyor…</Text></View> : null}
+    {!loading && error ? <Pressable onPress={() => void askLocation()} style={styles.nearbyError}><Text style={styles.nearbyErrorText}>{error}</Text><Text style={styles.textAction}>Tekrar dene</Text></Pressable> : null}
+    {!loading && !error && places.length === 0 ? <View style={styles.nearbyState}><Ionicons name="navigate-outline" size={28} color={colors.primary} /><Text style={styles.mapText}>Yakındaki {placeLabelPlural} sonuçlarını görmek için konumunu kullan.</Text></View> : null}
+    {!loading && places.map(place => <PlaceCard key={place.id} place={place} kind={isHotel ? 'Pet oteli' : isGroomer ? 'Pet kuaförü' : 'Veteriner'} />)}
+    {places.length > 0 ? <Text style={styles.googleAttribution}>Sonuçlar Google Maps Platform tarafından sağlanır.</Text> : null}
+  </ScreenShell>
+    <Modal visible={privacyVisible} transparent animationType="fade" onRequestClose={() => setPrivacyVisible(false)}>
+      <View style={styles.privacyOverlay}>
+        <View style={styles.privacyModal}>
+          <View style={styles.privacyModalHeader}><View style={styles.privacyModalIcon}><Ionicons name="shield-checkmark-outline" size={24} color="#4E7458" /></View><Text style={styles.privacyModalTitle}>Konum bilgilendirmesi</Text></View>
+          <Text style={styles.privacyModalText}>Yakındaki {placeLabelPlural} sonuçlarını göstermek için yalnızca sen istediğinde cihazının yaklaşık konumunu kullanırız.</Text>
+          <View style={styles.privacyPoint}><Ionicons name="navigate-outline" size={18} color={colors.primary} /><Text style={styles.privacyPointText}>Koordinatın PetWork sunucusuna gönderilir ve yakındaki yerleri aramak için Google Maps Platform ile paylaşılır.</Text></View>
+          <View style={styles.privacyPoint}><Ionicons name="server-outline" size={18} color={colors.primary} /><Text style={styles.privacyPointText}>Kesin konum veritabanımıza kaydedilmez, profilinde tutulmaz ve diğer kullanıcılara gösterilmez.</Text></View>
+          <View style={styles.privacyPoint}><Ionicons name="globe-outline" size={18} color={colors.primary} /><Text style={styles.privacyPointText}>Google hizmetleri nedeniyle veri yurt dışında işlenebilir. Konum kullanmak zorunlu değildir; şehir veya ilçeyle manuel arama yapabilirsin.</Text></View>
+          <Text style={styles.privacyModalFoot}>İznini cihaz ayarlarından, bu tercihi ise buradaki gizlilik ekranından istediğin zaman kaldırabilirsin.</Text>
+          {locationConsent ? <Pressable onPress={() => void withdrawLocationUse()} style={styles.withdrawButton}><Text style={styles.withdrawButtonText}>Konum tercihini kaldır</Text></Pressable> : <Pressable onPress={() => void acceptLocationUse()} style={styles.acceptPrivacyButton}><Ionicons name="checkmark-circle-outline" size={19} color={colors.white} /><Text style={styles.acceptPrivacyText}>İzin ver ve konumla devam et</Text></Pressable>}
+          <Pressable onPress={() => setPrivacyVisible(false)} style={styles.manualPrivacyButton}><Text style={styles.manualPrivacyText}>{locationConsent ? 'Kapat' : 'Manuel konum kullan'}</Text></Pressable>
+        </View>
+      </View>
+    </Modal>
+  </>;
 }
 
-function PlaceCard({ title, kind, distance, rating, open = false }: { title: string; kind: string; distance: string; rating: string; open?: boolean }) {
+function PlaceCard({ place, kind }: { place: NearbyVeterinarian; kind: string }) {
+  const distance = place.distanceMeters === null || place.distanceMeters === undefined
+    ? 'Mesafe bilgisi yok'
+    : place.distanceMeters < 1000 ? `${place.distanceMeters} m` : `${(place.distanceMeters / 1000).toFixed(1).replace('.', ',')} km`;
+  const rating = place.rating ? ` · ★ ${place.rating.toFixed(1).replace('.', ',')}${place.userRatingCount ? ` (${place.userRatingCount})` : ''}` : '';
+  const openMaps = () => {
+    const url = place.googleMapsUri || `https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`;
+    void Linking.openURL(url);
+  };
   return <View style={styles.placeCard}><View style={styles.placePin}><Ionicons name="location" size={22} color={colors.primary} /></View><View style={styles.flexOne}>
-    <Text style={styles.placeTitle}>{title}</Text><Text style={styles.placeMeta}>{kind} · {distance} · ★ {rating}</Text><Text style={[styles.openText, !open && styles.closedText]}>{open ? 'Şimdi açık' : 'Kapalı'}</Text>
-    <View style={styles.miniActions}><Text style={styles.textAction}>Yol tarifi</Text><Text style={styles.textAction}>Detaylar</Text></View></View></View>;
+    <Text style={styles.placeTitle}>{place.name}</Text><Text style={styles.placeMeta}>{kind} · {distance}{rating}</Text>
+    {place.address ? <Text style={styles.placeAddress}>{place.address}</Text> : null}
+    {place.openNow !== null && place.openNow !== undefined ? <Text style={[styles.openText, !place.openNow && styles.closedText]}>{place.openNow ? 'Şimdi açık' : 'Şu anda kapalı'}</Text> : null}
+    <View style={styles.miniActions}><Pressable onPress={openMaps}><Text style={styles.textAction}>Yol tarifi</Text></Pressable><Pressable onPress={openMaps}><Text style={styles.textAction}>Google Maps'te gör</Text></Pressable></View></View></View>;
 }
 
 function AdoptionScreen({ onBack }: { onBack: () => void }) {
@@ -569,10 +704,11 @@ const styles = StyleSheet.create({
   lightBadge: { color: colors.primary, backgroundColor: '#FFFCF8E8', alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 13, overflow: 'hidden', fontSize: 10, fontWeight: '800' }, adoptionTitle: { color: colors.white, fontFamily: serif, fontSize: 27, fontWeight: '700', marginTop: 9 }, adoptionText: { color: '#F9EEF4', fontSize: 12, lineHeight: 17, marginTop: 3, maxWidth: 270 },
   featureRow: { minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, padding: 15, marginTop: 14 }, featureIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#FFFCF8AA', alignItems: 'center', justifyContent: 'center' }, featureTitle: { color: colors.text, fontSize: 15, fontWeight: '800' }, featureText: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
   miniCard: { flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 16 }, miniTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, miniMeta: { color: colors.muted, fontSize: 10, marginTop: 5 },
-  mapCard: { alignItems: 'center', backgroundColor: colors.sageSoft, borderRadius: 24, padding: 22, marginTop: 18 }, mapTitle: { color: colors.text, fontFamily: serif, fontSize: 21, fontWeight: '700', marginTop: 8 }, mapText: { color: colors.muted, textAlign: 'center', fontSize: 11, marginTop: 5 },
+  mapCard: { alignItems: 'center', backgroundColor: colors.sageSoft, borderRadius: 24, padding: 22, marginTop: 18 }, mapTitle: { color: colors.text, fontFamily: serif, fontSize: 21, fontWeight: '700', marginTop: 8 }, mapText: { color: colors.muted, textAlign: 'center', fontSize: 11, marginTop: 5 }, locationPrivacyLink: { color: colors.primary, fontSize: 10, fontWeight: '800', textDecorationLine: 'underline', marginTop: 13 }, nearbyState: { minHeight: 110, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 20, padding: 18, marginBottom: 12 }, nearbyError: { alignItems: 'center', gap: 8, backgroundColor: colors.peachSoft, borderRadius: 18, padding: 15, marginBottom: 12 }, nearbyErrorText: { color: '#8D4339', textAlign: 'center', fontSize: 11, lineHeight: 16 }, googleAttribution: { color: colors.muted, textAlign: 'center', fontSize: 9, marginTop: 4, marginBottom: 10 },
+  privacyOverlay: { flex: 1, justifyContent: 'center', backgroundColor: '#251E22AA', padding: 20 }, privacyModal: { width: '100%', maxWidth: 560, alignSelf: 'center', backgroundColor: colors.card, borderRadius: 25, padding: 21, ...shadow }, privacyModalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 13 }, privacyModalIcon: { width: 43, height: 43, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sageSoft }, privacyModalTitle: { flex: 1, color: colors.text, fontFamily: serif, fontSize: 22, fontWeight: '700' }, privacyModalText: { color: colors.text, fontSize: 12, lineHeight: 19, marginBottom: 13 }, privacyPoint: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 10 }, privacyPointText: { flex: 1, color: colors.muted, fontSize: 11, lineHeight: 17 }, privacyModalFoot: { color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 15 }, acceptPrivacyButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: 17, marginTop: 17 }, acceptPrivacyText: { color: colors.white, fontSize: 12, fontWeight: '900' }, withdrawButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.peachSoft, borderRadius: 17, marginTop: 17 }, withdrawButtonText: { color: '#8D4339', fontSize: 12, fontWeight: '900' }, manualPrivacyButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 5 }, manualPrivacyText: { color: colors.primary, fontSize: 11, fontWeight: '800' },
   formLabel: { color: colors.text, fontWeight: '800', fontSize: 13, marginTop: 20, marginBottom: 8 }, inlineFields: { flexDirection: 'row', gap: 10 },
   placeCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: colors.card, borderRadius: 20, padding: 16, marginBottom: 12, ...shadow }, placePin: { width: 43, height: 43, borderRadius: 22, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' },
-  placeTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, placeMeta: { color: colors.muted, fontSize: 11, marginTop: 4 }, openText: { color: '#41604A', fontSize: 10, fontWeight: '800', marginTop: 6 }, closedText: { color: '#9B463B' }, miniActions: { flexDirection: 'row', gap: 18, marginTop: 11 }, textAction: { color: colors.primary, fontSize: 12, fontWeight: '800' }, reportAction: { color: '#9B463B', fontSize: 12, fontWeight: '800' },
+  placeTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, placeMeta: { color: colors.muted, fontSize: 11, marginTop: 4 }, placeAddress: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 5 }, openText: { color: '#41604A', fontSize: 10, fontWeight: '800', marginTop: 6 }, closedText: { color: '#9B463B' }, miniActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginTop: 11 }, textAction: { color: colors.primary, fontSize: 12, fontWeight: '800' }, reportAction: { color: '#9B463B', fontSize: 12, fontWeight: '800' },
   petProfileCard: { backgroundColor: colors.card, borderRadius: 24, overflow: 'hidden', marginTop: 18, ...shadow }, petPhoto: { height: 265, padding: 14, alignItems: 'flex-start' }, petPhotoRadius: { borderTopLeftRadius: 24, borderTopRightRadius: 24 }, safeBadge: { color: '#41604A', backgroundColor: '#E5F0E2EE', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, overflow: 'hidden', fontSize: 10, fontWeight: '800' },
   petProfileBody: { padding: 20 }, petName: { color: colors.text, fontFamily: serif, fontSize: 27, fontWeight: '700' }, cityBadge: { color: colors.primary, backgroundColor: colors.lilacSoft, borderRadius: 13, paddingVertical: 5, paddingHorizontal: 10, overflow: 'hidden', fontSize: 10, fontWeight: '800' }, petMeta: { color: colors.muted, fontSize: 12, marginTop: 4, marginBottom: 13 }, storyHeading: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 14 }, bodyText: { color: colors.muted, fontSize: 12, lineHeight: 19, marginTop: 6 },
   infoLine: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 9 }, infoText: { color: '#56635A', flex: 1, fontSize: 11 }, safetyActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border }, noticeCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.sageSoft, borderRadius: 17, padding: 15, marginTop: 14 }, noticeText: { flex: 1, color: '#4B5B50', fontSize: 11, lineHeight: 16 },

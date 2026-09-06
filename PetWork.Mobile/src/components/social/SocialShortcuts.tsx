@@ -25,17 +25,19 @@ export function CommunityShortcuts({ onOpenAdoption, onOpenReviews, onOpenLost }
   );
 }
 
-export function NearbyShortcuts({ onOpenNearby }: { onOpenNearby: () => void }) {
+export type NearbyCategory = 'veterinarian' | 'groomer' | 'hotel';
+
+export function NearbyShortcuts({ onOpenNearby }: { onOpenNearby: (category: NearbyCategory) => void }) {
   const items = [
-    ['Veterinerler', 'medical-outline'], ['Pet Kuaförleri', 'cut-outline'],
-    ['Pet Otelleri', 'bed-outline'], ['Park ve Oyun Alanları', 'leaf-outline'],
+    ['Veterinerler', 'medical-outline', 'veterinarian'], ['Pet Kuaförleri', 'cut-outline', 'groomer'],
+    ['Pet Otelleri', 'bed-outline', 'hotel'],
   ] as const;
   return (
     <View>
       <Text style={styles.heading}>Yakınındakiler</Text>
       <Text style={styles.hint}>Konumun yalnızca sen istediğinde kullanılır.</Text>
-      <View style={styles.grid}>{items.map(([title, icon], index) => (
-        <Pressable key={title} onPress={onOpenNearby} style={({ pressed }) => [styles.nearbyCard, { backgroundColor: index % 2 ? colors.sageSoft : colors.lilacSoft }, pressed && styles.pressed]}>
+      <View style={styles.grid}>{items.map(([title, icon, category], index) => (
+        <Pressable key={title} onPress={() => onOpenNearby(category)} style={({ pressed }) => [styles.nearbyCard, { backgroundColor: index % 2 ? colors.sageSoft : colors.lilacSoft }, pressed && styles.pressed]}>
           <Ionicons name={icon} size={27} color={index % 2 ? '#4E7458' : colors.primary} />
           <Text style={styles.nearbyTitle}>{title}</Text><Text style={styles.nearbyLink}>Listeyi gör →</Text>
         </Pressable>
