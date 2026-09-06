@@ -29,9 +29,9 @@ namespace PetWork.Models
         
         public int PreparationTime { get; set; } = 30;
         
-        public string FeaturedImage { get; set; } = "img/recipe-default.jpg";
+        public string FeaturedImage { get; set; } = "img/hero-recipes-v2.png";
         
-        public string ImageUrl { get; set; } = "img/recipe-default.jpg";
+        public string ImageUrl { get; set; } = "img/hero-recipes-v2.png";
         
         public string Difficulty { get; set; } = "Orta";
         

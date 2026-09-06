@@ -8,6 +8,8 @@ using PetWork.Data;
 using PetWork.Models;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using System.Data;
+using PetWork.Services;
 
 namespace PetWork.Controllers
 {
@@ -16,11 +18,14 @@ namespace PetWork.Controllers
         private static readonly string[] DemoUsernames = { "kediSever", "goldenSahibi", "kusSever" };
         private readonly PetWorkDbContext _context;
         private readonly ILogger<QuestionsController> _logger;
+        private readonly ExperienceService _experienceService;
 
-        public QuestionsController(PetWorkDbContext context, ILogger<QuestionsController> logger)
+        public QuestionsController(PetWorkDbContext context, ILogger<QuestionsController> logger,
+            ExperienceService experienceService)
         {
             _context = context;
             _logger = logger;
+            _experienceService = experienceService;
         }
 
         public IActionResult Index(string? category = null, string? sortBy = "newest")
@@ -110,6 +115,16 @@ namespace PetWork.Controllers
             // Görüntülenme sayısını artır
             question.ViewCount++;
             _context.SaveChanges();
+            ViewBag.ExternalSource = _context.ExternalContentSources.AsNoTracking().FirstOrDefault(x =>
+                x.ContentType == ExternalContentTypes.Question && x.LocalContentId == question.Id &&
+                x.ReviewStatus != ExternalContentReviewStatuses.Rejected && x.ReviewStatus != ExternalContentReviewStatuses.Archived);
+            ViewBag.ExternalAnswerSources = _context.ExternalContentSources.AsNoTracking().Where(x =>
+                x.ContentType == ExternalContentTypes.Answer && x.LocalContentId != null &&
+                x.ReviewStatus != ExternalContentReviewStatuses.Rejected && x.ReviewStatus != ExternalContentReviewStatuses.Archived).ToDictionary(x => x.LocalContentId!.Value);
+            var currentUserId = HttpContext.Session.GetInt32("UserId");
+            ViewBag.CurrentUserId = currentUserId;
+            ViewBag.CanAcceptAnswer = currentUserId == question.UserId &&
+                                      !(question.Answers?.Any(answer => answer.IsAccepted) ?? false);
             
             return View(question);
         }
@@ -126,7 +141,7 @@ namespace PetWork.Controllers
         }
         
         [HttpPost]
-        public IActionResult Ask(Question question)
+        public async Task<IActionResult> Ask(Question question)
         {
             try
             {
@@ -176,13 +191,15 @@ namespace PetWork.Controllers
                                 .Where(e => e.State == EntityState.Added)
                                 .Select(e => e.Entity.GetType().Name)));
                         
-                        int result = _context.SaveChanges();
+                        int result = await _context.SaveChangesAsync();
 
                         // Başarılı mı kontrol et
                         if (result > 0)
                         {
+                            await _experienceService.AddExperienceAsync(userId.Value,
+                                ExperienceService.ExperiencePoints.AskQuestion, "Soru paylaştı");
                             _logger.LogInformation("Soru başarıyla eklendi, ID: {0}", question.Id);
-                            TempData["SuccessMessage"] = "Sorunuz başarıyla eklendi!";
+                            TempData["SuccessMessage"] = $"Sorunuz başarıyla eklendi! +{ExperienceService.ExperiencePoints.AskQuestion} XP";
                             return RedirectToAction("Details", new { id = question.Id });
                         }
                         else
@@ -219,7 +236,7 @@ namespace PetWork.Controllers
         }
         
         [HttpPost]
-        public IActionResult Answer(int id, Answer answer)
+        public async Task<IActionResult> Answer(int id, Answer answer)
         {
             if (ModelState.IsValid)
             {
@@ -237,9 +254,11 @@ namespace PetWork.Controllers
                         answer.DownVotes = 0;
 
                         _context.Answers.Add(answer);
-                        _context.SaveChanges();
+                        await _context.SaveChangesAsync();
+                        await _experienceService.AddExperienceAsync(userId.Value,
+                            ExperienceService.ExperiencePoints.AnswerQuestion, "Soruya cevap verdi");
                         
-                        TempData["SuccessMessage"] = "Cevabınız başarıyla eklendi!";
+                        TempData["SuccessMessage"] = $"Cevabınız başarıyla eklendi! +{ExperienceService.ExperiencePoints.AnswerQuestion} XP";
                     }
                     else
                     {
@@ -256,5 +275,69 @@ namespace PetWork.Controllers
             
             return RedirectToAction("Details", new { id });
         }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AcceptAnswer(int id)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (!userId.HasValue)
+            {
+                TempData["ErrorMessage"] = "Bir cevabı kabul etmek için giriş yapmalısınız.";
+                return RedirectToAction("Login", "Account");
+            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            try
+            {
+                var answer = await _context.Answers
+                    .Include(item => item.Question)
+                    .SingleOrDefaultAsync(item => item.Id == id);
+                if (answer is null) return NotFound();
+
+                if (answer.Question.UserId != userId.Value)
+                {
+                    TempData["ErrorMessage"] = "Yalnızca soruyu paylaşan kişi cevap kabul edebilir.";
+                    return RedirectToAction("Details", new { id = answer.QuestionId });
+                }
+
+                if (answer.UserId == userId.Value)
+                {
+                    TempData["ErrorMessage"] = "Kendi cevabınızı kabul ederek XP kazanamazsınız.";
+                    return RedirectToAction("Details", new { id = answer.QuestionId });
+                }
+
+                if (answer.IsAccepted)
+                {
+                    TempData["SuccessMessage"] = "Bu cevap zaten kabul edilmiş.";
+                    return RedirectToAction("Details", new { id = answer.QuestionId });
+                }
+
+                var alreadyAccepted = await _context.Answers.AnyAsync(item =>
+                    item.QuestionId == answer.QuestionId && item.IsAccepted);
+                if (alreadyAccepted)
+                {
+                    TempData["ErrorMessage"] = "Bu soru için daha önce bir cevap kabul edilmiş.";
+                    return RedirectToAction("Details", new { id = answer.QuestionId });
+                }
+
+                answer.IsAccepted = true;
+                await _context.SaveChangesAsync();
+                await _experienceService.AddExperienceAsync(answer.UserId,
+                    ExperienceService.ExperiencePoints.AcceptedAnswer, "Cevabı kabul edildi");
+                await transaction.CommitAsync();
+
+                TempData["SuccessMessage"] =
+                    $"Cevap kabul edildi. Cevap sahibi +{ExperienceService.ExperiencePoints.AcceptedAnswer} XP kazandı!";
+                return RedirectToAction("Details", new { id = answer.QuestionId });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Cevap {AnswerId} kabul edilirken hata oluştu.", id);
+                TempData["ErrorMessage"] = "Cevap kabul edilirken bir hata oluştu.";
+                return RedirectToAction("Index");
+            }
+        }
     }
-} 
+}

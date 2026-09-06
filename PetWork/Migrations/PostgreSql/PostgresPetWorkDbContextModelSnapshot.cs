@@ -151,6 +151,46 @@ namespace PetWork.Migrations.PostgreSql
                     b.ToTable("BlogPosts", "petwork");
                 });
 
+            modelBuilder.Entity("PetWork.Models.ContentImportAudit", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("ExternalContentSourceId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int?>("PerformedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalContentSourceId");
+
+                    b.HasIndex("PerformedByUserId");
+
+                    b.ToTable("ContentImportAudits", "petwork");
+                });
+
             modelBuilder.Entity("PetWork.Models.Disease", b =>
                 {
                     b.Property<int>("Id")
@@ -209,6 +249,171 @@ namespace PetWork.Migrations.PostgreSql
                     b.HasKey("Id");
 
                     b.ToTable("Diseases", "petwork");
+                });
+
+            modelBuilder.Entity("PetWork.Models.ExternalContentSource", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ApiUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("AttributionText")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("ImportedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<bool>("IsSourceAvailable")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("LastCheckedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("LicenseCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("LicenseUrl")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int?>("LocalContentId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OriginalContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("OriginalPublishedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("OriginalText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ParentSourceId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ReviewStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int?>("ReviewedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("SourceAuthorName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("SourceAuthorUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("SourceLanguage")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("SourceRevision")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SourceTitle")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("SourceUpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("TranslatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("TranslatedText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TranslatedTitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("TranslationProvider")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TranslationVersion")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("WasModified")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("WasTranslated")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentSourceId");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("ReviewStatus", "ImportedAt");
+
+                    b.HasIndex("Provider", "ExternalId", "ContentType")
+                        .IsUnique();
+
+                    b.ToTable("ExternalContentSources", "petwork");
                 });
 
             modelBuilder.Entity("PetWork.Models.Guide", b =>
@@ -526,6 +731,41 @@ namespace PetWork.Migrations.PostgreSql
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PetWork.Models.ContentImportAudit", b =>
+                {
+                    b.HasOne("PetWork.Models.ExternalContentSource", "ExternalContentSource")
+                        .WithMany("AuditEntries")
+                        .HasForeignKey("ExternalContentSourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PetWork.Models.User", "PerformedByUser")
+                        .WithMany()
+                        .HasForeignKey("PerformedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ExternalContentSource");
+
+                    b.Navigation("PerformedByUser");
+                });
+
+            modelBuilder.Entity("PetWork.Models.ExternalContentSource", b =>
+                {
+                    b.HasOne("PetWork.Models.ExternalContentSource", "ParentSource")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentSourceId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("PetWork.Models.User", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ParentSource");
+
+                    b.Navigation("ReviewedByUser");
+                });
+
             modelBuilder.Entity("PetWork.Models.Guide", b =>
                 {
                     b.HasOne("PetWork.Models.User", "User")
@@ -568,6 +808,13 @@ namespace PetWork.Migrations.PostgreSql
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PetWork.Models.ExternalContentSource", b =>
+                {
+                    b.Navigation("AuditEntries");
+
+                    b.Navigation("Children");
                 });
 
             modelBuilder.Entity("PetWork.Models.Question", b =>

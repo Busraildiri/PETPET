@@ -1,0 +1,43 @@
+@model PetWork.Models.ViewModels.ExternalContentEditViewModel
+@using PetWork.Models
+@{ ViewData["Title"] = "Dış içerik incelemesi"; var s = Model.Source; }
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-start mb-3"><div><h1>@s.SourceTitle</h1><div class="d-flex gap-2">
+        <span class="badge bg-secondary">@s.Provider</span><span class="badge bg-info text-dark">@s.ContentType</span>
+        <span class="badge @(s.RiskLevel == ExternalContentRiskLevels.High ? "bg-danger" : "bg-warning text-dark")">Risk: @s.RiskLevel</span><span class="badge bg-dark">@s.ReviewStatus</span>
+    </div></div><a asp-action="Index" class="btn btn-outline-secondary">Kuyruğa dön</a></div>
+    <partial name="~/Views/Admin/_Messages.cshtml" />
+    @if (s.RiskLevel != ExternalContentRiskLevels.Low) { <div class="alert alert-warning"><strong>İnsan kontrolü zorunlu:</strong> Sağlık veya beslenme iddialarını veterinerlik kaynağı gibi değerlendirmeden yayınlamayın.</div> }
+
+    <div class="card mb-4"><div class="card-body"><div class="row g-3">
+        <div class="col-md-4"><strong>Yazar</strong><div>@(s.SourceAuthorName ?? "Belirtilmemiş")</div></div>
+        <div class="col-md-4"><strong>Lisans</strong><div><a href="@s.LicenseUrl" target="_blank" rel="noopener noreferrer">@s.LicenseCode</a></div></div>
+        <div class="col-md-4"><strong>Son kontrol</strong><div>@s.LastCheckedAt.ToString("dd.MM.yyyy HH:mm")</div></div>
+        <div class="col-12"><strong>Zorunlu atıf</strong><div>@s.AttributionText</div><a href="@s.SourceUrl" target="_blank" rel="noopener noreferrer">Kaynak sayfayı aç</a></div>
+    </div></div></div>
+
+    <form asp-action="Edit" asp-route-id="@Model.Id" method="post"><input asp-for="Id" type="hidden" />@Html.AntiForgeryToken()
+        <div class="row g-4"><div class="col-lg-6"><div class="card h-100"><div class="card-header">Orijinal (@s.SourceLanguage)</div><div class="card-body"><h5>@s.SourceTitle</h5><pre class="text-wrap mb-0" style="white-space:pre-wrap">@s.OriginalText</pre></div></div></div>
+        <div class="col-lg-6"><div class="card h-100"><div class="card-header">Türkçe taslak / editör metni</div><div class="card-body">
+            <div class="mb-3"><label asp-for="Title" class="form-label">Başlık</label><input asp-for="Title" class="form-control" /><span asp-validation-for="Title" class="text-danger"></span></div>
+            <div class="mb-3"><label asp-for="Text" class="form-label">Metin</label><textarea asp-for="Text" rows="18" class="form-control"></textarea><span asp-validation-for="Text" class="text-danger"></span></div>
+            <div class="row"><div class="col"><label asp-for="Tags" class="form-label">Etiketler</label><input asp-for="Tags" class="form-control" /></div><div class="col"><label asp-for="Category" class="form-label">Kategori</label><input asp-for="Category" class="form-control" /></div></div>
+            <button class="btn btn-primary mt-3">Taslağı kaydet</button>
+        </div></div></div></div>
+    </form>
+
+    <div class="card my-4"><div class="card-header"><strong>Yayın kontrol listesi</strong></div><div class="card-body">
+        <form asp-action="Approve" asp-route-id="@Model.Id" method="post">@Html.AntiForgeryToken()<input type="hidden" name="Id" value="@Model.Id" />
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="LicenseConfirmed" value="true" id="license"><label class="form-check-label" for="license">Lisansın yeniden kullanıma izin verdiğini doğruladım.</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="AttributionConfirmed" value="true" id="attr"><label class="form-check-label" for="attr">Yazar, kaynak bağlantısı ve atıf bilgilerini doğruladım.</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="SafetyConfirmed" value="true" id="safe"><label class="form-check-label" for="safe">Çeviri, kişisel veri ve sağlık/beslenme güvenliğini kontrol ettim.</label></div>
+            <button class="btn btn-success mt-3" disabled="@(s.ReviewStatus == ExternalContentReviewStatuses.Approved)">Kaynak bilgisiyle yayınla</button>
+        </form>
+        <div class="d-flex flex-wrap gap-2 mt-3"><form asp-action="Refresh" asp-route-id="@Model.Id" method="post">@Html.AntiForgeryToken()<button class="btn btn-outline-primary">Kaynağı yeniden kontrol et</button></form>
+        <form asp-action="Archive" asp-route-id="@Model.Id" method="post">@Html.AntiForgeryToken()<button class="btn btn-outline-secondary">Arşivle</button></form>
+        <form asp-action="Reject" asp-route-id="@Model.Id" method="post" class="d-flex gap-2">@Html.AntiForgeryToken()<input name="reason" class="form-control" placeholder="Ret gerekçesi" required /><button class="btn btn-outline-danger">Reddet</button></form></div>
+    </div></div>
+
+    <div class="card"><div class="card-header">İşlem geçmişi</div><ul class="list-group list-group-flush">@foreach (var a in s.AuditEntries.OrderByDescending(x => x.CreatedAt)) { <li class="list-group-item"><strong>@a.EventType</strong> — @a.Outcome <small class="text-muted">@a.CreatedAt.ToString("dd.MM.yyyy HH:mm")</small><div>@a.Details</div></li> }</ul></div>
+</div>

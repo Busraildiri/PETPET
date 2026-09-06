@@ -110,6 +110,9 @@ namespace PetWork.Controllers
             // Görüntülenme sayısını artır
             guide.ViewCount++;
             _context.SaveChanges();
+            ViewBag.ExternalSource = _context.ExternalContentSources.AsNoTracking().FirstOrDefault(x =>
+                x.ContentType == ExternalContentTypes.Guide && x.LocalContentId == guide.Id &&
+                x.ReviewStatus != ExternalContentReviewStatuses.Rejected && x.ReviewStatus != ExternalContentReviewStatuses.Archived);
 
             return View(guide);
         }

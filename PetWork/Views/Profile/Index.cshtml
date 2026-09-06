@@ -14,7 +14,7 @@
                     <p class="text-muted mb-1">@Model.Email</p>
                     <p class="text-muted mb-4">Üyelik: @Model.RegistrationDate.ToString("dd.MM.yyyy")</p>
                     <div class="d-flex justify-content-center mb-2">
-                        <a asp-action="Edit" class="btn btn-primary me-2">Profili Düzenle</a>
+                        <a asp-controller="Account" asp-action="EditProfile" class="btn btn-primary me-2">Profili Düzenle</a>
                         <a asp-action="Badges" class="btn btn-outline-primary">Rozetlerim</a>
                     </div>
                 </div>
@@ -60,11 +60,11 @@
                     }
                     else
                     {
-                        <div class="row">
+                        <div class="row profile-badge-grid">
                             @foreach (var badge in Model.Badges.Take(6))
                             {
                                 <div class="col-4 mb-3 text-center">
-                                    <img src="~/@badge.IconUrl" alt="@badge.Name" class="img-fluid mb-2" style="max-width: 50px;">
+                                    <partial name="_BadgeIcon" model="badge" />
                                     <p class="mb-0 small">@badge.Name</p>
                                 </div>
                             }

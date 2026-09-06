@@ -160,6 +160,9 @@ namespace PetWork.Controllers
             // Görüntülenme sayısını artır
             disease.ViewCount++;
             _context.SaveChanges();
+            ViewBag.ExternalSource = _context.ExternalContentSources.AsNoTracking().FirstOrDefault(x =>
+                x.ContentType == ExternalContentTypes.Disease && x.LocalContentId == disease.Id &&
+                x.ReviewStatus != ExternalContentReviewStatuses.Rejected && x.ReviewStatus != ExternalContentReviewStatuses.Archived);
 
             return View(disease);
         }

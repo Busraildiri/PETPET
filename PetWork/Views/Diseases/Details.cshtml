@@ -138,4 +138,5 @@
             </div>
         </div>
     </div>
+    @if (ViewBag.ExternalSource is PetWork.Models.ExternalContentSource source) { <partial name="_ExternalSourceAttribution" model="source" /> }
 </section> 

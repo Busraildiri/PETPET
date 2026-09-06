@@ -75,17 +75,9 @@ namespace PetWork.Controllers
         }
         
         // Kullanıcı bilgilerini güncelleme sayfası
-        public async Task<IActionResult> Edit()
+        public IActionResult Edit()
         {
-            var userId = _httpContextAccessor.HttpContext.Session.GetInt32("UserId");
-            if (!userId.HasValue)
-                return RedirectToAction("Login", "Account");
-                
-            var user = await _context.Users.FindAsync(userId.Value);
-            if (user == null)
-                return NotFound();
-                
-            return View(user);
+            return RedirectToAction("EditProfile", "Account");
         }
         
         [HttpPost]

@@ -25,7 +25,7 @@ namespace PetWork.Models
         
         public string? AnimalType { get; set; }
         
-        public string FeaturedImage { get; set; } = "img/disease-default.jpg";
+        public string FeaturedImage { get; set; } = "img/hero-health-v2.png";
 
         public string? Category { get; set; }
 
