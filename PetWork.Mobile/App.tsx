@@ -5,10 +5,10 @@ import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, ImageBackground, Platform, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Alert, Image, ImageBackground, Linking, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { apiUrl, getHome, HomePayload, mediaUrl, Question, Story, type AuthResponse } from './src/api';
+import { apiUrl, getHome, getNearbyVeterinarians, HomePayload, mediaUrl, Question, Story, type AuthResponse, type NearbyVeterinarian } from './src/api';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
@@ -330,26 +330,51 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
   const [locationText, setLocationText] = useState('Konum kullanılmadı');
   const [city, setCity] = useState('');
   const [district, setDistrict] = useState('');
+  const [places, setPlaces] = useState<NearbyVeterinarian[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const askLocation = async () => {
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (!permission.granted) { setLocationText('İzin verilmedi; şehir ve ilçe ile arayabilirsin.'); return; }
-    setLocationText('Konum izni açık · yakın sonuçlar güncellendi');
+    setLoading(true);
+    setError(null);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) { setLocationText('İzin verilmedi; şehir ve ilçe ile arayabilirsin.'); return; }
+      setLocationText('Konum alınıyor…');
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const results = await getNearbyVeterinarians(current.coords.latitude, current.coords.longitude);
+      setPlaces(results);
+      setLocationText(`Konum izni açık · ${results.length} veteriner bulundu`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Yakındaki veterinerler alınamadı.');
+      setLocationText('Konum kullanıldı ancak sonuçlar alınamadı');
+    } finally { setLoading(false); }
   };
   return <ScreenShell title="Yakınındakiler" subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
     <View style={styles.mapCard}><Ionicons name="map-outline" size={54} color={colors.primary} /><Text style={styles.mapTitle}>Harita ve liste görünümü</Text><Text style={styles.mapText}>{locationText}</Text>
-      <ActionButton label="Konumumu kullan" icon="navigate-outline" onPress={askLocation} />
+      <ActionButton label={loading ? 'Veterinerler aranıyor…' : 'Konumumu kullan'} icon="navigate-outline" onPress={() => { if (!loading) void askLocation(); }} />
     </View>
     <Text style={styles.formLabel}>Manuel konum</Text><View style={styles.inlineFields}><FormInput value={city} onChangeText={setCity} placeholder="Şehir" /><FormInput value={district} onChangeText={setDistrict} placeholder="İlçe" /></View>
-    <SectionTitle title="Yakın sonuçlar" />
-    <SampleBadge />
-    <PlaceCard title="Pati Dostu Veteriner Kliniği" kind="Veteriner" distance="850 m" rating="4,8" open />
+    <SectionTitle title="Yakındaki veterinerler" />
+    {loading ? <View style={styles.nearbyState}><ActivityIndicator color={colors.primary} /><Text style={styles.mapText}>Google Places sonuçları alınıyor…</Text></View> : null}
+    {!loading && error ? <Pressable onPress={() => void askLocation()} style={styles.nearbyError}><Text style={styles.nearbyErrorText}>{error}</Text><Text style={styles.textAction}>Tekrar dene</Text></Pressable> : null}
+    {!loading && !error && places.length === 0 ? <View style={styles.nearbyState}><Ionicons name="navigate-outline" size={28} color={colors.primary} /><Text style={styles.mapText}>Yakındaki veterinerleri görmek için konumunu kullan.</Text></View> : null}
+    {!loading && places.map(place => <PlaceCard key={place.id} place={place} />)}
+    {places.length > 0 ? <Text style={styles.googleAttribution}>Sonuçlar Google Maps Platform tarafından sağlanır.</Text> : null}
   </ScreenShell>;
 }
 
-function PlaceCard({ title, kind, distance, rating, open = false }: { title: string; kind: string; distance: string; rating: string; open?: boolean }) {
+function PlaceCard({ place }: { place: NearbyVeterinarian }) {
+  const distance = place.distanceMeters < 1000 ? `${place.distanceMeters} m` : `${(place.distanceMeters / 1000).toFixed(1).replace('.', ',')} km`;
+  const rating = place.rating ? ` · ★ ${place.rating.toFixed(1).replace('.', ',')}${place.userRatingCount ? ` (${place.userRatingCount})` : ''}` : '';
+  const openMaps = () => {
+    const url = place.googleMapsUri || `https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`;
+    void Linking.openURL(url);
+  };
   return <View style={styles.placeCard}><View style={styles.placePin}><Ionicons name="location" size={22} color={colors.primary} /></View><View style={styles.flexOne}>
-    <Text style={styles.placeTitle}>{title}</Text><Text style={styles.placeMeta}>{kind} · {distance} · ★ {rating}</Text><Text style={[styles.openText, !open && styles.closedText]}>{open ? 'Şimdi açık' : 'Kapalı'}</Text>
-    <View style={styles.miniActions}><Text style={styles.textAction}>Yol tarifi</Text><Text style={styles.textAction}>Detaylar</Text></View></View></View>;
+    <Text style={styles.placeTitle}>{place.name}</Text><Text style={styles.placeMeta}>Veteriner · {distance}{rating}</Text>
+    {place.address ? <Text style={styles.placeAddress}>{place.address}</Text> : null}
+    {place.openNow !== null && place.openNow !== undefined ? <Text style={[styles.openText, !place.openNow && styles.closedText]}>{place.openNow ? 'Şimdi açık' : 'Şu anda kapalı'}</Text> : null}
+    <View style={styles.miniActions}><Pressable onPress={openMaps}><Text style={styles.textAction}>Yol tarifi</Text></Pressable><Pressable onPress={openMaps}><Text style={styles.textAction}>Google Maps'te gör</Text></Pressable></View></View></View>;
 }
 
 function AdoptionScreen({ onBack }: { onBack: () => void }) {
@@ -565,10 +590,10 @@ const styles = StyleSheet.create({
   lightBadge: { color: colors.primary, backgroundColor: '#FFFCF8E8', alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 13, overflow: 'hidden', fontSize: 10, fontWeight: '800' }, adoptionTitle: { color: colors.white, fontFamily: serif, fontSize: 27, fontWeight: '700', marginTop: 9 }, adoptionText: { color: '#F9EEF4', fontSize: 12, lineHeight: 17, marginTop: 3, maxWidth: 270 },
   featureRow: { minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, padding: 15, marginTop: 14 }, featureIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#FFFCF8AA', alignItems: 'center', justifyContent: 'center' }, featureTitle: { color: colors.text, fontSize: 15, fontWeight: '800' }, featureText: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
   miniCard: { flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 16 }, miniTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, miniMeta: { color: colors.muted, fontSize: 10, marginTop: 5 },
-  mapCard: { alignItems: 'center', backgroundColor: colors.sageSoft, borderRadius: 24, padding: 22, marginTop: 18 }, mapTitle: { color: colors.text, fontFamily: serif, fontSize: 21, fontWeight: '700', marginTop: 8 }, mapText: { color: colors.muted, textAlign: 'center', fontSize: 11, marginTop: 5 },
+  mapCard: { alignItems: 'center', backgroundColor: colors.sageSoft, borderRadius: 24, padding: 22, marginTop: 18 }, mapTitle: { color: colors.text, fontFamily: serif, fontSize: 21, fontWeight: '700', marginTop: 8 }, mapText: { color: colors.muted, textAlign: 'center', fontSize: 11, marginTop: 5 }, nearbyState: { minHeight: 110, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 20, padding: 18, marginBottom: 12 }, nearbyError: { alignItems: 'center', gap: 8, backgroundColor: colors.peachSoft, borderRadius: 18, padding: 15, marginBottom: 12 }, nearbyErrorText: { color: '#8D4339', textAlign: 'center', fontSize: 11, lineHeight: 16 }, googleAttribution: { color: colors.muted, textAlign: 'center', fontSize: 9, marginTop: 4, marginBottom: 10 },
   formLabel: { color: colors.text, fontWeight: '800', fontSize: 13, marginTop: 20, marginBottom: 8 }, inlineFields: { flexDirection: 'row', gap: 10 },
   placeCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: colors.card, borderRadius: 20, padding: 16, marginBottom: 12, ...shadow }, placePin: { width: 43, height: 43, borderRadius: 22, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' },
-  placeTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, placeMeta: { color: colors.muted, fontSize: 11, marginTop: 4 }, openText: { color: '#41604A', fontSize: 10, fontWeight: '800', marginTop: 6 }, closedText: { color: '#9B463B' }, miniActions: { flexDirection: 'row', gap: 18, marginTop: 11 }, textAction: { color: colors.primary, fontSize: 12, fontWeight: '800' }, reportAction: { color: '#9B463B', fontSize: 12, fontWeight: '800' },
+  placeTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, placeMeta: { color: colors.muted, fontSize: 11, marginTop: 4 }, placeAddress: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 5 }, openText: { color: '#41604A', fontSize: 10, fontWeight: '800', marginTop: 6 }, closedText: { color: '#9B463B' }, miniActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginTop: 11 }, textAction: { color: colors.primary, fontSize: 12, fontWeight: '800' }, reportAction: { color: '#9B463B', fontSize: 12, fontWeight: '800' },
   petProfileCard: { backgroundColor: colors.card, borderRadius: 24, overflow: 'hidden', marginTop: 18, ...shadow }, petPhoto: { height: 265, padding: 14, alignItems: 'flex-start' }, petPhotoRadius: { borderTopLeftRadius: 24, borderTopRightRadius: 24 }, safeBadge: { color: '#41604A', backgroundColor: '#E5F0E2EE', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, overflow: 'hidden', fontSize: 10, fontWeight: '800' },
   petProfileBody: { padding: 20 }, petName: { color: colors.text, fontFamily: serif, fontSize: 27, fontWeight: '700' }, cityBadge: { color: colors.primary, backgroundColor: colors.lilacSoft, borderRadius: 13, paddingVertical: 5, paddingHorizontal: 10, overflow: 'hidden', fontSize: 10, fontWeight: '800' }, petMeta: { color: colors.muted, fontSize: 12, marginTop: 4, marginBottom: 13 }, storyHeading: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 14 }, bodyText: { color: colors.muted, fontSize: 12, lineHeight: 19, marginTop: 6 },
   infoLine: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 9 }, infoText: { color: '#56635A', flex: 1, fontSize: 11 }, safetyActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border }, noticeCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.sageSoft, borderRadius: 17, padding: 15, marginTop: 14 }, noticeText: { flex: 1, color: '#4B5B50', fontSize: 11, lineHeight: 16 },

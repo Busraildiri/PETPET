@@ -93,6 +93,19 @@ export type QuestionDetail = {
   answers: QuestionAnswer[];
 };
 
+export type NearbyVeterinarian = {
+  id: string;
+  name: string;
+  address?: string | null;
+  distanceMeters: number;
+  rating?: number | null;
+  userRatingCount?: number | null;
+  openNow?: boolean | null;
+  googleMapsUri?: string | null;
+  latitude: number;
+  longitude: number;
+};
+
 const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/$/, '');
 export const apiUrl = configuredUrl || 'http://localhost:5147';
 
@@ -187,6 +200,27 @@ export async function getQuestions(signal?: AbortSignal): Promise<QuestionsRespo
   });
   if (!response.ok) throw new Error(`Sorular alınamadı (${response.status}).`);
   return response.json();
+}
+
+export async function getNearbyVeterinarians(
+  latitude: number,
+  longitude: number,
+  radiusMeters = 5000,
+): Promise<NearbyVeterinarian[]> {
+  const query = new URLSearchParams({
+    latitude: latitude.toString(),
+    longitude: longitude.toString(),
+    radiusMeters: radiusMeters.toString(),
+  });
+  const response = await fetch(`${apiUrl}/api/mobile/nearby/veterinarians?${query}`, {
+    headers: { Accept: 'application/json' },
+  });
+  const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
+  if (!response.ok) {
+    const errorPayload = payload as { message?: string } | null;
+    throw new Error(errorPayload?.message || `Veterinerler alınamadı (${response.status}).`);
+  }
+  return payload as NearbyVeterinarian[];
 }
 
 export async function getQuestionDetail(id: number, signal?: AbortSignal): Promise<QuestionDetail> {

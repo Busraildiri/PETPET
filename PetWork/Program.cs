@@ -141,6 +141,11 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 
 // HttpClient ve web scraping servisleri
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient<GooglePlacesService>(client =>
+{
+    client.BaseAddress = new Uri("https://places.googleapis.com/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddHttpClient<StackExchangeContentProvider>(client =>
 {
     client.BaseAddress = new Uri("https://api.stackexchange.com/");
