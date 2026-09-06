@@ -17,15 +17,17 @@ public sealed class MobileNearbyApiController : ControllerBase
         _logger = logger;
     }
 
-    [HttpGet("veterinarians")]
+    [HttpPost("veterinarians")]
     [EnableRateLimiting("mobile-content")]
     public async Task<ActionResult<IReadOnlyList<NearbyVeterinarian>>> GetVeterinarians(
-        [FromQuery] double latitude, [FromQuery] double longitude, [FromQuery] int radiusMeters = 5000,
+        [FromBody] NearbyLocationRequest request,
         CancellationToken cancellationToken = default)
     {
+        var latitude = request.Latitude;
+        var longitude = request.Longitude;
         if (latitude is < -90 or > 90 || longitude is < -180 or > 180)
             return BadRequest(new { message = "Geçerli bir konum gönderilmelidir." });
-        radiusMeters = Math.Clamp(radiusMeters, 1000, 20_000);
+        var radiusMeters = Math.Clamp(request.RadiusMeters, 1000, 20_000);
         try
         {
             return Ok(await _googlePlaces.SearchVeterinariansAsync(latitude, longitude, radiusMeters, cancellationToken));
@@ -70,3 +72,5 @@ public sealed class MobileNearbyApiController : ControllerBase
         }
     }
 }
+
+public sealed record NearbyLocationRequest(double Latitude, double Longitude, int RadiusMeters = 5000);

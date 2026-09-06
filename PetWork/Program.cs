@@ -257,11 +257,12 @@ app.Use(async (context, next) =>
     var isMobileAuthRequest = context.Request.Path.StartsWithSegments("/api/mobile/auth");
     var isMobileQuestionRequest = context.Request.Path.StartsWithSegments("/api/mobile/questions");
     var isMobileSocialRequest = context.Request.Path.StartsWithSegments("/api/mobile/social");
+    var isMobileNearbyRequest = context.Request.Path.StartsWithSegments("/api/mobile/nearby");
     var isReadOnlyMethod = HttpMethods.IsGet(context.Request.Method) ||
                            HttpMethods.IsHead(context.Request.Method) ||
                            HttpMethods.IsOptions(context.Request.Method);
 
-    if (isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest && !isMobileQuestionRequest && !isMobileSocialRequest)
+    if (isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest && !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest)
     {
         var userId = context.Session.GetInt32("UserId");
         if (userId is null)

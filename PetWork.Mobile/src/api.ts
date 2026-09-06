@@ -207,13 +207,10 @@ export async function getNearbyVeterinarians(
   longitude: number,
   radiusMeters = 5000,
 ): Promise<NearbyVeterinarian[]> {
-  const query = new URLSearchParams({
-    latitude: latitude.toString(),
-    longitude: longitude.toString(),
-    radiusMeters: radiusMeters.toString(),
-  });
-  const response = await fetch(`${apiUrl}/api/mobile/nearby/veterinarians?${query}`, {
-    headers: { Accept: 'application/json' },
+  const response = await fetch(`${apiUrl}/api/mobile/nearby/veterinarians`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ latitude, longitude, radiusMeters }),
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
   if (!response.ok) {

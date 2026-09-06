@@ -5,7 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, ImageBackground, Linking, Platform, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Alert, Image, ImageBackground, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { apiUrl, getHome, getNearbyVeterinarians, HomePayload, mediaUrl, Question, searchVeterinariansByArea, Story, type AuthResponse, type NearbyVeterinarian } from './src/api';
@@ -19,6 +19,7 @@ type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
 type PageKey = 'root' | 'login' | 'register' | 'account' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting';
 
 const communityDemoImage = require('./assets/community-demo.png');
+const locationConsentKey = 'petwork_location_consent_v1';
 
 const categories = [
   { title: 'Soru-Cevap', icon: 'help-circle-outline' as const, color: colors.lilacSoft, ink: colors.primary },
@@ -333,7 +334,14 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
   const [places, setPlaces] = useState<NearbyVeterinarian[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const askLocation = async () => {
+  const [privacyVisible, setPrivacyVisible] = useState(false);
+  const [locationConsent, setLocationConsent] = useState(false);
+
+  useEffect(() => {
+    void SecureStore.getItemAsync(locationConsentKey).then(value => setLocationConsent(value === 'accepted'));
+  }, []);
+
+  const performLocationSearch = async () => {
     setLoading(true);
     setError(null);
     setLocationText('Konum izni kontrol ediliyor…');
@@ -383,6 +391,30 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
       Alert.alert('Veterinerler alınamadı', message);
     } finally { setLoading(false); }
   };
+  const askLocation = () => {
+    if (!locationConsent) {
+      setPrivacyVisible(true);
+      return;
+    }
+    void performLocationSearch();
+  };
+  const acceptLocationUse = async () => {
+    await SecureStore.setItemAsync(locationConsentKey, 'accepted');
+    setLocationConsent(true);
+    setPrivacyVisible(false);
+    await performLocationSearch();
+  };
+  const withdrawLocationUse = async () => {
+    await SecureStore.deleteItemAsync(locationConsentKey);
+    setLocationConsent(false);
+    setPlaces([]);
+    setLocationText('Konum kullanımı tercihi kaldırıldı');
+    setPrivacyVisible(false);
+    Alert.alert('Tercihin kaldırıldı', 'Cihaz iznini de kaldırmak istersen uygulama ayarlarından konum erişimini kapatabilirsin.', [
+      { text: 'Tamam', style: 'cancel' },
+      { text: 'Ayarları aç', onPress: () => void Linking.openSettings() },
+    ]);
+  };
   const applyManualLocation = async () => {
     const trimmedCity = city.trim();
     const trimmedDistrict = district.trim();
@@ -404,9 +436,10 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
       Alert.alert('Veterinerler alınamadı', message);
     } finally { setLoading(false); }
   };
-  return <ScreenShell title="Yakınındakiler" subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
+  return <><ScreenShell title="Yakınındakiler" subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
     <View style={styles.mapCard}><Ionicons name="map-outline" size={54} color={colors.primary} /><Text style={styles.mapTitle}>Harita ve liste görünümü</Text><Text style={styles.mapText}>{locationText}</Text>
-      <ActionButton label={loading ? 'Veterinerler aranıyor…' : 'Konumumu kullan'} icon="navigate-outline" onPress={() => { if (!loading) void askLocation(); }} />
+      <ActionButton label={loading ? 'Veterinerler aranıyor…' : 'Konumumu kullan'} icon="navigate-outline" onPress={() => { if (!loading) askLocation(); }} />
+      <Pressable onPress={() => setPrivacyVisible(true)} hitSlop={8}><Text style={styles.locationPrivacyLink}>Konum ve gizlilik bilgisi</Text></Pressable>
     </View>
     <Text style={styles.formLabel}>Manuel konum (isteğe bağlı)</Text><View style={styles.inlineFields}><FormInput value={city} onChangeText={setCity} placeholder="Şehir (isteğe bağlı)" /><FormInput value={district} onChangeText={setDistrict} placeholder="İlçe (isteğe bağlı)" /></View>
     <ActionButton label={loading ? 'Aranıyor…' : 'Uygula'} icon="search-outline" onPress={() => { if (!loading) void applyManualLocation(); }} />
@@ -416,7 +449,22 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
     {!loading && !error && places.length === 0 ? <View style={styles.nearbyState}><Ionicons name="navigate-outline" size={28} color={colors.primary} /><Text style={styles.mapText}>Yakındaki veterinerleri görmek için konumunu kullan.</Text></View> : null}
     {!loading && places.map(place => <PlaceCard key={place.id} place={place} />)}
     {places.length > 0 ? <Text style={styles.googleAttribution}>Sonuçlar Google Maps Platform tarafından sağlanır.</Text> : null}
-  </ScreenShell>;
+  </ScreenShell>
+    <Modal visible={privacyVisible} transparent animationType="fade" onRequestClose={() => setPrivacyVisible(false)}>
+      <View style={styles.privacyOverlay}>
+        <View style={styles.privacyModal}>
+          <View style={styles.privacyModalHeader}><View style={styles.privacyModalIcon}><Ionicons name="shield-checkmark-outline" size={24} color="#4E7458" /></View><Text style={styles.privacyModalTitle}>Konum bilgilendirmesi</Text></View>
+          <Text style={styles.privacyModalText}>Yakındaki veterinerleri göstermek için yalnızca sen istediğinde cihazının yaklaşık konumunu kullanırız.</Text>
+          <View style={styles.privacyPoint}><Ionicons name="navigate-outline" size={18} color={colors.primary} /><Text style={styles.privacyPointText}>Koordinatın PetWork sunucusuna gönderilir ve veteriner araması için Google Maps Platform ile paylaşılır.</Text></View>
+          <View style={styles.privacyPoint}><Ionicons name="server-outline" size={18} color={colors.primary} /><Text style={styles.privacyPointText}>Kesin konum veritabanımıza kaydedilmez, profilinde tutulmaz ve diğer kullanıcılara gösterilmez.</Text></View>
+          <View style={styles.privacyPoint}><Ionicons name="globe-outline" size={18} color={colors.primary} /><Text style={styles.privacyPointText}>Google hizmetleri nedeniyle veri yurt dışında işlenebilir. Konum kullanmak zorunlu değildir; şehir veya ilçeyle manuel arama yapabilirsin.</Text></View>
+          <Text style={styles.privacyModalFoot}>İznini cihaz ayarlarından, bu tercihi ise buradaki gizlilik ekranından istediğin zaman kaldırabilirsin.</Text>
+          {locationConsent ? <Pressable onPress={() => void withdrawLocationUse()} style={styles.withdrawButton}><Text style={styles.withdrawButtonText}>Konum tercihini kaldır</Text></Pressable> : <Pressable onPress={() => void acceptLocationUse()} style={styles.acceptPrivacyButton}><Ionicons name="checkmark-circle-outline" size={19} color={colors.white} /><Text style={styles.acceptPrivacyText}>İzin ver ve konumla devam et</Text></Pressable>}
+          <Pressable onPress={() => setPrivacyVisible(false)} style={styles.manualPrivacyButton}><Text style={styles.manualPrivacyText}>{locationConsent ? 'Kapat' : 'Manuel konum kullan'}</Text></Pressable>
+        </View>
+      </View>
+    </Modal>
+  </>;
 }
 
 function PlaceCard({ place }: { place: NearbyVeterinarian }) {
@@ -648,7 +696,8 @@ const styles = StyleSheet.create({
   lightBadge: { color: colors.primary, backgroundColor: '#FFFCF8E8', alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 13, overflow: 'hidden', fontSize: 10, fontWeight: '800' }, adoptionTitle: { color: colors.white, fontFamily: serif, fontSize: 27, fontWeight: '700', marginTop: 9 }, adoptionText: { color: '#F9EEF4', fontSize: 12, lineHeight: 17, marginTop: 3, maxWidth: 270 },
   featureRow: { minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, padding: 15, marginTop: 14 }, featureIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#FFFCF8AA', alignItems: 'center', justifyContent: 'center' }, featureTitle: { color: colors.text, fontSize: 15, fontWeight: '800' }, featureText: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
   miniCard: { flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 16 }, miniTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, miniMeta: { color: colors.muted, fontSize: 10, marginTop: 5 },
-  mapCard: { alignItems: 'center', backgroundColor: colors.sageSoft, borderRadius: 24, padding: 22, marginTop: 18 }, mapTitle: { color: colors.text, fontFamily: serif, fontSize: 21, fontWeight: '700', marginTop: 8 }, mapText: { color: colors.muted, textAlign: 'center', fontSize: 11, marginTop: 5 }, nearbyState: { minHeight: 110, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 20, padding: 18, marginBottom: 12 }, nearbyError: { alignItems: 'center', gap: 8, backgroundColor: colors.peachSoft, borderRadius: 18, padding: 15, marginBottom: 12 }, nearbyErrorText: { color: '#8D4339', textAlign: 'center', fontSize: 11, lineHeight: 16 }, googleAttribution: { color: colors.muted, textAlign: 'center', fontSize: 9, marginTop: 4, marginBottom: 10 },
+  mapCard: { alignItems: 'center', backgroundColor: colors.sageSoft, borderRadius: 24, padding: 22, marginTop: 18 }, mapTitle: { color: colors.text, fontFamily: serif, fontSize: 21, fontWeight: '700', marginTop: 8 }, mapText: { color: colors.muted, textAlign: 'center', fontSize: 11, marginTop: 5 }, locationPrivacyLink: { color: colors.primary, fontSize: 10, fontWeight: '800', textDecorationLine: 'underline', marginTop: 13 }, nearbyState: { minHeight: 110, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 20, padding: 18, marginBottom: 12 }, nearbyError: { alignItems: 'center', gap: 8, backgroundColor: colors.peachSoft, borderRadius: 18, padding: 15, marginBottom: 12 }, nearbyErrorText: { color: '#8D4339', textAlign: 'center', fontSize: 11, lineHeight: 16 }, googleAttribution: { color: colors.muted, textAlign: 'center', fontSize: 9, marginTop: 4, marginBottom: 10 },
+  privacyOverlay: { flex: 1, justifyContent: 'center', backgroundColor: '#251E22AA', padding: 20 }, privacyModal: { width: '100%', maxWidth: 560, alignSelf: 'center', backgroundColor: colors.card, borderRadius: 25, padding: 21, ...shadow }, privacyModalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 13 }, privacyModalIcon: { width: 43, height: 43, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sageSoft }, privacyModalTitle: { flex: 1, color: colors.text, fontFamily: serif, fontSize: 22, fontWeight: '700' }, privacyModalText: { color: colors.text, fontSize: 12, lineHeight: 19, marginBottom: 13 }, privacyPoint: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 10 }, privacyPointText: { flex: 1, color: colors.muted, fontSize: 11, lineHeight: 17 }, privacyModalFoot: { color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 15 }, acceptPrivacyButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: 17, marginTop: 17 }, acceptPrivacyText: { color: colors.white, fontSize: 12, fontWeight: '900' }, withdrawButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.peachSoft, borderRadius: 17, marginTop: 17 }, withdrawButtonText: { color: '#8D4339', fontSize: 12, fontWeight: '900' }, manualPrivacyButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 5 }, manualPrivacyText: { color: colors.primary, fontSize: 11, fontWeight: '800' },
   formLabel: { color: colors.text, fontWeight: '800', fontSize: 13, marginTop: 20, marginBottom: 8 }, inlineFields: { flexDirection: 'row', gap: 10 },
   placeCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: colors.card, borderRadius: 20, padding: 16, marginBottom: 12, ...shadow }, placePin: { width: 43, height: 43, borderRadius: 22, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' },
   placeTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, placeMeta: { color: colors.muted, fontSize: 11, marginTop: 4 }, placeAddress: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 5 }, openText: { color: '#41604A', fontSize: 10, fontWeight: '800', marginTop: 6 }, closedText: { color: '#9B463B' }, miniActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginTop: 11 }, textAction: { color: colors.primary, fontSize: 12, fontWeight: '800' }, reportAction: { color: '#9B463B', fontSize: 12, fontWeight: '800' },

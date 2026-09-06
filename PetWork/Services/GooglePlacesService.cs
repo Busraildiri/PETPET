@@ -27,10 +27,6 @@ public sealed class GooglePlacesService
         if (string.IsNullOrWhiteSpace(_apiKey))
             throw new InvalidOperationException("Google Places API anahtarı yapılandırılmamış.");
 
-        var cacheKey = $"google-vets:{latitude:F3}:{longitude:F3}:{radiusMeters}";
-        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<NearbyVeterinarian>? cached) && cached is not null)
-            return cached;
-
         var body = new
         {
             includedTypes = new[] { "veterinary_care" }, maxResultCount = 20, rankPreference = "DISTANCE",
@@ -38,9 +34,7 @@ public sealed class GooglePlacesService
             locationRestriction = new { circle = new { center = new { latitude, longitude }, radius = radiusMeters } }
         };
 
-        var ordered = await SendSearchAsync("v1/places:searchNearby", body, latitude, longitude, cancellationToken);
-        _cache.Set(cacheKey, ordered, TimeSpan.FromMinutes(15));
-        return ordered;
+        return await SendSearchAsync("v1/places:searchNearby", body, latitude, longitude, cancellationToken);
     }
 
     public async Task<IReadOnlyList<NearbyVeterinarian>> SearchVeterinariansByAreaAsync(
