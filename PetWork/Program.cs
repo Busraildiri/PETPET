@@ -126,7 +126,8 @@ builder.Services.AddHttpClient<ITranslationService, ConfigurableTranslationServi
 builder.Services.AddScoped<IExternalContentImportService, ExternalContentImportService>();
 builder.Services.AddScoped<IExternalContentPublishingService, ExternalContentPublishingService>();
 builder.Services.AddHostedService<ExternalContentAutoPublisher>();
-builder.Services.AddHostedService<ExternalContentBootstrapService>();
+if (builder.Configuration.GetValue("ExternalContent:BootstrapOnStartup", true))
+    builder.Services.AddHostedService<ExternalContentBootstrapService>();
 builder.Services.AddScoped<WebScrapingService>();
 builder.Services.AddScoped<ExperienceService>();
 
@@ -161,7 +162,12 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+var allowMobileDevelopmentHttp = app.Environment.IsDevelopment() &&
+                                 builder.Configuration.GetValue<bool>("MobileDevelopment:AllowHttp");
+if (!allowMobileDevelopmentHttp)
+{
+    app.UseHttpsRedirection();
+}
 app.UseStaticFiles();
 
 // Güvenlik başlıkları ekle

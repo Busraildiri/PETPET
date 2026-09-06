@@ -1,6 +1,18 @@
 ﻿{
   "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
+    "mobile-dev": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://0.0.0.0:5147",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "MobileDevelopment__AllowHttp": "true",
+        "ExternalContent__AutoPublish": "false",
+        "ExternalContent__BootstrapOnStartup": "false"
+      }
+    },
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,
