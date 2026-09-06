@@ -20,16 +20,34 @@ export function CreateQuestionModal({ visible, username, submitting, error, onCl
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('Bakım');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) {
       setTitle('');
       setContent('');
       setCategory('Bakım');
+      setValidationError(null);
     }
   }, [visible]);
 
-  const valid = title.trim().length >= 5 && content.trim().length >= 10;
+  const submitQuestion = () => {
+    const trimmedTitle = title.trim();
+    const trimmedContent = content.trim();
+
+    if (trimmedTitle.length < 5) {
+      setValidationError('Soru başlığı en az 5 karakter olmalı.');
+      return;
+    }
+
+    if (trimmedContent.length < 10) {
+      setValidationError('Soru detayı en az 10 karakter olmalı.');
+      return;
+    }
+
+    setValidationError(null);
+    onSubmit(trimmedTitle, trimmedContent, category);
+  };
 
   return <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
     <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -68,7 +86,7 @@ export function CreateQuestionModal({ visible, username, submitting, error, onCl
           <Text style={styles.label}>Sorunun başlığı</Text>
           <TextInput
             value={title}
-            onChangeText={setTitle}
+            onChangeText={value => { setTitle(value); setValidationError(null); }}
             placeholder="Örn. Kedimi yeni mamaya nasıl alıştırabilirim?"
             placeholderTextColor="#94898D"
             maxLength={200}
@@ -80,7 +98,7 @@ export function CreateQuestionModal({ visible, username, submitting, error, onCl
           <Text style={styles.label}>Detaylar</Text>
           <TextInput
             value={content}
-            onChangeText={setContent}
+            onChangeText={value => { setContent(value); setValidationError(null); }}
             placeholder="Yaş, tür ve daha önce denediğin yöntemler gibi yararlı ayrıntıları paylaş…"
             placeholderTextColor="#94898D"
             multiline
@@ -89,12 +107,12 @@ export function CreateQuestionModal({ visible, username, submitting, error, onCl
           />
           <Text style={styles.counter}>{content.length}/4000</Text>
 
-          {error ? <View style={styles.errorBox}><Ionicons name="alert-circle-outline" size={18} color="#9B463B" /><Text style={styles.errorText}>{error}</Text></View> : null}
+          {(error || validationError) ? <View style={styles.errorBox}><Ionicons name="alert-circle-outline" size={18} color="#9B463B" /><Text style={styles.errorText}>{error || validationError}</Text></View> : null}
 
           <Pressable
-            onPress={() => onSubmit(title.trim(), content.trim(), category)}
-            disabled={submitting || !valid}
-            style={({ pressed }) => [styles.submitButton, (submitting || !valid) && styles.disabled, pressed && styles.pressed]}
+            onPress={submitQuestion}
+            disabled={submitting}
+            style={({ pressed }) => [styles.submitButton, submitting && styles.disabled, pressed && styles.pressed]}
           >
             {submitting ? <ActivityIndicator color={colors.white} /> : <><Ionicons name="send" size={18} color={colors.white} /><Text style={styles.submitText}>Soruyu yayınla</Text></>}
           </Pressable>
