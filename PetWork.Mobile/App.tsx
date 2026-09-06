@@ -336,17 +336,51 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
   const askLocation = async () => {
     setLoading(true);
     setError(null);
+    setLocationText('Konum izni kontrol ediliyor…');
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) { setLocationText('İzin verilmedi; şehir ve ilçe ile arayabilirsin.'); return; }
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) {
+        const message = 'Telefonunun konum servisi kapalı. Ayarlardan konumu açıp tekrar dene.';
+        setLocationText('Konum servisi kapalı');
+        setError(message);
+        Alert.alert('Konum kapalı', message, [
+          { text: 'Vazgeç', style: 'cancel' },
+          { text: 'Ayarları aç', onPress: () => void Linking.openSettings() },
+        ]);
+        return;
+      }
+
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted) permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        const message = 'Yakındaki veterinerleri gösterebilmemiz için konum izni vermelisin.';
+        setLocationText('Konum izni verilmedi');
+        setError(message);
+        Alert.alert('Konum izni gerekli', message, [
+          { text: 'Vazgeç', style: 'cancel' },
+          { text: 'Ayarları aç', onPress: () => void Linking.openSettings() },
+        ]);
+        return;
+      }
+
       setLocationText('Konum alınıyor…');
-      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: 5 * 60 * 1000, requiredAccuracy: 1500 });
+      const current = lastKnown ?? await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<never>((_, reject) => setTimeout(
+          () => reject(new Error('Konum alınması uzun sürdü. Açık bir alanda tekrar dene.')),
+          15_000,
+        )),
+      ]);
+      setLocationText('Konum bulundu · veterinerler aranıyor…');
       const results = await getNearbyVeterinarians(current.coords.latitude, current.coords.longitude);
       setPlaces(results);
       setLocationText(`Konum izni açık · ${results.length} veteriner bulundu`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Yakındaki veterinerler alınamadı.');
+      const message = reason instanceof Error ? reason.message : 'Yakındaki veterinerler alınamadı.';
+      setError(message);
       setLocationText('Konum kullanıldı ancak sonuçlar alınamadı');
+      Alert.alert('Veterinerler alınamadı', message);
     } finally { setLoading(false); }
   };
   return <ScreenShell title="Yakınındakiler" subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
