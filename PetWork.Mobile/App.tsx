@@ -13,6 +13,7 @@ import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
 import { colors, shadow } from './src/theme';
+import type { SocialTab } from './src/types/social';
 
 type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
 type PageKey = 'root' | 'login' | 'register' | 'account' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting';
@@ -41,6 +42,7 @@ export default function App() {
   const [page, setPage] = useState<PageKey>('root');
   const [showSplash, setShowSplash] = useState(true);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>('posts');
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 1600);
@@ -65,8 +67,9 @@ export default function App() {
     </View>;
   }
 
-  const changeTab = (next: TabKey) => { setTab(next); setPage('root'); };
+  const changeTab = (next: TabKey) => { if (next === 'social') setSocialInitialTab('posts'); setTab(next); setPage('root'); };
   const openLost = () => { setTab('lost'); setPage('root'); };
+  const openQuestions = () => { setSocialInitialTab('questions'); setTab('social'); setPage('root'); };
   const authenticated = (username: string) => { setCurrentUser(username); setTab('home'); setPage('root'); };
   const logout = async () => {
     await SecureStore.deleteItemAsync('petim.session');
@@ -86,8 +89,9 @@ export default function App() {
   else if (page === 'found-form') screen = <LostPetForm mode="found" onBack={() => setPage('root')} />;
   else if (page === 'lost-detail') screen = <LostDetailScreen onBack={() => setPage('root')} onSighting={() => setPage('sighting')} />;
   else if (page === 'sighting') screen = <SightingForm onBack={() => setPage('lost-detail')} />;
-  else if (tab === 'home') screen = <HomeScreen currentUser={currentUser} onOpenAccount={() => setPage('account')} onOpenLost={openLost} onLogin={() => setPage('login')} onRegister={() => setPage('register')} />;
+  else if (tab === 'home') screen = <HomeScreen currentUser={currentUser} onOpenAccount={() => setPage('account')} onOpenLost={openLost} onOpenQuestions={openQuestions} onLogin={() => setPage('login')} onRegister={() => setPage('register')} />;
   else if (tab === 'social') screen = <PatiSocialScreen
+    initialTab={socialInitialTab}
     username={currentUser}
     onOpenAccount={() => setPage('account')}
     onLogin={() => setPage('login')}
@@ -108,7 +112,7 @@ export default function App() {
   );
 }
 
-function HomeScreen({ currentUser, onOpenAccount, onOpenLost, onLogin, onRegister }: { currentUser: string | null; onOpenAccount: () => void; onOpenLost: () => void; onLogin: () => void; onRegister: () => void }) {
+function HomeScreen({ currentUser, onOpenAccount, onOpenLost, onOpenQuestions, onLogin, onRegister }: { currentUser: string | null; onOpenAccount: () => void; onOpenLost: () => void; onOpenQuestions: () => void; onLogin: () => void; onRegister: () => void }) {
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -158,7 +162,7 @@ function HomeScreen({ currentUser, onOpenAccount, onOpenLost, onLogin, onRegiste
         {query.trim() ? <SearchResults query={query} results={results} loading={loading} /> : (
           <>
             <SectionTitle title="Konular" />
-            <View style={styles.categoryGrid}>{categories.map(category => <CategoryCard key={category.title} {...category} />)}</View>
+            <View style={styles.categoryGrid}>{categories.map(category => <CategoryCard key={category.title} {...category} onPress={category.title === 'Soru-Cevap' ? onOpenQuestions : undefined} />)}</View>
             <LostHomeBanner onPress={onOpenLost} />
             <SectionTitle title="Güncel İçerikler" action="Tümü" />
             {loading && !data ? <LoadingCards /> : null}
@@ -224,9 +228,9 @@ function SectionTitle({ title, action }: { title: string; action?: string }) {
   </View>;
 }
 
-function CategoryCard({ title, icon, color, ink }: typeof categories[number]) {
+function CategoryCard({ title, icon, color, ink, onPress }: typeof categories[number] & { onPress?: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={`${title} kategorisini aç`}
-    onPress={() => Alert.alert(title, 'Bu kategori ekranını sıradaki adımda bağlıyoruz.')}
+    onPress={onPress ?? (() => Alert.alert(title, 'Bu kategori ekranını sıradaki adımda bağlıyoruz.'))}
     style={({ pressed }) => [styles.categoryCard, { backgroundColor: color }, pressed && styles.cardPressed]}>
     <View style={[styles.categoryIcon, { backgroundColor: `${ink}14` }]}><Ionicons name={icon} size={27} color={ink} /></View>
     <Text style={[styles.categoryLabel, { color: ink }]} numberOfLines={2}>{title}</Text>
