@@ -24,6 +24,7 @@ temp/
 ## Local database migration artifacts and secrets
 PetWork/local-backups/
 PetWork/local-migration-data/
+PetWork/wwwroot/uploads/
 *.bak
 *.bacpac
 *.bcp

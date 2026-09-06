@@ -8,7 +8,7 @@ import {
   ActivityIndicator, Alert, Image, ImageBackground, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { apiUrl, getHome, HomePayload, mediaUrl, Question, Story } from './src/api';
+import { apiUrl, getHome, HomePayload, mediaUrl, Question, Story, type AuthResponse } from './src/api';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
@@ -42,6 +42,7 @@ export default function App() {
   const [page, setPage] = useState<PageKey>('root');
   const [showSplash, setShowSplash] = useState(true);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
   const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>('posts');
 
   useEffect(() => {
@@ -53,8 +54,11 @@ export default function App() {
     SecureStore.getItemAsync('petim.session').then(value => {
       if (!value) return;
       try {
-        const session = JSON.parse(value) as { username?: string; expiresAt?: string };
-        if (session.username && session.expiresAt && new Date(session.expiresAt) > new Date()) setCurrentUser(session.username);
+        const session = JSON.parse(value) as { username?: string; token?: string; expiresAt?: string };
+        if (session.username && session.token && session.expiresAt && new Date(session.expiresAt) > new Date()) {
+          setCurrentUser(session.username);
+          setAuthToken(session.token);
+        }
         else SecureStore.deleteItemAsync('petim.session');
       } catch { SecureStore.deleteItemAsync('petim.session'); }
     });
@@ -70,10 +74,11 @@ export default function App() {
   const changeTab = (next: TabKey) => { if (next === 'social') setSocialInitialTab('posts'); setTab(next); setPage('root'); };
   const openLost = () => { setTab('lost'); setPage('root'); };
   const openQuestions = () => { setSocialInitialTab('questions'); setTab('social'); setPage('root'); };
-  const authenticated = (username: string) => { setCurrentUser(username); setTab('home'); setPage('root'); };
+  const authenticated = (session: AuthResponse) => { setCurrentUser(session.username); setAuthToken(session.token); setTab('home'); setPage('root'); };
   const logout = async () => {
     await SecureStore.deleteItemAsync('petim.session');
     setCurrentUser(null);
+    setAuthToken(null);
     setTab('home');
     setPage('root');
   };
@@ -93,6 +98,7 @@ export default function App() {
   else if (tab === 'social') screen = <PatiSocialScreen
     initialTab={socialInitialTab}
     username={currentUser}
+    authToken={authToken}
     onOpenAccount={() => setPage('account')}
     onLogin={() => setPage('login')}
     onOpenNearby={() => setPage('nearby')}

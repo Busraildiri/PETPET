@@ -6,12 +6,12 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
-import { loginUser, registerUser } from '../api';
+import { loginUser, registerUser, type AuthResponse } from '../api';
 import { colors, shadow } from '../theme';
 
 export type AuthMode = 'login' | 'register';
 
-export function AuthScreen({ initialMode, onBack, onAuthenticated }: { initialMode: AuthMode; onBack: () => void; onAuthenticated: (username: string) => void }) {
+export function AuthScreen({ initialMode, onBack, onAuthenticated }: { initialMode: AuthMode; onBack: () => void; onAuthenticated: (session: AuthResponse) => void }) {
   const { width, height } = useWindowDimensions();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [name, setName] = useState('');
@@ -67,7 +67,7 @@ export function AuthScreen({ initialMode, onBack, onAuthenticated }: { initialMo
         username: result.username,
         expiresAt: result.expiresAt,
       }));
-      Alert.alert(isLogin ? 'Hoş geldin!' : 'Kaydın tamamlandı!', result.message, [{ text: 'Devam Et', onPress: () => onAuthenticated(result.username) }]);
+      Alert.alert(isLogin ? 'Hoş geldin!' : 'Kaydın tamamlandı!', result.message, [{ text: 'Devam Et', onPress: () => onAuthenticated(result) }]);
     } catch (reason) {
       setFormError(reason instanceof Error ? reason.message : `${isLogin ? 'Giriş' : 'Kayıt'} işlemi tamamlanamadı.`);
     } finally {

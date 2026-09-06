@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PetWork.Data;
@@ -11,9 +12,11 @@ using PetWork.Data;
 namespace PetWork.Migrations.PostgreSql
 {
     [DbContext(typeof(PostgresPetWorkDbContext))]
-    partial class PostgresPetWorkDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260906145801_AddSocialPosts")]
+    partial class AddSocialPosts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -636,40 +639,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.ToTable("Recipes", "petwork");
                 });
 
-            modelBuilder.Entity("PetWork.Models.SocialComment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("SocialPostId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("SocialPostId", "IsDeleted", "CreatedAt");
-
-                    b.ToTable("SocialComments", "petwork");
-                });
-
             modelBuilder.Entity("PetWork.Models.SocialPost", b =>
                 {
                     b.Property<int>("Id")
@@ -707,43 +676,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.HasIndex("IsDeleted", "CreatedAt");
 
                     b.ToTable("SocialPosts", "petwork");
-                });
-
-            modelBuilder.Entity("PetWork.Models.SocialPostReport", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<bool>("IsResolved")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<int>("SocialPostId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("IsResolved", "CreatedAt");
-
-                    b.HasIndex("SocialPostId", "UserId")
-                        .IsUnique();
-
-                    b.ToTable("SocialPostReports", "petwork");
                 });
 
             modelBuilder.Entity("PetWork.Models.User", b =>
@@ -920,25 +852,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("PetWork.Models.SocialComment", b =>
-                {
-                    b.HasOne("PetWork.Models.SocialPost", "SocialPost")
-                        .WithMany("Comments")
-                        .HasForeignKey("SocialPostId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PetWork.Models.User", "User")
-                        .WithMany("SocialComments")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("SocialPost");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("PetWork.Models.SocialPost", b =>
                 {
                     b.HasOne("PetWork.Models.User", "User")
@@ -946,25 +859,6 @@ namespace PetWork.Migrations.PostgreSql
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("PetWork.Models.SocialPostReport", b =>
-                {
-                    b.HasOne("PetWork.Models.SocialPost", "SocialPost")
-                        .WithMany("Reports")
-                        .HasForeignKey("SocialPostId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PetWork.Models.User", "User")
-                        .WithMany("SocialPostReports")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("SocialPost");
 
                     b.Navigation("User");
                 });
@@ -981,13 +875,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.Navigation("Answers");
                 });
 
-            modelBuilder.Entity("PetWork.Models.SocialPost", b =>
-                {
-                    b.Navigation("Comments");
-
-                    b.Navigation("Reports");
-                });
-
             modelBuilder.Entity("PetWork.Models.User", b =>
                 {
                     b.Navigation("Answers");
@@ -995,10 +882,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.Navigation("Pets");
 
                     b.Navigation("Questions");
-
-                    b.Navigation("SocialComments");
-
-                    b.Navigation("SocialPostReports");
 
                     b.Navigation("SocialPosts");
                 });

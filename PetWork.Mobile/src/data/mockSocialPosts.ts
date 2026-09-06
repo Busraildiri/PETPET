@@ -11,6 +11,8 @@ export const mockSocialPosts: SocialPost[] = [
     body: 'Bugünkü yürüyüşte yeni kokular, bolca güneş ve küçük bir mola vardı. Sizin patinizin en sevdiği yürüyüş rotası neresi?',
     image: require('../../assets/community-demo.png'),
     tags: ['Yürüyüş', 'Birlikte'],
+    isAdmin: true,
+    commentCount: 0,
   },
   {
     id: 'care-note',
@@ -22,6 +24,8 @@ export const mockSocialPosts: SocialPost[] = [
     body: 'Su kaplarını evin birkaç sakin noktasına koymak patilerin daha düzenli su içmesine yardımcı olabilir. Küçük değişiklikler bazen çok işe yarıyor.',
     image: require('../../assets/social-care.png'),
     tags: ['Bakım Notu', 'Kedi'],
+    isAdmin: true,
+    commentCount: 0,
   },
   {
     id: 'friendship',
@@ -33,5 +37,7 @@ export const mockSocialPosts: SocialPost[] = [
     body: 'Aynı mahallede yaşayan patiler için güvenli oyun buluşmaları planlamak ister misiniz? Yakınımda bölümünde yeni dostluklara yer açıyoruz.',
     image: require('../../assets/social-friends.png'),
     tags: ['Arkadaşlık', 'Yakınımda'],
+    isAdmin: true,
+    commentCount: 0,
   },
 ];

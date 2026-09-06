@@ -26,6 +26,9 @@ namespace PetWork.Data
         public DbSet<Guide> Guides { get; set; }
         public DbSet<ExternalContentSource> ExternalContentSources { get; set; }
         public DbSet<ContentImportAudit> ContentImportAudits { get; set; }
+        public DbSet<SocialPost> SocialPosts { get; set; }
+        public DbSet<SocialComment> SocialComments { get; set; }
+        public DbSet<SocialPostReport> SocialPostReports { get; set; }
         
         public override int SaveChanges()
         {
@@ -140,6 +143,49 @@ namespace PetWork.Data
                 .WithMany(source => source.Children)
                 .HasForeignKey(source => source.ParentSourceId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SocialPost>()
+                .HasOne(post => post.User)
+                .WithMany(user => user.SocialPosts)
+                .HasForeignKey(post => post.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SocialPost>()
+                .HasIndex(post => new { post.IsDeleted, post.CreatedAt });
+
+            modelBuilder.Entity<SocialComment>()
+                .HasOne(comment => comment.SocialPost)
+                .WithMany(post => post.Comments)
+                .HasForeignKey(comment => comment.SocialPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SocialComment>()
+                .HasOne(comment => comment.User)
+                .WithMany(user => user.SocialComments)
+                .HasForeignKey(comment => comment.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SocialComment>()
+                .HasIndex(comment => new { comment.SocialPostId, comment.IsDeleted, comment.CreatedAt });
+
+            modelBuilder.Entity<SocialPostReport>()
+                .HasOne(report => report.SocialPost)
+                .WithMany(post => post.Reports)
+                .HasForeignKey(report => report.SocialPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SocialPostReport>()
+                .HasOne(report => report.User)
+                .WithMany(user => user.SocialPostReports)
+                .HasForeignKey(report => report.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SocialPostReport>()
+                .HasIndex(report => new { report.SocialPostId, report.UserId })
+                .IsUnique();
+
+            modelBuilder.Entity<SocialPostReport>()
+                .HasIndex(report => new { report.IsResolved, report.CreatedAt });
 
             modelBuilder.Entity<ExternalContentSource>()
                 .HasOne(source => source.ReviewedByUser)

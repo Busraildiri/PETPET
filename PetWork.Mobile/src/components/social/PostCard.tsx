@@ -21,7 +21,7 @@ export function PostCard({ post, onComment, onReport }: Props) {
         <View style={styles.identity}>
           <View style={styles.nameRow}>
             <Text style={styles.petName}>{post.petName}</Text>
-            <Text style={styles.adminBadge}>Yönetici</Text>
+            {post.isAdmin ? <Text style={styles.adminBadge}>Yönetici</Text> : null}
           </View>
           <Text style={styles.meta}>{post.username} · Henüz konum yok</Text>
           <Text style={styles.time}>{post.publishedAt}</Text>
@@ -33,7 +33,7 @@ export function PostCard({ post, onComment, onReport }: Props) {
 
       <Text style={styles.body}>{post.body}</Text>
       <View style={styles.tags}>{post.tags.map(tag => <Text key={tag} style={styles.tag}>#{tag}</Text>)}</View>
-      <Image source={post.image} style={styles.image} resizeMode="cover" accessibilityLabel={`${post.petName} gönderi görseli`} />
+      {post.image ? <Image source={post.image} style={styles.image} resizeMode="cover" accessibilityLabel={`${post.petName} gönderi görseli`} /> : null}
 
       <View style={styles.actions}>
         <Pressable onPress={() => setLiked(value => !value)} style={styles.action} accessibilityLabel={liked ? 'Beğeniyi kaldır' : 'Gönderiyi beğen'}>
@@ -42,7 +42,7 @@ export function PostCard({ post, onComment, onReport }: Props) {
         </Pressable>
         <Pressable onPress={() => onComment(post)} style={styles.action} accessibilityLabel="Yorumları aç">
           <Ionicons name="chatbubble-outline" size={20} color={colors.primary} />
-          <Text style={styles.actionText}>Yorum yap</Text>
+          <Text style={styles.actionText}>{post.commentCount > 0 ? `${post.commentCount} yorum` : 'Yorum yap'}</Text>
         </Pressable>
         <Pressable style={styles.action} accessibilityLabel="Gönderiyi paylaş">
           <Ionicons name="paper-plane-outline" size={20} color={colors.primary} />

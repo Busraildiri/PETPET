@@ -44,5 +44,9 @@ namespace PetWork.Models
         
         [JsonIgnore]
         public List<Badge>? Badges { get; set; }
+
+        public List<SocialPost>? SocialPosts { get; set; }
+        public List<SocialComment>? SocialComments { get; set; }
+        public List<SocialPostReport>? SocialPostReports { get; set; }
     }
 } 

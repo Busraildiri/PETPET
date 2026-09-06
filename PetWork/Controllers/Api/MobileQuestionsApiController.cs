@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,10 @@ namespace PetWork.Controllers.Api;
 public sealed class MobileQuestionsApiController : ControllerBase
 {
     private static readonly string[] DemoUsernames = ["kediSever", "goldenSahibi", "kusSever"];
+    private static readonly HashSet<string> AllowedCategories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Beslenme", "Sağlık", "Davranış", "Bakım", "Yas ve Kayıp", "Diğer"
+    };
     private readonly PetWorkDbContext _context;
     private readonly IConfiguration _configuration;
 
@@ -152,6 +157,58 @@ public sealed class MobileQuestionsApiController : ControllerBase
             answer.CreatedDate));
     }
 
+    [HttpPost]
+    [Authorize]
+    [EnableRateLimiting("mobile-content")]
+    public async Task<ActionResult<MobileQuestionSummary>> PostQuestion(
+        MobileCreateQuestionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetAuthenticatedUserId();
+        if (userId is null)
+            return Unauthorized(new { message = "Oturumun geçersiz veya süresi dolmuş. Lütfen yeniden giriş yap." });
+
+        var user = await _context.Users
+            .FirstOrDefaultAsync(candidate => candidate.Id == userId.Value, cancellationToken);
+        if (user is null)
+            return Unauthorized(new { message = "Bu oturuma ait kullanıcı bulunamadı." });
+
+        var requestedCategory = request.Category.Trim();
+        var category = AllowedCategories.FirstOrDefault(item =>
+            item.Equals(requestedCategory, StringComparison.OrdinalIgnoreCase));
+        if (category is null)
+            return BadRequest(new { message = "Lütfen geçerli bir soru kategorisi seç." });
+
+        var question = new Question
+        {
+            Title = request.Title.Trim(),
+            Content = request.Content.Trim(),
+            Category = category,
+            UserId = user.Id,
+            CreatedDate = DateTime.Now,
+            ViewCount = 0
+        };
+
+        _context.Questions.Add(question);
+        user.ExperiencePoints += 10;
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var excerpt = question.Content.Length > 180
+            ? question.Content[..180] + "…"
+            : question.Content;
+
+        return Created(string.Empty, new MobileQuestionSummary(
+            question.Id,
+            question.Title,
+            excerpt,
+            question.Category,
+            user.Username,
+            0,
+            0,
+            false,
+            question.CreatedDate));
+    }
+
     private int? GetAuthenticatedUserId()
     {
         var authorization = Request.Headers.Authorization.ToString();
@@ -195,6 +252,21 @@ public sealed class MobileAnswerRequest
     [Required(ErrorMessage = "Yanıt metni gereklidir.")]
     [StringLength(5000, MinimumLength = 2, ErrorMessage = "Yanıt 2-5000 karakter arasında olmalıdır.")]
     public string Content { get; init; } = string.Empty;
+}
+
+public sealed class MobileCreateQuestionRequest
+{
+    [Required(ErrorMessage = "Soru başlığı gereklidir.")]
+    [StringLength(200, MinimumLength = 5, ErrorMessage = "Başlık 5-200 karakter arasında olmalıdır.")]
+    public string Title { get; init; } = string.Empty;
+
+    [Required(ErrorMessage = "Soru detayı gereklidir.")]
+    [StringLength(4000, MinimumLength = 10, ErrorMessage = "Soru detayı 10-4000 karakter arasında olmalıdır.")]
+    public string Content { get; init; } = string.Empty;
+
+    [Required(ErrorMessage = "Kategori seçmelisin.")]
+    [StringLength(50)]
+    public string Category { get; init; } = string.Empty;
 }
 
 public sealed record MobileQuestionsResponse(

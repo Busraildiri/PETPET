@@ -1,3 +1,5 @@
+import { File } from 'expo-file-system';
+
 export type Story = {
   id: number; type: 'blog' | 'disease' | 'recipe' | string; title: string; category: string;
   excerpt: string; imagePath?: string | null; publishedAt: string;
@@ -31,6 +33,25 @@ export type LoginRequest = {
   emailOrUsername: string;
   password: string;
   rememberMe: boolean;
+};
+
+export type SocialPostPayload = {
+  id: number;
+  username: string;
+  isAdmin: boolean;
+  body: string;
+  tags?: string | null;
+  imagePath?: string | null;
+  createdAt: string;
+  commentCount: number;
+};
+
+export type SocialCommentPayload = {
+  id: number;
+  username: string;
+  isAdmin: boolean;
+  body: string;
+  createdAt: string;
 };
 
 export type QuestionSummary = {
@@ -87,47 +108,6 @@ export async function getHome(signal?: AbortSignal): Promise<HomePayload> {
   return response.json();
 }
 
-export async function getQuestions(signal?: AbortSignal): Promise<QuestionsResponse> {
-  const response = await fetch(`${apiUrl}/api/mobile/questions?take=50`, {
-    headers: { Accept: 'application/json' }, signal,
-  });
-  if (!response.ok) throw new Error(`Sorular alınamadı (${response.status}).`);
-  return response.json();
-}
-
-export async function getQuestionDetail(id: number, signal?: AbortSignal): Promise<QuestionDetail> {
-  const response = await fetch(`${apiUrl}/api/mobile/questions/${id}`, {
-    headers: { Accept: 'application/json' }, signal,
-  });
-  if (!response.ok) throw new Error(`Soru ayrıntısı alınamadı (${response.status}).`);
-  return response.json();
-}
-
-export async function postQuestionAnswer(questionId: number, content: string): Promise<QuestionAnswer> {
-  const stored = await SecureStore.getItemAsync('petim.session');
-  if (!stored) throw new Error('Yanıt vermek için giriş yapmalısın.');
-
-  let token: string | undefined;
-  try { token = (JSON.parse(stored) as { token?: string }).token; } catch { token = undefined; }
-  if (!token) throw new Error('Oturum bilgisi bulunamadı. Lütfen yeniden giriş yap.');
-
-  const response = await fetch(`${apiUrl}/api/mobile/questions/${questionId}/answers`, {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ content }),
-  });
-  const payload = await response.json().catch(() => null) as { message?: string; title?: string; errors?: Record<string, string[]> } | QuestionAnswer | null;
-
-  if (!response.ok) {
-    const errorPayload = payload as { message?: string; title?: string; errors?: Record<string, string[]> } | null;
-    const validationMessage = errorPayload?.errors ? Object.values(errorPayload.errors).flat()[0] : undefined;
-    if (response.status === 429) throw new Error('Çok fazla yanıt gönderildi. Lütfen bir dakika sonra tekrar dene.');
-    throw new Error(validationMessage || errorPayload?.message || errorPayload?.title || 'Yanıt gönderilemedi.');
-  }
-
-  return payload as QuestionAnswer;
-}
-
 async function readAuthResponse(response: Response, fallbackMessage: string): Promise<AuthResponse> {
   const payload = await response.json().catch(() => null) as {
     message?: string;
@@ -163,4 +143,223 @@ export async function loginUser(request: LoginRequest): Promise<AuthResponse> {
 
   return readAuthResponse(response, 'Giriş işlemi tamamlanamadı.');
 }
-import * as SecureStore from 'expo-secure-store';
+
+async function fetchSocialPostsOnce(signal?: AbortSignal): Promise<SocialPostPayload[]> {
+  const timeoutController = new AbortController();
+  const abortFromCaller = () => timeoutController.abort();
+  if (signal?.aborted) timeoutController.abort();
+  else signal?.addEventListener('abort', abortFromCaller, { once: true });
+
+  const timeoutId = setTimeout(() => timeoutController.abort(), 8000);
+  try {
+    const response = await fetch(`${apiUrl}/api/mobile/social/posts`, {
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+      signal: timeoutController.signal,
+    });
+
+    if (!response.ok) throw new Error(`PatiSosyal akışı yüklenemedi (${response.status}).`);
+    return response.json();
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    if (timeoutController.signal.aborted) {
+      throw new Error('PetWork sunucusu zamanında yanıt vermedi. Wi-Fi bağlantını kontrol edip yeniden dene.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    signal?.removeEventListener('abort', abortFromCaller);
+  }
+}
+
+export async function getSocialPosts(signal?: AbortSignal): Promise<SocialPostPayload[]> {
+  try {
+    return await fetchSocialPostsOnce(signal);
+  } catch (firstError) {
+    if (signal?.aborted) throw firstError;
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return fetchSocialPostsOnce(signal);
+  }
+}
+
+export async function getQuestions(signal?: AbortSignal): Promise<QuestionsResponse> {
+  const response = await fetch(`${apiUrl}/api/mobile/questions?take=50`, {
+    headers: { Accept: 'application/json' }, signal,
+  });
+  if (!response.ok) throw new Error(`Sorular alınamadı (${response.status}).`);
+  return response.json();
+}
+
+export async function getQuestionDetail(id: number, signal?: AbortSignal): Promise<QuestionDetail> {
+  const response = await fetch(`${apiUrl}/api/mobile/questions/${id}`, {
+    headers: { Accept: 'application/json' }, signal,
+  });
+  if (!response.ok) throw new Error(`Soru ayrıntısı alınamadı (${response.status}).`);
+  return response.json();
+}
+
+export async function createQuestion(
+  token: string,
+  title: string,
+  content: string,
+  category: string,
+): Promise<QuestionSummary> {
+  const response = await fetch(`${apiUrl}/api/mobile/questions`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ title, content, category }),
+  });
+
+  const payload = await response.json().catch(() => null) as {
+    message?: string;
+    title?: string;
+    errors?: Record<string, string[]>;
+  } | QuestionSummary | null;
+
+  if (!response.ok) {
+    const validationMessage = payload && 'errors' in payload && payload.errors
+      ? Object.values(payload.errors).flat()[0]
+      : undefined;
+    const message = payload && 'message' in payload ? payload.message : undefined;
+    const responseTitle = payload && 'title' in payload ? payload.title : undefined;
+    throw new Error(validationMessage || message || responseTitle || `Soru gönderilemedi (${response.status}).`);
+  }
+
+  return payload as QuestionSummary;
+}
+
+export async function postQuestionAnswer(token: string, questionId: number, content: string): Promise<QuestionAnswer> {
+  const response = await fetch(`${apiUrl}/api/mobile/questions/${questionId}/answers`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ content }),
+  });
+  const payload = await response.json().catch(() => null) as {
+    message?: string; title?: string; errors?: Record<string, string[]>;
+  } | QuestionAnswer | null;
+
+  if (!response.ok) {
+    const errorPayload = payload as { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+    const validationMessage = errorPayload?.errors ? Object.values(errorPayload.errors).flat()[0] : undefined;
+    if (response.status === 429) throw new Error('Çok fazla yanıt gönderildi. Lütfen bir dakika sonra tekrar dene.');
+    throw new Error(validationMessage || errorPayload?.message || errorPayload?.title || 'Yanıt gönderilemedi.');
+  }
+
+  return payload as QuestionAnswer;
+}
+
+export async function createSocialPost(
+  token: string,
+  body: string,
+  tags: string[],
+  image?: { uri: string; fileName?: string | null; mimeType?: string | null },
+): Promise<SocialPostPayload> {
+  const imageFile = image ? new File(image.uri) : null;
+  const imageBase64 = imageFile ? await imageFile.base64() : null;
+
+  const response = await fetch(`${apiUrl}/api/mobile/social/posts`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      body,
+      tags: tags.join(','),
+      imageBase64,
+      imageContentType: image?.mimeType || imageFile?.type || null,
+    }),
+  });
+
+  const payload = await response.json().catch(() => null) as {
+    message?: string;
+    title?: string;
+    errors?: Record<string, string[]>;
+  } | SocialPostPayload | null;
+
+  if (!response.ok) {
+    const validationMessage = payload && 'errors' in payload && payload.errors
+      ? Object.values(payload.errors).flat()[0]
+      : undefined;
+    const message = payload && 'message' in payload ? payload.message : undefined;
+    const title = payload && 'title' in payload ? payload.title : undefined;
+    throw new Error(validationMessage || message || title || `Paylaşım gönderilemedi (${response.status}).`);
+  }
+
+  return payload as SocialPostPayload;
+}
+
+export async function getSocialComments(postId: number, signal?: AbortSignal): Promise<SocialCommentPayload[]> {
+  const response = await fetch(`${apiUrl}/api/mobile/social/posts/${postId}/comments`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+
+  if (!response.ok) throw new Error(`Yorumlar yüklenemedi (${response.status}).`);
+  return response.json();
+}
+
+export async function createSocialComment(
+  token: string,
+  postId: number,
+  body: string,
+): Promise<SocialCommentPayload> {
+  const response = await fetch(`${apiUrl}/api/mobile/social/posts/${postId}/comments`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ body }),
+  });
+
+  const payload = await response.json().catch(() => null) as {
+    message?: string;
+    title?: string;
+    errors?: Record<string, string[]>;
+  } | SocialCommentPayload | null;
+
+  if (!response.ok) {
+    const validationMessage = payload && 'errors' in payload && payload.errors
+      ? Object.values(payload.errors).flat()[0]
+      : undefined;
+    const message = payload && 'message' in payload ? payload.message : undefined;
+    const title = payload && 'title' in payload ? payload.title : undefined;
+    throw new Error(validationMessage || message || title || `Yorum gönderilemedi (${response.status}).`);
+  }
+
+  return payload as SocialCommentPayload;
+}
+
+export async function deleteSocialPost(token: string, postId: number): Promise<void> {
+  const response = await fetch(`${apiUrl}/api/mobile/social/posts/${postId}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { message?: string } | null;
+    throw new Error(payload?.message || `Gönderi silinemedi (${response.status}).`);
+  }
+}
+
+export async function reportSocialPost(token: string, postId: number, reason: string): Promise<string> {
+  const response = await fetch(`${apiUrl}/api/mobile/social/posts/${postId}/report`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ reason }),
+  });
+
+  const payload = await response.json().catch(() => null) as { message?: string } | null;
+  if (!response.ok) throw new Error(payload?.message || `Gönderi bildirilemedi (${response.status}).`);
+  return payload?.message || 'Bildirimin alındı.';
+}

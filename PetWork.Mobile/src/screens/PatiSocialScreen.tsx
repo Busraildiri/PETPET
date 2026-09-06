@@ -3,7 +3,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, Platform, Pressable, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View, useWindowDimensions,
 } from 'react-native';
-import { getQuestionDetail, getQuestions, postQuestionAnswer, QuestionAnswer, QuestionDetail, QuestionsResponse, QuestionSummary } from '../api';
+import {
+  createQuestion, createSocialPost, deleteSocialPost, getQuestionDetail, getQuestions, getSocialPosts,
+  mediaUrl, postQuestionAnswer, reportSocialPost, QuestionAnswer, QuestionDetail, QuestionsResponse,
+  QuestionSummary, type SocialPostPayload,
+} from '../api';
+import { CommentsModal } from '../components/social/CommentsModal';
+import { CreatePostModal, type SelectedPostImage } from '../components/social/CreatePostModal';
+import { CreateQuestionModal } from '../components/social/CreateQuestionModal';
 import { CommunityShortcuts, NearbyShortcuts } from '../components/social/SocialShortcuts';
 import { PostCard } from '../components/social/PostCard';
 import { mockSocialPosts } from '../data/mockSocialPosts';
@@ -13,6 +20,7 @@ import type { SocialPost, SocialTab } from '../types/social';
 type Props = {
   initialTab?: SocialTab;
   username: string | null;
+  authToken: string | null;
   onOpenAccount: () => void;
   onLogin: () => void;
   onOpenNearby: () => void;
@@ -27,11 +35,57 @@ const tabs: { key: SocialTab; label: string }[] = [
   { key: 'nearby', label: 'Yakınımda' },
 ];
 
-export function PatiSocialScreen({ initialTab = 'posts', username, onOpenAccount, onLogin, onOpenNearby, onOpenAdoption, onOpenReviews, onOpenLost }: Props) {
+function toSocialPost(post: SocialPostPayload): SocialPost {
+  return {
+    id: `api-${post.id}`,
+    serverId: post.id,
+    ownerName: post.isAdmin ? 'PetWork Yönetimi' : post.username,
+    username: `@${post.username}`,
+    petName: post.username,
+    petType: 'Topluluk',
+    publishedAt: new Date(post.createdAt).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }),
+    body: post.body,
+    image: post.imagePath ? { uri: mediaUrl(post.imagePath) } : undefined,
+    tags: post.tags?.split(',').map(tag => tag.trim()).filter(Boolean) ?? [],
+    isAdmin: post.isAdmin,
+    commentCount: post.commentCount,
+  };
+}
+
+export function PatiSocialScreen({ initialTab = 'posts', username, authToken, onOpenAccount, onLogin, onOpenNearby, onOpenAdoption, onOpenReviews, onOpenLost }: Props) {
   const { width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<SocialTab>(initialTab);
+  const [posts, setPosts] = useState<SocialPost[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [postsError, setPostsError] = useState<string | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [composerError, setComposerError] = useState<string | null>(null);
+  const [commentPost, setCommentPost] = useState<SocialPost | null>(null);
+  const [questionComposerOpen, setQuestionComposerOpen] = useState(false);
+  const [questionSubmitting, setQuestionSubmitting] = useState(false);
+  const [questionComposerError, setQuestionComposerError] = useState<string | null>(null);
+  const [questionsRevision, setQuestionsRevision] = useState(0);
   const displayName = username ?? 'Misafir';
   const avatarLetter = username?.charAt(0).toLocaleUpperCase('tr-TR') ?? '?';
+
+  const loadPosts = useCallback(async (signal?: AbortSignal) => {
+    setPostsError(null);
+    try {
+      setPosts((await getSocialPosts(signal)).map(toSocialPost));
+    } catch (reason) {
+      if (signal?.aborted) return;
+      setPostsError(reason instanceof Error ? reason.message : 'Topluluk akışı yüklenemedi.');
+    } finally {
+      if (!signal?.aborted) setPostsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadPosts(controller.signal);
+    return () => controller.abort();
+  }, [loadPosts]);
 
   const openPendingFeature = (action: string) => {
     if (!username) {
@@ -53,6 +107,96 @@ export function PatiSocialScreen({ initialTab = 'posts', username, onOpenAccount
     `${post.petName} · Yorumlar`,
     'Yorum ekranı bir sonraki adımda gerçek gönderi servisiyle bağlanacak.',
   );
+
+  const requireLogin = (message: string) => Alert.alert('Giriş yapmalısın', message, [
+    { text: 'Vazgeç', style: 'cancel' },
+    { text: 'Giriş Yap', onPress: onLogin },
+  ]);
+
+  const openComposer = () => {
+    if (!username || !authToken) return requireLogin('Paylaşım yapmak için Pet’im hesabına giriş yap.');
+    setComposerError(null);
+    setComposerOpen(true);
+  };
+
+  const submitPost = async (body: string, tags: string[], image?: SelectedPostImage) => {
+    if (!authToken || body.length < 2) return;
+    setSubmitting(true);
+    setComposerError(null);
+    try {
+      const created = await createSocialPost(authToken, body, tags, image);
+      setPosts(current => [toSocialPost(created), ...current]);
+      setComposerOpen(false);
+      Alert.alert('Paylaşıldı', 'Gönderin PatiSosyal akışına eklendi ve 10 XP kazandın.');
+    } catch (reason) {
+      setComposerError(reason instanceof Error ? reason.message : 'Paylaşım gönderilemedi.');
+    } finally { setSubmitting(false); }
+  };
+
+  const openQuestionComposer = () => {
+    if (!username || !authToken) return requireLogin('Soru sormak için Pet’im hesabına giriş yap.');
+    setQuestionComposerError(null);
+    setQuestionComposerOpen(true);
+  };
+
+  const submitQuestion = async (title: string, content: string, category: string) => {
+    if (!authToken) return;
+    setQuestionSubmitting(true);
+    setQuestionComposerError(null);
+    try {
+      await createQuestion(authToken, title, content, category);
+      setQuestionComposerOpen(false);
+      setQuestionsRevision(current => current + 1);
+      Alert.alert('Sorun yayınlandı', 'Sorun web ve mobil topluluğa eklendi. 10 XP kazandın.');
+    } catch (reason) {
+      setQuestionComposerError(reason instanceof Error ? reason.message : 'Soru gönderilemedi.');
+    } finally { setQuestionSubmitting(false); }
+  };
+
+  const openRealComments = (post: SocialPost) => {
+    if (!post.serverId) return Alert.alert('Başlangıç paylaşımı', 'Bu arşiv paylaşımı yorum kabul etmiyor.');
+    setCommentPost(post);
+  };
+
+  const commentAdded = (postId: number) => {
+    setPosts(current => current.map(post => post.serverId === postId ? { ...post, commentCount: post.commentCount + 1 } : post));
+    setCommentPost(current => current?.serverId === postId ? { ...current, commentCount: current.commentCount + 1 } : current);
+  };
+
+  const sendReport = async (post: SocialPost, reason: string) => {
+    if (!authToken || !post.serverId) return;
+    try { Alert.alert('Bildirimin alındı', await reportSocialPost(authToken, post.serverId, reason)); }
+    catch (error) { Alert.alert('Bildirim gönderilemedi', error instanceof Error ? error.message : 'Lütfen tekrar dene.'); }
+  };
+
+  const openReportReasons = (post: SocialPost) => Alert.alert('Bildirim nedeni', 'Bu gönderiyi neden bildirmek istiyorsun?', [
+    { text: 'Spam', onPress: () => sendReport(post, 'Spam veya tekrarlanan içerik') },
+    { text: 'Yanıltıcı / zararlı', onPress: () => sendReport(post, 'Yanıltıcı veya hayvan sağlığına zararlı içerik') },
+    { text: 'Uygunsuz içerik', onPress: () => sendReport(post, 'Uygunsuz veya rahatsız edici içerik') },
+    { text: 'Vazgeç', style: 'cancel' },
+  ]);
+
+  const confirmDelete = (post: SocialPost) => Alert.alert('Gönderi silinsin mi?', 'Bu gönderi akıştan kaldırılacak.', [
+    { text: 'Vazgeç', style: 'cancel' },
+    { text: 'Sil', style: 'destructive', onPress: async () => {
+      if (!authToken || !post.serverId) return;
+      try {
+        await deleteSocialPost(authToken, post.serverId);
+        setPosts(current => current.filter(candidate => candidate.serverId !== post.serverId));
+        if (commentPost?.serverId === post.serverId) setCommentPost(null);
+      } catch (error) { Alert.alert('Gönderi silinemedi', error instanceof Error ? error.message : 'Lütfen tekrar dene.'); }
+    } },
+  ]);
+
+  const openPostOptions = (post: SocialPost) => {
+    if (!post.serverId) return Alert.alert('Başlangıç paylaşımı', 'Bu arşiv paylaşımı için işlem yapılamıyor.');
+    if (!username || !authToken) return requireLogin('Gönderi işlemleri için hesabına giriş yap.');
+    Alert.alert('Gönderi işlemleri', 'Yapmak istediğin işlemi seç.', [
+      { text: 'Gönderiyi bildir', onPress: () => openReportReasons(post) },
+      { text: 'Gönderiyi sil', style: 'destructive', onPress: () => confirmDelete(post) },
+      { text: 'Vazgeç', style: 'cancel' },
+    ]);
+  };
 
   return (
     <View style={styles.screen}>
@@ -76,37 +220,36 @@ export function PatiSocialScreen({ initialTab = 'posts', username, onOpenAccount
 
       {activeTab === 'posts' ? (
         <>
-          <Pressable onPress={() => openPendingFeature('Gönderi oluşturma')} style={({ pressed }) => [styles.composer, pressed && styles.pressed]}>
-            <View style={styles.composerAvatar}><Text style={styles.composerAvatarText}>{avatarLetter}</Text></View>
-            <View style={styles.composerCopy}><Text style={styles.composerTitle}>{username ? `${username} olarak paylaş` : 'Paylaşmak için giriş yap'}</Text><Text style={styles.composerText}>Fotoğraf, deneyim veya küçük bir mutluluk…</Text></View>
-            <View style={styles.photoButton}><Ionicons name="images-outline" size={21} color="#4E7458" /></View>
-          </Pressable>
-
           <CommunityShortcuts onOpenAdoption={onOpenAdoption} onOpenReviews={onOpenReviews} onOpenLost={onOpenLost} />
 
           <View style={styles.sectionHeader}>
-            <View><Text style={styles.sectionTitle}>Topluluk akışı</Text><Text style={styles.sectionHint}>PetWork’ten başlangıç paylaşımları</Text></View>
-            <Pressable onPress={() => openPendingFeature('Gönderi oluşturma')} style={styles.addButton}><Ionicons name="add" size={19} color={colors.white} /><Text style={styles.addText}>Paylaş</Text></Pressable>
+            <View><Text style={styles.sectionTitle}>Topluluk akışı</Text><Text style={styles.sectionHint}>Topluluğun gerçek paylaşımları</Text></View>
+            <Pressable onPress={openComposer} style={styles.addButton}><Ionicons name="add" size={19} color={colors.white} /><Text style={styles.addText}>Paylaş</Text></Pressable>
           </View>
 
-          {mockSocialPosts.map(post => <PostCard key={post.id} post={post} onComment={openComments} onReport={() => openPendingFeature('İçerik bildirimi')} />)}
+          {postsLoading ? <View style={styles.postsLoading}><ActivityIndicator color={colors.primary} /><Text style={styles.postsLoadingText}>Paylaşımlar yükleniyor…</Text></View> : null}
+          {postsError ? <Pressable onPress={() => { setPostsLoading(true); loadPosts(); }} style={styles.postsError}><Text style={styles.postsErrorText}>{postsError}</Text><Text style={styles.retryText}>Yeniden dene</Text></Pressable> : null}
+          {[...posts, ...mockSocialPosts].map(post => <PostCard key={post.id} post={post} onComment={openRealComments} onReport={openPostOptions} />)}
         </>
       ) : null}
 
-      {activeTab === 'questions' ? <QuestionsPanel username={username} onLogin={onLogin} /> : null}
+      {activeTab === 'questions' ? <QuestionsPanel key={questionsRevision} username={username} authToken={authToken} onLogin={onLogin} /> : null}
       {activeTab === 'nearby' ? <NearbyShortcuts onOpenNearby={onOpenNearby} /> : null}
     </ScrollView>
     {activeTab === 'questions' ? <Pressable
-      onPress={() => openPendingFeature('Soru oluşturma')}
+      onPress={openQuestionComposer}
       accessibilityRole="button"
       accessibilityLabel="Yeni soru sor"
       style={({ pressed }) => [styles.floatingAskButton, { right: Math.max(19, (width - 760) / 2 + 19) }, pressed && styles.pressed]}
     ><Ionicons name="add-circle-outline" size={21} color={colors.white} /><Text style={styles.floatingAskText}>Yeni soru sor</Text></Pressable> : null}
+    <CreatePostModal visible={composerOpen} username={username ?? ''} submitting={submitting} error={composerError} onClose={() => { if (!submitting) setComposerOpen(false); }} onSubmit={submitPost} />
+    <CommentsModal visible={commentPost !== null} post={commentPost} token={authToken} username={username} onClose={() => setCommentPost(null)} onLogin={onLogin} onCommentAdded={commentAdded} />
+    <CreateQuestionModal visible={questionComposerOpen} username={username ?? ''} submitting={questionSubmitting} error={questionComposerError} onClose={() => { if (!questionSubmitting) setQuestionComposerOpen(false); }} onSubmit={submitQuestion} />
     </View>
   );
 }
 
-function QuestionsPanel({ username, onLogin }: { username: string | null; onLogin: () => void }) {
+function QuestionsPanel({ username, authToken, onLogin }: { username: string | null; authToken: string | null; onLogin: () => void }) {
   const { width } = useWindowDimensions();
   const [payload, setPayload] = useState<QuestionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -159,6 +302,7 @@ function QuestionsPanel({ username, onLogin }: { username: string | null; onLogi
     detail={detail}
     loading={detailLoading}
     username={username}
+    authToken={authToken}
     onLogin={onLogin}
     onAnswerAdded={answer => {
       setDetail(current => current ? { ...current, answers: [...current.answers, answer] } : current);
@@ -217,10 +361,11 @@ function QuestionCard({ item, wide, onPress }: { item: QuestionSummary; wide: bo
   </Pressable>;
 }
 
-function QuestionDetailView({ detail, loading, username, onLogin, onAnswerAdded, onBack }: {
+function QuestionDetailView({ detail, loading, username, authToken, onLogin, onAnswerAdded, onBack }: {
   detail: QuestionDetail | null;
   loading: boolean;
   username: string | null;
+  authToken: string | null;
   onLogin: () => void;
   onAnswerAdded: (answer: QuestionAnswer) => void;
   onBack: () => void;
@@ -231,7 +376,7 @@ function QuestionDetailView({ detail, loading, username, onLogin, onAnswerAdded,
 
   const submitAnswer = async () => {
     if (!detail) return;
-    if (!username) {
+    if (!username || !authToken) {
       Alert.alert('Giriş yapmalısın', 'Yanıtını paylaşmak için Pet’im hesabına giriş yap.', [
         { text: 'Vazgeç', style: 'cancel' },
         { text: 'Giriş Yap', onPress: onLogin },
@@ -244,7 +389,7 @@ function QuestionDetailView({ detail, loading, username, onLogin, onAnswerAdded,
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const answer = await postQuestionAnswer(detail.id, content);
+      const answer = await postQuestionAnswer(authToken, detail.id, content);
       onAnswerAdded(answer);
       setAnswerText('');
       Alert.alert('Yanıtın yayınlandı', 'Yanıtın web sitesiyle aynı topluluk veritabanına kaydedildi.');
@@ -296,6 +441,8 @@ const styles = StyleSheet.create({
   composerTitle: { color: colors.text, fontSize: 14, fontWeight: '900' }, composerText: { color: colors.muted, fontSize: 10, marginTop: 3 }, photoButton: { width: 39, height: 39, borderRadius: 20, backgroundColor: colors.sageSoft, alignItems: 'center', justifyContent: 'center' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 14 }, sectionTitle: { color: colors.text, fontFamily: 'serif', fontSize: 23, fontWeight: '700' }, sectionHint: { color: colors.muted, fontSize: 10, marginTop: 3 },
   addButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary, borderRadius: 17, paddingHorizontal: 13, minHeight: 38 }, addText: { color: colors.white, fontSize: 11, fontWeight: '800' },
+  postsLoading: { minHeight: 90, alignItems: 'center', justifyContent: 'center', gap: 8 }, postsLoadingText: { color: colors.muted, fontSize: 11 },
+  postsError: { backgroundColor: colors.peachSoft, borderRadius: 16, padding: 14, marginBottom: 14 }, postsErrorText: { color: '#8D4339', fontSize: 11 },
   questionIntro: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.lilacSoft, borderRadius: 21, padding: 15, marginTop: 4, marginBottom: 14 }, questionIntroIcon: { width: 45, height: 45, borderRadius: 23, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   questionIntroTitle: { color: colors.text, fontFamily: 'serif', fontSize: 19, fontWeight: '700' }, questionIntroText: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 3 },
   questionCount: { minWidth: 48, alignItems: 'center' }, questionCountValue: { color: colors.primary, fontSize: 18, fontWeight: '900' }, questionCountLabel: { color: colors.muted, fontSize: 9, marginTop: 1 },
