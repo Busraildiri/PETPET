@@ -21,6 +21,17 @@ const petTypes = ['Kedi', 'Köpek', 'Kuş', 'Tavşan', 'Balık', 'Diğer'];
 const genders = ['Dişi', 'Erkek', 'Belirtilmedi'];
 const emptyForm: PetProfileRequest = { name: '', type: 'Kedi', breed: '', age: null, gender: 'Belirtilmedi', description: '' };
 
+function normalizeAgeInput(value: string) {
+  const normalized = value.replace(',', '.').replace(/[^0-9.]/g, '');
+  const [whole = '', ...fractionParts] = normalized.split('.');
+  const fraction = fractionParts.join('').slice(0, 1);
+  return normalized.includes('.') ? `${whole.slice(0, 2)}.${fraction}` : whole.slice(0, 2);
+}
+
+function formatAge(age: number) {
+  return Number.isInteger(age) ? String(age) : age.toFixed(1).replace('.', ',');
+}
+
 export function PetsScreen({ token, onBack }: { token: string; onBack: () => void }) {
   const [pets, setPets] = useState<PetProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,7 +106,7 @@ function PetCard({ pet, onEdit, onDelete }: { pet: PetProfile; onEdit: () => voi
   return <View style={styles.petCard}>
     <View style={styles.petTop}>
       <View style={styles.petAvatar}><Ionicons name={icon} size={30} color={colors.primary} /></View>
-      <View style={styles.flexOne}><Text style={styles.petName}>{pet.name}</Text><Text style={styles.petMeta}>{[pet.type, pet.breed, pet.age != null ? `${pet.age} yaş` : null].filter(Boolean).join(' · ')}</Text></View>
+      <View style={styles.flexOne}><Text style={styles.petName}>{pet.name}</Text><Text style={styles.petMeta}>{[pet.type, pet.breed, pet.age != null ? `${formatAge(pet.age)} yaş` : null].filter(Boolean).join(' · ')}</Text></View>
       <View style={styles.petActions}>
         <Pressable onPress={onEdit} accessibilityLabel={`${pet.name} profilini düzenle`} style={styles.iconButton}><Ionicons name="create-outline" size={19} color={colors.primary} /></Pressable>
         <Pressable onPress={onDelete} accessibilityLabel={`${pet.name} profilini sil`} style={styles.iconButton}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>
@@ -120,8 +131,8 @@ function PetFormModal({ visible, token, pet, onClose, onSaved }: { visible: bool
   const submit = async () => {
     const name = form.name.trim();
     if (name.length < 2) return Alert.alert('Ad gerekli', 'Patinin adını en az 2 karakter olarak yaz.');
-    const age = ageText.trim() ? Number(ageText) : null;
-    if (age !== null && (!Number.isInteger(age) || age < 0 || age > 80)) return Alert.alert('Yaşı kontrol et', 'Yaş 0 ile 80 arasında tam sayı olmalı.');
+    const age = ageText.trim() ? Number(ageText.replace(',', '.')) : null;
+    if (age !== null && (!Number.isFinite(age) || age < 0 || age > 80)) return Alert.alert('Yaşı kontrol et', 'Yaş 0 ile 80 arasında olmalı. Örneğin 1,5 yazabilirsin.');
     setSaving(true);
     try { onSaved(await savePet(token, { ...form, name, age }, pet?.id)); }
     catch (reason) { Alert.alert('Kaydedilemedi', reason instanceof Error ? reason.message : 'Lütfen tekrar dene.'); }
@@ -135,7 +146,7 @@ function PetFormModal({ visible, token, pet, onClose, onSaved }: { visible: bool
         <Text style={styles.label}>Adı *</Text><TextInput value={form.name} onChangeText={name => setForm(current => ({ ...current, name }))} placeholder="Örn. Luna" placeholderTextColor="#A09599" style={styles.input} maxLength={50} />
         <Text style={styles.label}>Türü *</Text><View style={styles.choices}>{petTypes.map(type => <Pressable key={type} onPress={() => setForm(current => ({ ...current, type }))} style={[styles.choice, form.type === type && styles.choiceActive]}><Text style={[styles.choiceText, form.type === type && styles.choiceTextActive]}>{type}</Text></Pressable>)}</View>
         <Text style={styles.label}>Irkı</Text><TextInput value={form.breed || ''} onChangeText={breed => setForm(current => ({ ...current, breed }))} placeholder="Örn. Golden Retriever" placeholderTextColor="#A09599" style={styles.input} maxLength={80} />
-        <Text style={styles.label}>Yaşı</Text><TextInput value={ageText} onChangeText={value => setAgeText(value.replace(/\D/g, '').slice(0, 2))} placeholder="Örn. 3" placeholderTextColor="#A09599" style={styles.input} keyboardType="number-pad" />
+        <Text style={styles.label}>Yaşı</Text><TextInput value={ageText} onChangeText={value => setAgeText(normalizeAgeInput(value))} placeholder="Örn. 1,5" placeholderTextColor="#A09599" style={styles.input} keyboardType="decimal-pad" inputMode="decimal" />
         <Text style={styles.label}>Cinsiyeti</Text><View style={styles.choices}>{genders.map(gender => <Pressable key={gender} onPress={() => setForm(current => ({ ...current, gender }))} style={[styles.choice, form.gender === gender && styles.choiceActive]}><Text style={[styles.choiceText, form.gender === gender && styles.choiceTextActive]}>{gender}</Text></Pressable>)}</View>
         <Text style={styles.label}>Onu biraz anlat</Text><TextInput value={form.description || ''} onChangeText={description => setForm(current => ({ ...current, description }))} placeholder="Sevdiği oyunlar, huyları, özel ihtiyaçları…" placeholderTextColor="#A09599" style={[styles.input, styles.textArea]} multiline maxLength={500} textAlignVertical="top" />
         <Pressable disabled={saving} onPress={submit} style={({ pressed }) => [styles.saveButton, (pressed || saving) && styles.pressed]}>{saving ? <ActivityIndicator color={colors.white} /> : <><Ionicons name="checkmark-circle-outline" size={21} color={colors.white} /><Text style={styles.saveText}>{pet ? 'Değişiklikleri kaydet' : 'Pati profilini oluştur'}</Text></>}</Pressable>

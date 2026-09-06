@@ -33,12 +33,9 @@ public sealed class MobilePetsApiController : ControllerBase
         var pets = await _context.Pets.AsNoTracking()
             .Where(pet => pet.UserId == userId.Value)
             .OrderBy(pet => pet.Name)
-            .Select(pet => new MobilePetResponse(
-                pet.Id, pet.Name, pet.Type, pet.Breed, pet.Age, pet.Gender,
-                pet.Description, pet.ProfileImage))
             .ToListAsync(cancellationToken);
 
-        return Ok(pets);
+        return Ok(pets.Select(ToResponse));
     }
 
     [HttpPost]
@@ -60,11 +57,12 @@ public sealed class MobilePetsApiController : ControllerBase
             Type = type,
             PetType = type,
             Breed = Clean(request.Breed),
-            Age = request.Age,
             Gender = Clean(request.Gender),
             Description = Clean(request.Description),
             ProfileImage = "img/pet-default.jpg"
         };
+
+        SetAge(pet, request.Age);
 
         _context.Pets.Add(pet);
         await _context.SaveChangesAsync(cancellationToken);
@@ -92,7 +90,7 @@ public sealed class MobilePetsApiController : ControllerBase
         pet.Type = type;
         pet.PetType = type;
         pet.Breed = Clean(request.Breed);
-        pet.Age = request.Age;
+        SetAge(pet, request.Age);
         pet.Gender = Clean(request.Gender);
         pet.Description = Clean(request.Description);
 
@@ -128,8 +126,33 @@ public sealed class MobilePetsApiController : ControllerBase
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    private static void SetAge(Pet pet, decimal? age)
+    {
+        if (age is null)
+        {
+            pet.Age = null;
+            pet.DateOfBirth = null;
+            return;
+        }
+
+        var monthCount = (int)Math.Round(age.Value * 12m, MidpointRounding.AwayFromZero);
+        pet.Age = (int)Math.Floor(age.Value);
+        pet.DateOfBirth = DateTime.UtcNow.Date.AddMonths(-monthCount);
+    }
+
+    private static decimal? GetAge(Pet pet)
+    {
+        if (pet.DateOfBirth is null) return pet.Age;
+
+        var today = DateTime.UtcNow.Date;
+        var birthDate = pet.DateOfBirth.Value.Date;
+        var monthCount = (today.Year - birthDate.Year) * 12 + today.Month - birthDate.Month;
+        if (today.Day < birthDate.Day) monthCount--;
+        return Math.Round(Math.Max(0, monthCount) / 12m, 1, MidpointRounding.AwayFromZero);
+    }
+
     private static MobilePetResponse ToResponse(Pet pet) =>
-        new(pet.Id, pet.Name, pet.Type, pet.Breed, pet.Age, pet.Gender, pet.Description, pet.ProfileImage);
+        new(pet.Id, pet.Name, pet.Type, pet.Breed, GetAge(pet), pet.Gender, pet.Description, pet.ProfileImage);
 }
 
 public sealed class MobilePetRequest
@@ -145,8 +168,8 @@ public sealed class MobilePetRequest
     [StringLength(80)]
     public string? Breed { get; init; }
 
-    [Range(0, 80, ErrorMessage = "Yaş 0-80 arasında olmalıdır.")]
-    public int? Age { get; init; }
+    [Range(typeof(decimal), "0", "80", ErrorMessage = "Yaş 0-80 arasında olmalıdır.")]
+    public decimal? Age { get; init; }
 
     [StringLength(20)]
     public string? Gender { get; init; }
@@ -160,7 +183,7 @@ public sealed record MobilePetResponse(
     string Name,
     string Type,
     string? Breed,
-    int? Age,
+    decimal? Age,
     string? Gender,
     string? Description,
     string? ProfileImage);
