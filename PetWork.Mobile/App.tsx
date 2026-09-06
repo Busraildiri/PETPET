@@ -88,6 +88,9 @@ export default function App() {
   else if (page === 'sighting') screen = <SightingForm onBack={() => setPage('lost-detail')} />;
   else if (tab === 'home') screen = <HomeScreen currentUser={currentUser} onOpenAccount={() => setPage('account')} onOpenLost={openLost} onLogin={() => setPage('login')} onRegister={() => setPage('register')} />;
   else if (tab === 'social') screen = <PatiSocialScreen
+    username={currentUser}
+    onOpenAccount={() => setPage('account')}
+    onLogin={() => setPage('login')}
     onOpenNearby={() => setPage('nearby')}
     onOpenAdoption={() => setPage('adoption')}
     onOpenReviews={() => setPage('reviews')}

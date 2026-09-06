@@ -10,6 +10,9 @@ import { colors, shadow } from '../theme';
 import type { SocialPost, SocialTab } from '../types/social';
 
 type Props = {
+  username: string | null;
+  onOpenAccount: () => void;
+  onLogin: () => void;
   onOpenNearby: () => void;
   onOpenAdoption: () => void;
   onOpenReviews: () => void;
@@ -22,14 +25,26 @@ const tabs: { key: SocialTab; label: string }[] = [
   { key: 'nearby', label: 'Yakınımda' },
 ];
 
-export function PatiSocialScreen({ onOpenNearby, onOpenAdoption, onOpenReviews, onOpenLost }: Props) {
+export function PatiSocialScreen({ username, onOpenAccount, onLogin, onOpenNearby, onOpenAdoption, onOpenReviews, onOpenLost }: Props) {
   const [activeTab, setActiveTab] = useState<SocialTab>('posts');
+  const displayName = username ?? 'Misafir';
+  const avatarLetter = username?.charAt(0).toLocaleUpperCase('tr-TR') ?? '?';
 
-  const openPendingFeature = (action: string) => Alert.alert(
-    `${action} hazırlanıyor`,
-    'Admin oturumuyla devam ediyorsun. Bu işlem gerçek mobil oturum ve gönderi API’si bağlandığında kaydedilecek.',
-    [{ text: 'Tamam', style: 'cancel' }],
-  );
+  const openPendingFeature = (action: string) => {
+    if (!username) {
+      Alert.alert('Giriş yapmalısın', `${action} için Pet’im hesabına giriş yap.`, [
+        { text: 'Vazgeç', style: 'cancel' },
+        { text: 'Giriş Yap', onPress: onLogin },
+      ]);
+      return;
+    }
+
+    Alert.alert(
+      `${action} hazırlanıyor`,
+      `${username} hesabıyla devam ediyorsun. Bu işlem gönderi API’si bağlandığında kaydedilecek.`,
+      [{ text: 'Tamam', style: 'cancel' }],
+    );
+  };
 
   const openComments = (post: SocialPost) => Alert.alert(
     `${post.petName} · Yorumlar`,
@@ -44,8 +59,8 @@ export function PatiSocialScreen({ onOpenNearby, onOpenAdoption, onOpenReviews, 
           <Text style={styles.title}>PatiSosyal</Text>
           <Text style={styles.subtitle}>Bilgi, deneyim ve güvenli dayanışma</Text>
         </View>
-        <Pressable onPress={() => Alert.alert('admin', 'Yönetici hesabıyla önizleme yapıyorsun.')} style={styles.accountButton} accessibilityLabel="Admin hesabı">
-          <View style={styles.accountAvatar}><Text style={styles.accountAvatarText}>A</Text></View><Text style={styles.accountText}>admin</Text>
+        <Pressable onPress={username ? onOpenAccount : onLogin} style={styles.accountButton} accessibilityLabel={username ? `${username} hesap menüsünü aç` : 'Giriş yap'}>
+          <View style={styles.accountAvatar}><Text style={styles.accountAvatarText}>{avatarLetter}</Text></View><Text style={styles.accountText} numberOfLines={1}>{displayName}</Text>
         </Pressable>
       </View>
 
@@ -58,8 +73,8 @@ export function PatiSocialScreen({ onOpenNearby, onOpenAdoption, onOpenReviews, 
       {activeTab === 'posts' ? (
         <>
           <Pressable onPress={() => openPendingFeature('Gönderi oluşturma')} style={({ pressed }) => [styles.composer, pressed && styles.pressed]}>
-            <View style={styles.composerAvatar}><Text style={styles.composerAvatarText}>A</Text></View>
-            <View style={styles.composerCopy}><Text style={styles.composerTitle}>admin olarak paylaş</Text><Text style={styles.composerText}>Fotoğraf, deneyim veya küçük bir mutluluk…</Text></View>
+            <View style={styles.composerAvatar}><Text style={styles.composerAvatarText}>{avatarLetter}</Text></View>
+            <View style={styles.composerCopy}><Text style={styles.composerTitle}>{username ? `${username} olarak paylaş` : 'Paylaşmak için giriş yap'}</Text><Text style={styles.composerText}>Fotoğraf, deneyim veya küçük bir mutluluk…</Text></View>
             <View style={styles.photoButton}><Ionicons name="images-outline" size={21} color="#4E7458" /></View>
           </Pressable>
 
@@ -100,8 +115,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background }, content: { paddingTop: statusInset + 12, paddingHorizontal: 19, paddingBottom: 116, width: '100%', maxWidth: 760, alignSelf: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 }, headerIcon: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   headerCopy: { flex: 1 }, title: { color: colors.text, fontFamily: 'serif', fontSize: 30, fontWeight: '700', letterSpacing: -0.5 }, subtitle: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  accountButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.lilacSoft, borderRadius: 21, paddingLeft: 5, paddingRight: 10 },
-  accountAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary }, accountAvatarText: { color: colors.white, fontSize: 13, fontWeight: '900' }, accountText: { color: colors.primary, fontSize: 11, fontWeight: '900' },
+  accountButton: { maxWidth: 125, minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.lilacSoft, borderRadius: 21, paddingLeft: 5, paddingRight: 10 },
+  accountAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary }, accountAvatarText: { color: colors.white, fontSize: 13, fontWeight: '900' }, accountText: { flexShrink: 1, color: colors.primary, fontSize: 11, fontWeight: '900' },
   tabs: { flexDirection: 'row', backgroundColor: '#EEE8E9', borderRadius: 20, padding: 5, marginTop: 24, marginBottom: 18 }, tab: { flex: 1, minHeight: 45, borderRadius: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   activeTab: { backgroundColor: colors.card, ...shadow }, tabText: { color: colors.muted, fontSize: 11, fontWeight: '800' }, activeTabText: { color: colors.primary },
   composer: { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 21, padding: 13, ...shadow },
