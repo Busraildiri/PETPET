@@ -8,7 +8,7 @@ import {
   ActivityIndicator, Alert, Image, ImageBackground, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { apiUrl, getHome, getNearbyGroomers, getNearbyVeterinarians, HomePayload, mediaUrl, Question, searchGroomersByArea, searchVeterinariansByArea, Story, type AuthResponse, type NearbyVeterinarian } from './src/api';
+import { apiUrl, getHome, getNearbyGroomers, getNearbyPetHotels, getNearbyVeterinarians, HomePayload, mediaUrl, Question, searchGroomersByArea, searchPetHotelsByArea, searchVeterinariansByArea, Story, type AuthResponse, type NearbyVeterinarian } from './src/api';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
@@ -45,7 +45,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>('posts');
-  const [nearbyCategory, setNearbyCategory] = useState<'veterinarian' | 'groomer'>('veterinarian');
+  const [nearbyCategory, setNearbyCategory] = useState<'veterinarian' | 'groomer' | 'hotel'>('veterinarian');
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 1600);
@@ -104,8 +104,8 @@ export default function App() {
     onOpenAccount={() => setPage('account')}
     onLogin={() => setPage('login')}
     onOpenNearby={category => {
-      if (category === 'hotel' || category === 'park') {
-        Alert.alert('Yakında', category === 'hotel' ? 'Pet otelleri sıradaki geliştirme adımında bağlanacak.' : 'Park ve oyun alanları sıradaki geliştirme adımında bağlanacak.');
+      if (category === 'park') {
+        Alert.alert('Yakında', 'Park ve oyun alanları sıradaki geliştirme adımında bağlanacak.');
         return;
       }
       setNearbyCategory(category);
@@ -335,10 +335,12 @@ function NearbyShortcuts({ onOpen }: { onOpen: () => void }) {
   </View>;
 }
 
-function NearbyScreen({ category, onBack }: { category: 'veterinarian' | 'groomer'; onBack: () => void }) {
+function NearbyScreen({ category, onBack }: { category: 'veterinarian' | 'groomer' | 'hotel'; onBack: () => void }) {
   const isGroomer = category === 'groomer';
-  const placeLabel = isGroomer ? 'pet kuaförü' : 'veteriner';
-  const placeLabelPlural = isGroomer ? 'pet kuaförü' : 'veteriner';
+  const isHotel = category === 'hotel';
+  const placeLabel = isHotel ? 'pet oteli' : isGroomer ? 'pet kuaförü' : 'veteriner';
+  const placeLabelPlural = isHotel ? 'pet oteli' : isGroomer ? 'pet kuaförü' : 'veteriner';
+  const placeTitle = isHotel ? 'Pet Otelleri' : isGroomer ? 'Pet Kuaförleri' : 'Veterinerler';
   const [locationText, setLocationText] = useState('Konum kullanılmadı');
   const [city, setCity] = useState('');
   const [district, setDistrict] = useState('');
@@ -391,17 +393,19 @@ function NearbyScreen({ category, onBack }: { category: 'veterinarian' | 'groome
           15_000,
         )),
       ]);
-      setLocationText('Konum bulundu · veterinerler aranıyor…');
-      const results = isGroomer
-        ? await getNearbyGroomers(current.coords.latitude, current.coords.longitude)
-        : await getNearbyVeterinarians(current.coords.latitude, current.coords.longitude);
+      setLocationText(`Konum bulundu · ${placeLabelPlural} aranıyor…`);
+      const results = isHotel
+        ? await getNearbyPetHotels(current.coords.latitude, current.coords.longitude)
+        : isGroomer
+          ? await getNearbyGroomers(current.coords.latitude, current.coords.longitude)
+          : await getNearbyVeterinarians(current.coords.latitude, current.coords.longitude);
       setPlaces(results);
       setLocationText(`Konum izni açık · ${results.length} ${placeLabel} bulundu`);
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : `Yakındaki ${placeLabelPlural} sonuçları alınamadı.`;
       setError(message);
       setLocationText('Konum kullanıldı ancak sonuçlar alınamadı');
-      Alert.alert(`${isGroomer ? 'Pet kuaförleri' : 'Veterinerler'} alınamadı`, message);
+      Alert.alert(`${placeTitle} alınamadı`, message);
     } finally {
       setLoading(false);
     }
@@ -439,34 +443,36 @@ function NearbyScreen({ category, onBack }: { category: 'veterinarian' | 'groome
     }
     setLoading(true);
     setError(null);
-    setLocationText(`${[trimmedDistrict, trimmedCity].filter(Boolean).join(', ')} için veterinerler aranıyor…`);
+    setLocationText(`${[trimmedDistrict, trimmedCity].filter(Boolean).join(', ')} için ${placeLabelPlural} aranıyor…`);
     try {
-      const results = isGroomer
-        ? await searchGroomersByArea(trimmedCity, trimmedDistrict)
-        : await searchVeterinariansByArea(trimmedCity, trimmedDistrict);
+      const results = isHotel
+        ? await searchPetHotelsByArea(trimmedCity, trimmedDistrict)
+        : isGroomer
+          ? await searchGroomersByArea(trimmedCity, trimmedDistrict)
+          : await searchVeterinariansByArea(trimmedCity, trimmedDistrict);
       setPlaces(results);
       setLocationText(`Manuel konum uygulandı · ${results.length} ${placeLabel} bulundu`);
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : `Bu konumdaki ${placeLabelPlural} sonuçları alınamadı.`;
       setError(message);
       setLocationText('Manuel konum uygulanamadı');
-      Alert.alert(`${isGroomer ? 'Pet kuaförleri' : 'Veterinerler'} alınamadı`, message);
+      Alert.alert(`${placeTitle} alınamadı`, message);
     } finally {
       setLoading(false);
     }
   };
-  return <><ScreenShell title={isGroomer ? 'Pet Kuaförleri' : 'Veterinerler'} subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
+  return <><ScreenShell title={placeTitle} subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
     <View style={styles.mapCard}><Ionicons name="map-outline" size={54} color={colors.primary} /><Text style={styles.mapTitle}>Harita ve liste görünümü</Text><Text style={styles.mapText}>{locationText}</Text>
-      <ActionButton label={loading ? `${isGroomer ? 'Pet kuaförleri' : 'Veterinerler'} aranıyor…` : 'Konumumu kullan'} icon="navigate-outline" onPress={() => { if (!loading) askLocation(); }} />
+      <ActionButton label={loading ? `${placeTitle} aranıyor…` : 'Konumumu kullan'} icon="navigate-outline" onPress={() => { if (!loading) askLocation(); }} />
       <Pressable onPress={() => setPrivacyVisible(true)} hitSlop={8}><Text style={styles.locationPrivacyLink}>Konum ve gizlilik bilgisi</Text></Pressable>
     </View>
     <Text style={styles.formLabel}>Manuel konum (isteğe bağlı)</Text><View style={styles.inlineFields}><FormInput value={city} onChangeText={setCity} placeholder="Şehir (isteğe bağlı)" /><FormInput value={district} onChangeText={setDistrict} placeholder="İlçe (isteğe bağlı)" /></View>
     <ActionButton label={loading ? 'Aranıyor…' : 'Uygula'} icon="search-outline" onPress={() => { if (!loading) void applyManualLocation(); }} />
-    <SectionTitle title={isGroomer ? 'Yakındaki pet kuaförleri' : 'Yakındaki veterinerler'} />
+    <SectionTitle title={`Yakındaki ${placeLabelPlural}`} />
     {loading ? <View style={styles.nearbyState}><ActivityIndicator color={colors.primary} /><Text style={styles.mapText}>Google Places sonuçları alınıyor…</Text></View> : null}
     {!loading && error ? <Pressable onPress={() => void askLocation()} style={styles.nearbyError}><Text style={styles.nearbyErrorText}>{error}</Text><Text style={styles.textAction}>Tekrar dene</Text></Pressable> : null}
     {!loading && !error && places.length === 0 ? <View style={styles.nearbyState}><Ionicons name="navigate-outline" size={28} color={colors.primary} /><Text style={styles.mapText}>Yakındaki {placeLabelPlural} sonuçlarını görmek için konumunu kullan.</Text></View> : null}
-    {!loading && places.map(place => <PlaceCard key={place.id} place={place} kind={isGroomer ? 'Pet kuaförü' : 'Veteriner'} />)}
+    {!loading && places.map(place => <PlaceCard key={place.id} place={place} kind={isHotel ? 'Pet oteli' : isGroomer ? 'Pet kuaförü' : 'Veteriner'} />)}
     {places.length > 0 ? <Text style={styles.googleAttribution}>Sonuçlar Google Maps Platform tarafından sağlanır.</Text> : null}
   </ScreenShell>
     <Modal visible={privacyVisible} transparent animationType="fade" onRequestClose={() => setPrivacyVisible(false)}>

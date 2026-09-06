@@ -123,6 +123,71 @@ public sealed class GooglePlacesService
         return results;
     }
 
+    public async Task<IReadOnlyList<NearbyVeterinarian>> SearchPetHotelsAsync(
+        double latitude,
+        double longitude,
+        int radiusMeters,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+            throw new InvalidOperationException("Google Places API anahtarı yapılandırılmamış.");
+
+        var body = new
+        {
+            textQuery = "pet oteli köpek oteli kedi pansiyonu",
+            includedType = "pet_boarding_service",
+            strictTypeFiltering = true,
+            maxResultCount = 20,
+            languageCode = "tr",
+            regionCode = "TR",
+            locationBias = new
+            {
+                circle = new
+                {
+                    center = new { latitude, longitude },
+                    radius = radiusMeters
+                }
+            }
+        };
+
+        var results = await SendSearchAsync(
+            "v1/places:searchText", body, latitude, longitude, cancellationToken);
+        return results.Where(place => place.DistanceMeters <= radiusMeters).ToArray();
+    }
+
+    public async Task<IReadOnlyList<NearbyVeterinarian>> SearchPetHotelsByAreaAsync(
+        string? city,
+        string? district,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+            throw new InvalidOperationException("Google Places API anahtarı yapılandırılmamış.");
+
+        var area = string.Join(", ", new[] { district?.Trim(), city?.Trim() }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        if (string.IsNullOrWhiteSpace(area))
+            throw new ArgumentException("Şehir veya ilçe bilgilerinden en az biri gereklidir.");
+
+        var cacheKey = $"google-pet-hotels-area:{area.ToLowerInvariant()}";
+        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<NearbyVeterinarian>? cached) && cached is not null)
+            return cached;
+
+        var body = new
+        {
+            textQuery = $"{area} pet oteli köpek oteli kedi pansiyonu",
+            includedType = "pet_boarding_service",
+            strictTypeFiltering = true,
+            maxResultCount = 20,
+            languageCode = "tr",
+            regionCode = "TR"
+        };
+
+        var results = await SendSearchAsync(
+            "v1/places:searchText", body, null, null, cancellationToken);
+        _cache.Set(cacheKey, results, TimeSpan.FromMinutes(30));
+        return results;
+    }
+
     private async Task<IReadOnlyList<NearbyVeterinarian>> SendSearchAsync(
         string endpoint, object body, double? originLatitude, double? originLongitude,
         CancellationToken cancellationToken)

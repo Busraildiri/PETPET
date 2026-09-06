@@ -274,6 +274,42 @@ export async function searchGroomersByArea(
   return payload as NearbyVeterinarian[];
 }
 
+export async function getNearbyPetHotels(
+  latitude: number,
+  longitude: number,
+  radiusMeters = 5000,
+): Promise<NearbyVeterinarian[]> {
+  const response = await fetch(`${apiUrl}/api/mobile/nearby/pet-hotels`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ latitude, longitude, radiusMeters }),
+  });
+  const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
+  if (!response.ok) {
+    const errorPayload = payload as { message?: string } | null;
+    throw new Error(errorPayload?.message || `Pet otelleri alınamadı (${response.status}).`);
+  }
+  return payload as NearbyVeterinarian[];
+}
+
+export async function searchPetHotelsByArea(
+  city?: string,
+  district?: string,
+): Promise<NearbyVeterinarian[]> {
+  const query = new URLSearchParams();
+  if (city?.trim()) query.set('city', city.trim());
+  if (district?.trim()) query.set('district', district.trim());
+  const response = await fetch(`${apiUrl}/api/mobile/nearby/pet-hotels/search?${query}`, {
+    headers: { Accept: 'application/json' },
+  });
+  const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
+  if (!response.ok) {
+    const errorPayload = payload as { message?: string } | null;
+    throw new Error(errorPayload?.message || `Pet otelleri alınamadı (${response.status}).`);
+  }
+  return payload as NearbyVeterinarian[];
+}
+
 export async function getQuestionDetail(id: number, signal?: AbortSignal): Promise<QuestionDetail> {
   const response = await fetch(`${apiUrl}/api/mobile/questions/${id}`, {
     headers: { Accept: 'application/json' }, signal,
