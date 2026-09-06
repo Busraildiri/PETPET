@@ -12,11 +12,13 @@ import { apiUrl, getHome, HomePayload, mediaUrl, Question, Story, type AuthRespo
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
+import { PetsScreen } from './src/screens/PetsScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
 import { colors, shadow } from './src/theme';
 import type { SocialTab } from './src/types/social';
 
 type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
-type PageKey = 'root' | 'login' | 'register' | 'account' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting';
+type PageKey = 'root' | 'login' | 'register' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting';
 
 const communityDemoImage = require('./assets/community-demo.png');
 
@@ -86,7 +88,8 @@ export default function App() {
   let screen;
   if (page === 'login') screen = <AuthScreen initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
   else if (page === 'register') screen = <AuthScreen initialMode="register" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
-  else if (page === 'account' && currentUser) screen = <AccountScreen username={currentUser} onBack={() => setPage('root')} onLogout={logout} />;
+  else if (page === 'account' && currentUser) screen = <AccountScreen username={currentUser} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} />;
+  else if (page === 'pets' && authToken) screen = <PetsScreen token={authToken} onBack={() => setPage('account')} />;
   else if (page === 'nearby') screen = <NearbyScreen onBack={() => setPage('root')} />;
   else if (page === 'adoption') screen = <AdoptionScreen onBack={() => setPage('root')} />;
   else if (page === 'reviews') screen = <ReviewsScreen onBack={() => setPage('root')} />;
@@ -107,6 +110,7 @@ export default function App() {
     onOpenLost={openLost}
   />;
   else if (tab === 'lost') screen = <LostHub onNavigate={setPage} />;
+  else if (tab === 'settings') screen = <SettingsScreen username={currentUser} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} />;
   else screen = <ComingSoon tab={tab} onHome={() => changeTab('home')} />;
 
   return (
@@ -495,7 +499,7 @@ function SampleBadge() {
   return <View style={styles.sampleNotice}><Ionicons name="eye-outline" size={14} color={colors.primary} /><Text style={styles.sampleNoticeText}>Örnek görünüm</Text></View>;
 }
 
-function ComingSoon({ tab, onHome }: { tab: 'match' | 'settings'; onHome: () => void }) {
+function ComingSoon({ tab, onHome }: { tab: 'match'; onHome: () => void }) {
   const current = tabs.find(item => item.key === tab)!;
   return <View style={styles.comingSoon}><View style={styles.comingIcon}><Ionicons name={current.active} size={42} color={colors.primary} /></View>
     <Text style={styles.comingTitle}>{current.label}</Text><Text style={styles.comingText}>Bu alan evcil hayvan paneliyle birlikte şekillenecek. Ana sayfanın çalışan temeli hazır.</Text>

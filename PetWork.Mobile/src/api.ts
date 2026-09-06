@@ -35,6 +35,19 @@ export type LoginRequest = {
   rememberMe: boolean;
 };
 
+export type PetProfile = {
+  id: number;
+  name: string;
+  type: string;
+  breed?: string | null;
+  age?: number | null;
+  gender?: string | null;
+  description?: string | null;
+  profileImage?: string | null;
+};
+
+export type PetProfileRequest = Omit<PetProfile, 'id' | 'profileImage'>;
+
 export type SocialPostPayload = {
   id: number;
   username: string;
@@ -142,6 +155,48 @@ export async function loginUser(request: LoginRequest): Promise<AuthResponse> {
   });
 
   return readAuthResponse(response, 'Giriş işlemi tamamlanamadı.');
+}
+
+async function readPetResponse(response: Response, fallback: string): Promise<PetProfile> {
+  const payload = await response.json().catch(() => null) as PetProfile | { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+  if (!response.ok) {
+    const error = payload as { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+    const validation = error?.errors ? Object.values(error.errors).flat()[0] : undefined;
+    throw new Error(validation || error?.message || error?.title || fallback);
+  }
+  return payload as PetProfile;
+}
+
+export async function getPets(token: string, signal?: AbortSignal): Promise<PetProfile[]> {
+  const response = await fetch(`${apiUrl}/api/mobile/pets`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    signal,
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { message?: string } | null;
+    throw new Error(payload?.message || `Patiler yüklenemedi (${response.status}).`);
+  }
+  return response.json();
+}
+
+export async function savePet(token: string, request: PetProfileRequest, id?: number): Promise<PetProfile> {
+  const response = await fetch(`${apiUrl}/api/mobile/pets${id ? `/${id}` : ''}`, {
+    method: id ? 'PUT' : 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(request),
+  });
+  return readPetResponse(response, id ? 'Pati profili güncellenemedi.' : 'Pati profili oluşturulamadı.');
+}
+
+export async function deletePet(token: string, id: number): Promise<void> {
+  const response = await fetch(`${apiUrl}/api/mobile/pets/${id}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { message?: string } | null;
+    throw new Error(payload?.message || 'Pati profili silinemedi.');
+  }
 }
 
 async function fetchSocialPostsOnce(signal?: AbortSignal): Promise<SocialPostPayload[]> {
