@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Pet'im",
+    "slug": "petim-by-petwork",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "petim",
+    "backgroundColor": "#FFF9F2",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.petwork.petim"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFF9F2",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.petwork.petim"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Pet'im, yalnızca yakındaki veterinerleri, güvenli alanları ve yaklaşık kayıp pati ilanlarını göstermek için konumunu kullanır."
+        }
+      ]
+    ]
+  }
+}
