@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, shadow } from '../theme';
 
-export function AccountScreen({ username, onBack, onLogout }: { username: string; onBack: () => void; onLogout: () => void }) {
+export function AccountScreen({ username, onBack, onOpenPets, onLogout }: { username: string; onBack: () => void; onOpenPets: () => void; onLogout: () => void }) {
   const confirmLogout = () => Alert.alert(
     'Çıkış yapmak istiyor musun?',
     'Bu cihazdaki Pet’im oturumun kapatılacak. Hesabın ve içeriklerin silinmeyecek.',
@@ -28,7 +28,7 @@ export function AccountScreen({ username, onBack, onLogout }: { username: string
 
     <View style={styles.menuCard}>
       <MenuRow icon="person-outline" title="Profil bilgileri" subtitle="Profilini ve iletişim bilgilerini düzenle" />
-      <MenuRow icon="paw-outline" title="Patilerim" subtitle="Evcil hayvan profillerini yönet" />
+      <MenuRow icon="paw-outline" title="Patilerim" subtitle="Evcil hayvan profillerini yönet" onPress={onOpenPets} />
       <MenuRow icon="notifications-outline" title="Bildirimler" subtitle="Bildirim tercihlerini düzenle" last />
     </View>
 
@@ -40,8 +40,8 @@ export function AccountScreen({ username, onBack, onLogout }: { username: string
   </ScrollView>;
 }
 
-function MenuRow({ icon, title, subtitle, last = false }: { icon: keyof typeof Ionicons.glyphMap; title: string; subtitle: string; last?: boolean }) {
-  return <View style={[styles.menuRow, last && styles.menuRowLast]}><View style={styles.menuIcon}><Ionicons name={icon} size={21} color={colors.primary} /></View><View style={styles.flexOne}><Text style={styles.menuTitle}>{title}</Text><Text style={styles.menuSubtitle}>{subtitle}</Text></View><Ionicons name="chevron-forward" size={18} color="#AA9DA4" /></View>;
+function MenuRow({ icon, title, subtitle, last = false, onPress }: { icon: keyof typeof Ionicons.glyphMap; title: string; subtitle: string; last?: boolean; onPress?: () => void }) {
+  return <Pressable disabled={!onPress} onPress={onPress} style={({ pressed }) => [styles.menuRow, last && styles.menuRowLast, pressed && styles.pressed]}><View style={styles.menuIcon}><Ionicons name={icon} size={21} color={colors.primary} /></View><View style={styles.flexOne}><Text style={styles.menuTitle}>{title}</Text><Text style={styles.menuSubtitle}>{subtitle}</Text></View><Ionicons name="chevron-forward" size={18} color="#AA9DA4" /></Pressable>;
 }
 
 const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
