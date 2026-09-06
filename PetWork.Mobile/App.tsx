@@ -8,10 +8,13 @@ import {
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { apiUrl, getHome, HomePayload, mediaUrl, Question, Story } from './src/api';
+import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
 import { colors, shadow } from './src/theme';
 
 type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
 type PageKey = 'root' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting';
+
+const communityDemoImage = require('./assets/community-demo.png');
 
 const categories = [
   { title: 'Soru-Cevap', icon: 'help-circle-outline' as const, color: colors.lilacSoft, ink: colors.primary },
@@ -46,7 +49,12 @@ export default function App() {
   else if (page === 'lost-detail') screen = <LostDetailScreen onBack={() => setPage('root')} onSighting={() => setPage('sighting')} />;
   else if (page === 'sighting') screen = <SightingForm onBack={() => setPage('lost-detail')} />;
   else if (tab === 'home') screen = <HomeScreen onOpenLost={openLost} />;
-  else if (tab === 'social') screen = <SocialScreen onNavigate={setPage} onOpenLost={openLost} />;
+  else if (tab === 'social') screen = <PatiSocialScreen
+    onOpenNearby={() => setPage('nearby')}
+    onOpenAdoption={() => setPage('adoption')}
+    onOpenReviews={() => setPage('reviews')}
+    onOpenLost={openLost}
+  />;
   else if (tab === 'lost') screen = <LostHub onNavigate={setPage} />;
   else screen = <ComingSoon tab={tab} onHome={() => changeTab('home')} />;
 
@@ -257,36 +265,6 @@ function ScreenShell({ title, subtitle, onBack, children }: { title: string; sub
   </ScrollView>;
 }
 
-function SocialScreen({ onNavigate, onOpenLost }: { onNavigate: (page: PageKey) => void; onOpenLost: () => void }) {
-  const [active, setActive] = useState<'posts' | 'questions' | 'nearby'>('posts');
-  return <ScreenShell title="PatiSosyal" subtitle="Bilgi, deneyim ve güvenli dayanışma">
-    <View style={styles.segmented}>{[
-      ['posts', 'Gönderiler'], ['questions', 'Soru-Cevap'], ['nearby', 'Yakınımda'],
-    ].map(([key, label]) => <Pressable key={key} onPress={() => setActive(key as typeof active)} style={[styles.segmentButton, active === key && styles.segmentActive]}>
-      <Text style={[styles.segmentText, active === key && styles.segmentTextActive]}>{label}</Text>
-    </Pressable>)}</View>
-
-    {active === 'nearby' ? <NearbyShortcuts onOpen={() => onNavigate('nearby')} /> : null}
-    {active === 'questions' ? <View style={styles.stack}>
-      <SampleBadge />
-      <MiniCommunityCard icon="help-circle-outline" title="Kedim yeni mamasına nasıl alışır?" meta="9 yanıt · 20 dk önce" />
-      <ActionButton label="Yeni soru sor" icon="add-circle-outline" onPress={() => Alert.alert('Yeni soru', 'Soru oluşturma akışı sonraki backend adımında bağlanacak.')} />
-    </View> : null}
-    {active === 'posts' ? <>
-      <Pressable onPress={() => onNavigate('adoption')} style={({ pressed }) => [styles.adoptionHero, pressed && styles.cardPressed]}>
-        <ImageBackground source={{ uri: mediaUrl('/img/hero-community-v2.png') }} style={styles.adoptionImage} imageStyle={styles.adoptionImageRadius}>
-          <LinearGradient colors={['transparent', '#332B2DD9']} style={styles.imageShade}>
-            <Text style={styles.lightBadge}>Güvenli sahiplendirme</Text><Text style={styles.adoptionTitle}>Sahiplendirme</Text>
-            <Text style={styles.adoptionText}>Bir canlının yeni yuvasına uzanan hikâyesine eşlik et.</Text>
-          </LinearGradient>
-        </ImageBackground>
-      </Pressable>
-      <FeatureRow icon="nutrition-outline" title="Pati Denedi" text="Mama deneyimlerini puanla ve topluluk yorumlarını keşfet." color={colors.yellowSoft} onPress={() => onNavigate('reviews')} />
-      <FeatureRow icon="location-outline" title="Kayıp Patiler" text="Yakındaki ilanlara bak, kayıp veya bulunan pati bildir." color={colors.peachSoft} onPress={onOpenLost} />
-    </> : null}
-  </ScreenShell>;
-}
-
 function NearbyShortcuts({ onOpen }: { onOpen: () => void }) {
   return <View><View style={styles.sectionHeader}><View><Text style={styles.cardSectionTitle}>Yakınındakiler</Text><Text style={styles.cardSectionHint}>Konumunu yalnızca sen istediğinde kullanırız.</Text></View></View>
     <View style={styles.nearbyGrid}>{nearbyPlaces.map((place, index) => <Pressable key={place.title} onPress={onOpen}
@@ -326,7 +304,7 @@ function PlaceCard({ title, kind, distance, rating, open = false }: { title: str
 function AdoptionScreen({ onBack }: { onBack: () => void }) {
   return <ScreenShell title="Sahiplendirme" subtitle="Satın alma, sahiplen" onBack={onBack}>
     <SampleBadge />
-    <View style={styles.petProfileCard}><ImageBackground source={{ uri: mediaUrl('/img/hero1.jpg') }} style={styles.petPhoto} imageStyle={styles.petPhotoRadius}>
+    <View style={styles.petProfileCard}><ImageBackground source={communityDemoImage} style={styles.petPhoto} imageStyle={styles.petPhotoRadius}>
       <Text style={styles.safeBadge}>Sağlık bilgisi doğrulandı</Text></ImageBackground>
       <View style={styles.petProfileBody}><View style={styles.rowBetween}><Text style={styles.petName}>Luna</Text><Text style={styles.cityBadge}>İstanbul</Text></View>
         <Text style={styles.petMeta}>2 yaş · Tekir · Dişi</Text><InfoLine icon="medkit-outline" text="Aşıları tam, kısırlaştırılmış" />
@@ -347,7 +325,6 @@ function ReviewsScreen({ onBack }: { onBack: () => void }) {
       <View style={styles.labelRow}><Text style={styles.verifiedBadge}>Doğrulanmış Deneyim</Text><Text style={styles.sponsoredBadge}>Sponsorlu</Text></View>
       <Text style={styles.productTitle}>Somonlu Yetişkin Kedi Maması</Text><Text style={styles.productMeta}>PatiPlus · Kedi</Text><Text style={styles.ratingBig}>4,4 ★</Text></View></View>
     <View style={styles.scoreGrid}>{[['Lezzet','4,7'], ['İçerik','4,3'], ['Sindirim','4,5'], ['Fiyat/Değer','4,0']].map(([label, score]) => <View key={label} style={styles.scoreItem}><Text style={styles.score}>{score}</Text><Text style={styles.scoreLabel}>{label}</Text></View>)}</View>
-    <Text style={styles.comment}>“İki haftalık geçişten sonra kedim severek yedi; sindirim sorunu yaşamadık.”</Text>
     <View style={styles.safetyActions}><Pressable onPress={() => setAdding(!adding)}><Text style={styles.textAction}>{adding ? 'Formu kapat' : '+ Mama deneyimi ekle'}</Text></Pressable><Text style={styles.reportAction}>İçeriği bildir</Text></View>
     {adding ? <ReviewForm /> : null}
   </ScreenShell>;
@@ -363,7 +340,7 @@ function ReviewForm() {
 }
 
 const lostPets = [
-  { name: 'Tarçın', species: 'Kedi', district: 'Kadıköy', date: 'Bugün 10:20', status: 'Kayıp', image: '/img/hero2.jpg' },
+  { name: 'Tarçın', species: 'Kedi', district: 'Kadıköy', date: 'Bugün 10:20', status: 'Kayıp', image: communityDemoImage },
 ];
 
 function LostHub({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
@@ -384,7 +361,7 @@ function LostHub({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
 
 function LostPetCard({ pet, urgent, onPress }: { pet: typeof lostPets[number]; urgent?: boolean; onPress: () => void }) {
   return <Pressable onPress={onPress} style={({ pressed }) => [styles.lostPetCard, urgent && styles.lostPetUrgent, pressed && styles.cardPressed]}>
-    <ImageBackground source={{ uri: mediaUrl(pet.image) }} style={styles.lostPetImage} imageStyle={styles.lostPetImageRadius} />
+    <ImageBackground source={pet.image} style={styles.lostPetImage} imageStyle={styles.lostPetImageRadius} />
     <View style={styles.lostPetBody}><View style={styles.rowBetween}><Text style={styles.lostPetName}>{pet.name}</Text><Text style={[styles.statusBadge, statusStyle(pet.status)]}>{pet.status}</Text></View>
       <Text style={styles.lostPetMeta}>{pet.species} · Son görülme: {pet.district}</Text><Text style={styles.lostPetDate}>{pet.date}</Text>
       {urgent ? <Text style={styles.urgentNote}>Yeni ilan · Yakın çevrede dikkatli olalım</Text> : null}
@@ -402,7 +379,7 @@ function statusStyle(status: string) {
 function LostDetailScreen({ onBack, onSighting }: { onBack: () => void; onSighting: () => void }) {
   return <ScreenShell title="Tarçın aranıyor" subtitle="Son görülme: Kadıköy" onBack={onBack}>
     <SampleBadge />
-    <ImageBackground source={{ uri: mediaUrl('/img/hero2.jpg') }} style={styles.detailHero} imageStyle={styles.detailHeroRadius}><Text style={[styles.statusBadge, statusStyle('Kayıp')]}>Kayıp · Yeni ilan</Text></ImageBackground>
+    <ImageBackground source={communityDemoImage} style={styles.detailHero} imageStyle={styles.detailHeroRadius}><Text style={[styles.statusBadge, statusStyle('Kayıp')]}>Kayıp · Yeni ilan</Text></ImageBackground>
     <View style={styles.detailCard}><Text style={styles.detailTitle}>Tarçın</Text><Text style={styles.petMeta}>Tekir kedi · 3 yaş · Kadıköy</Text>
       <InfoLine icon="calendar-outline" text="Bugün yaklaşık 10:20'de görüldü" /><InfoLine icon="finger-print-outline" text="Sol kulağında küçük çentik, mor tasma" />
       <Text style={styles.bodyText}>Ürkek olabilir; lütfen kovalamadan, güvenli mesafeden gözlemleyin.</Text>

@@ -1,0 +1,37 @@
+import type { SocialPost } from '../types/social';
+
+export const mockSocialPosts: SocialPost[] = [
+  {
+    id: 'welcome-walk',
+    ownerName: 'PetWork Yönetimi',
+    username: '@admin',
+    petName: 'admin',
+    petType: 'Topluluk',
+    publishedAt: 'PetWork başlangıç paylaşımı',
+    body: 'Bugünkü yürüyüşte yeni kokular, bolca güneş ve küçük bir mola vardı. Sizin patinizin en sevdiği yürüyüş rotası neresi?',
+    image: require('../../assets/community-demo.png'),
+    tags: ['Yürüyüş', 'Birlikte'],
+  },
+  {
+    id: 'care-note',
+    ownerName: 'PetWork Yönetimi',
+    username: '@admin',
+    petName: 'admin',
+    petType: 'Topluluk',
+    publishedAt: 'PetWork başlangıç paylaşımı',
+    body: 'Su kaplarını evin birkaç sakin noktasına koymak patilerin daha düzenli su içmesine yardımcı olabilir. Küçük değişiklikler bazen çok işe yarıyor.',
+    image: require('../../assets/social-care.png'),
+    tags: ['Bakım Notu', 'Kedi'],
+  },
+  {
+    id: 'friendship',
+    ownerName: 'PetWork Yönetimi',
+    username: '@admin',
+    petName: 'admin',
+    petType: 'Topluluk',
+    publishedAt: 'PetWork başlangıç paylaşımı',
+    body: 'Aynı mahallede yaşayan patiler için güvenli oyun buluşmaları planlamak ister misiniz? Yakınımda bölümünde yeni dostluklara yer açıyoruz.',
+    image: require('../../assets/social-friends.png'),
+    tags: ['Arkadaşlık', 'Yakınımda'],
+  },
+];
