@@ -32,7 +32,17 @@
         {
           "locationWhenInUsePermission": "Pet'im, yalnızca yakındaki veterinerleri, güvenli alanları ve yaklaşık kayıp pati ilanlarını göstermek için konumunu kullanır."
         }
-      ]
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFF9F2",
+          "image": "./assets/splash-petim.png",
+          "imageWidth": 320,
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-secure-store"
     ]
   }
 }

@@ -11,6 +11,28 @@ export type HomePayload = {
   featured: Story[]; blogs: Story[]; questions: Question[]; memberCount: number; questionCount: number;
 };
 
+export type RegisterRequest = {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  acceptTerms: boolean;
+};
+
+export type AuthResponse = {
+  userId: number;
+  username: string;
+  token: string;
+  expiresAt: string;
+  message: string;
+};
+
+export type LoginRequest = {
+  emailOrUsername: string;
+  password: string;
+  rememberMe: boolean;
+};
+
 const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/$/, '');
 export const apiUrl = configuredUrl || 'http://localhost:5147';
 
@@ -24,4 +46,40 @@ export async function getHome(signal?: AbortSignal): Promise<HomePayload> {
   const response = await fetch(`${apiUrl}/api/mobile/home`, { headers: { Accept: 'application/json' }, signal });
   if (!response.ok) throw new Error(`PetWork API ${response.status} döndürdü.`);
   return response.json();
+}
+
+async function readAuthResponse(response: Response, fallbackMessage: string): Promise<AuthResponse> {
+  const payload = await response.json().catch(() => null) as {
+    message?: string;
+    title?: string;
+    errors?: Record<string, string[]>;
+  } | null;
+
+  if (!response.ok) {
+    const validationMessage = payload?.errors ? Object.values(payload.errors).flat()[0] : undefined;
+    if (response.status === 429) throw new Error('Çok fazla deneme yapıldı. Lütfen bir dakika sonra tekrar dene.');
+    throw new Error(validationMessage || payload?.message || payload?.title || fallbackMessage);
+  }
+
+  return payload as AuthResponse;
+}
+
+export async function registerUser(request: RegisterRequest): Promise<AuthResponse> {
+  const response = await fetch(`${apiUrl}/api/mobile/auth/register`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+
+  return readAuthResponse(response, 'Kayıt işlemi tamamlanamadı.');
+}
+
+export async function loginUser(request: LoginRequest): Promise<AuthResponse> {
+  const response = await fetch(`${apiUrl}/api/mobile/auth/login`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+
+  return readAuthResponse(response, 'Giriş işlemi tamamlanamadı.');
 }
