@@ -24,6 +24,8 @@ namespace PetWork.Data
         public DbSet<Disease> Diseases { get; set; }
         public DbSet<Badge> Badges { get; set; }
         public DbSet<Guide> Guides { get; set; }
+        public DbSet<ExternalContentSource> ExternalContentSources { get; set; }
+        public DbSet<ContentImportAudit> ContentImportAudits { get; set; }
         
         public override int SaveChanges()
         {
@@ -125,6 +127,37 @@ namespace PetWork.Data
                 .WithMany()
                 .HasForeignKey(r => r.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ExternalContentSource>()
+                .HasIndex(source => new { source.Provider, source.ExternalId, source.ContentType })
+                .IsUnique();
+
+            modelBuilder.Entity<ExternalContentSource>()
+                .HasIndex(source => new { source.ReviewStatus, source.ImportedAt });
+
+            modelBuilder.Entity<ExternalContentSource>()
+                .HasOne(source => source.ParentSource)
+                .WithMany(source => source.Children)
+                .HasForeignKey(source => source.ParentSourceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ExternalContentSource>()
+                .HasOne(source => source.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(source => source.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<ContentImportAudit>()
+                .HasOne(audit => audit.ExternalContentSource)
+                .WithMany(source => source.AuditEntries)
+                .HasForeignKey(audit => audit.ExternalContentSourceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ContentImportAudit>()
+                .HasOne(audit => audit.PerformedByUser)
+                .WithMany()
+                .HasForeignKey(audit => audit.PerformedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 } 

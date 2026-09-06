@@ -1,6 +1,10 @@
 @model Question
 @{
     ViewData["Title"] = Model.Title;
+    var externalSource = ViewBag.ExternalSource as PetWork.Models.ExternalContentSource;
+    var externalAnswers = ViewBag.ExternalAnswerSources as Dictionary<int, PetWork.Models.ExternalContentSource> ?? new();
+    var currentUserId = ViewBag.CurrentUserId as int?;
+    var canAcceptAnswer = ViewBag.CanAcceptAnswer is true;
 }
 
 <div class="container py-5">
@@ -23,11 +27,12 @@
                 <div class="card-body">
                     <div class="d-flex mb-3">
                         <div class="flex-shrink-0">
-                            <img src="~/@Model.User.ProfileImage" class="rounded-circle" width="50" height="50" alt="User">
+                            @if (externalSource is null) { <img src="~/@Model.User.ProfileImage" class="rounded-circle" width="50" height="50" alt="User"> }
+                            else { <span class="badge" style="background:#62495f">Dış kaynak</span> }
                         </div>
                         <div class="flex-grow-1 ms-3">
                             <div class="d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0">@Model.User.Username</h5>
+                                <h5 class="mb-0">@(externalSource?.SourceAuthorName ?? Model.User.Username)</h5>
                                 <span class="text-muted">
                                     <i class="fas fa-calendar-alt me-1"></i> @Model.CreatedDate.ToString("dd MMMM yyyy HH:mm")
                                 </span>
@@ -57,6 +62,11 @@
                 </div>
             </div>
 
+            @if (externalSource is not null)
+            {
+                <partial name="_ExternalSourceAttribution" model="externalSource" />
+            }
+
             <!-- Answers Section -->
             <div class="mb-4">
                 <h3 class="mb-3">
@@ -67,11 +77,12 @@
                 {
                     @foreach (var answer in Model.Answers.OrderByDescending(a => a.IsAccepted).ThenByDescending(a => a.UpVotes - a.DownVotes))
                     {
-                        <div class="card mb-3 @(answer.IsAccepted ? "border-success" : "")">
+                        var answerSource = externalAnswers.GetValueOrDefault(answer.Id);
+                        <div class="card mb-3 answer-card @(answer.IsAccepted ? "accepted-answer-card" : "")">
                             @if (answer.IsAccepted)
                             {
-                                <div class="card-header bg-success text-white">
-                                    <i class="fas fa-check-circle me-2"></i> Kabul Edilen Cevap
+                                <div class="card-header accepted-answer-header">
+                                    <i class="fas fa-circle-check me-2"></i> Soru sahibi bu cevabı kabul etti
                                 </div>
                             }
                             <div class="card-body">
@@ -92,7 +103,7 @@
                                             </div>
                                             <div class="flex-grow-1 ms-3">
                                                 <div class="d-flex justify-content-between align-items-center">
-                                                    <h5 class="mb-0">@answer.User.Username</h5>
+                                                <h5 class="mb-0">@(answerSource?.SourceAuthorName ?? answer.User.Username)</h5>
                                                     <span class="text-muted">
                                                         <i class="fas fa-calendar-alt me-1"></i> @answer.CreatedDate.ToString("dd MMMM yyyy HH:mm")
                                                     </span>
@@ -102,11 +113,24 @@
                                         <div class="answer-content mb-3">
                                             <p>@answer.Content</p>
                                         </div>
+                                        @if (answerSource is not null)
+                                        {
+                                            <partial name="_ExternalSourceAttribution" model="answerSource" />
+                                        }
                                         <div class="d-flex justify-content-between">
                                             <div>
                                                 <button class="btn btn-sm btn-outline-primary me-2" onclick="showCommentForm(@answer.Id)">
                                                     <i class="fas fa-comment me-1"></i> Yorum Ekle
                                                 </button>
+                                                @if (canAcceptAnswer && answer.UserId != currentUserId)
+                                                {
+                                                    <form asp-controller="Questions" asp-action="AcceptAnswer" asp-route-id="@answer.Id"
+                                                          method="post" class="d-inline">
+                                                        <button type="submit" class="btn btn-sm accept-answer-btn">
+                                                            <i class="fas fa-check me-1"></i> En iyi cevap olarak kabul et
+                                                        </button>
+                                                    </form>
+                                                }
                                             </div>
                                             <button class="btn btn-sm btn-outline-danger">
                                                 <i class="fas fa-flag me-1"></i> Bildir
@@ -134,7 +158,7 @@
                 <div class="card-body">
                     <form asp-controller="Questions" asp-action="Answer" asp-route-id="@Model.Id" method="post">
                         <div class="mb-3">
-                            <textarea class="form-control" rows="6" placeholder="Cevabınızı buraya yazın..." required></textarea>
+                            <textarea class="form-control" name="Content" rows="6" placeholder="Cevabınızı buraya yazın..." required></textarea>
                         </div>
                         <button type="submit" class="btn btn-primary">Cevabı Gönder</button>
                     </form>

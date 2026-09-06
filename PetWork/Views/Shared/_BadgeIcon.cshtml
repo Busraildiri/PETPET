@@ -1,0 +1,29 @@
+@model PetWork.Models.Badge
+@{
+    var image = Model.Name switch
+    {
+        "Yeni Başlayan" => "beginner.png",
+        "Aktif Üye" => "active-member.png",
+        "Deneyimli Üye" => "experienced-member.png",
+        "Uzman Üye" => "expert-member.png",
+        "Guru" => "guru.png",
+        _ => "beginner.png"
+    };
+    var levelClass = Model.Name switch
+    {
+        "Yeni Başlayan" => "badge-level-1",
+        "Aktif Üye" => "badge-level-2",
+        "Deneyimli Üye" => "badge-level-3",
+        "Uzman Üye" => "badge-level-4",
+        "Guru" => "badge-level-5",
+        _ => "badge-level-1"
+    };
+}
+<span class="achievement-medal @levelClass" role="img" aria-label="@Model.Name rozeti" title="@Model.Description">
+    <img class="achievement-badge-image"
+         src="~/images/badges/@image"
+         alt="@Model.Name rozeti"
+         width="120"
+         height="120"
+         loading="lazy" />
+</span>

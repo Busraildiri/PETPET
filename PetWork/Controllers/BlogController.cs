@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
 using PetWork.Models.ViewModels;
+using PetWork.Services;
 
 namespace PetWork.Controllers
 {
@@ -43,6 +44,13 @@ namespace PetWork.Controllers
                 .Where(b => b.Category != null)
                 .Select(b => b.Category)
                 .Distinct()
+                .ToList();
+
+            categories = categories
+                .OrderBy(category => Array.IndexOf(BlogCategoryClassifier.DisplayOrder, category) is var index && index >= 0
+                    ? index
+                    : int.MaxValue)
+                .ThenBy(category => category)
                 .ToList();
 
             // Veri yoksa varsayılan kategoriler
@@ -87,6 +95,19 @@ namespace PetWork.Controllers
             // Görüntülenme sayısını artır
             blogPost.ViewCount++;
             _context.SaveChanges();
+            ViewBag.ExternalSource = _context.ExternalContentSources.AsNoTracking().FirstOrDefault(x =>
+                x.ContentType == ExternalContentTypes.BlogPost && x.LocalContentId == blogPost.Id &&
+                x.ReviewStatus != ExternalContentReviewStatuses.Rejected && x.ReviewStatus != ExternalContentReviewStatuses.Archived);
+            var categoryCounts = _context.BlogPosts
+                .GroupBy(x => x.Category)
+                .Select(group => new { Category = group.Key, Count = group.Count() })
+                .ToList()
+                .OrderBy(item => Array.IndexOf(BlogCategoryClassifier.DisplayOrder, item.Category) is var index && index >= 0
+                    ? index
+                    : int.MaxValue)
+                .ThenBy(item => item.Category)
+                .ToDictionary(item => item.Category, item => item.Count);
+            ViewBag.BlogCategories = categoryCounts;
 
             return View(blogPost);
         }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
@@ -45,6 +46,53 @@ public class AdminController : Controller
 
         ViewBag.CurrentUserId = _httpContextAccessor.HttpContext?.Session.GetInt32("UserId");
         return View(_context.Users.OrderBy(user => user.Username).ToList());
+    }
+
+    [HttpGet]
+    public IActionResult ResetPassword(int id)
+    {
+        if (!IsAdmin())
+            return RedirectToAction("Login", "Account");
+
+        var user = _context.Users
+            .AsNoTracking()
+            .Where(candidate => candidate.Id == id)
+            .Select(candidate => new { candidate.Id, candidate.Username })
+            .FirstOrDefault();
+
+        if (user is null)
+            return NotFound();
+
+        return View(new AdminResetPasswordViewModel
+        {
+            UserId = user.Id,
+            Username = user.Username
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult ResetPassword(AdminResetPasswordViewModel model)
+    {
+        if (!IsAdmin())
+            return RedirectToAction("Login", "Account");
+
+        var user = _context.Users.Find(model.UserId);
+        if (user is null)
+            return NotFound();
+
+        model.Username = user.Username;
+        ModelState.Remove(nameof(model.Username));
+
+        if (!ModelState.IsValid)
+            return View(model);
+
+        var hasher = new PasswordHasher<Models.User>();
+        user.PasswordHash = hasher.HashPassword(user, model.NewPassword);
+        _context.SaveChanges();
+
+        TempData["SuccessMessage"] = $"{user.Username} kullanıcısının şifresi sıfırlandı.";
+        return RedirectToAction(nameof(Users));
     }
 
     public IActionResult Recipes()

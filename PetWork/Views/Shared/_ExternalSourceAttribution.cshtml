@@ -1,0 +1,28 @@
+@model PetWork.Models.ExternalContentSource
+@using PetWork.Models
+@if (Model is not null)
+{
+    <aside class="card border-0 shadow-sm my-4" style="background:#f6f1ea">
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-2 mb-2"><span class="badge" style="background:#62495f">Dış kaynak</span>
+                @if (Model.TranslationProvider == "PetWorkCurated") { <span class="badge" style="background:#b56e61">Türkçe araştırma özeti</span> }
+                else if (Model.WasTranslated) { <span class="badge" style="background:#b56e61">Otomatik çevrildi</span> }
+                @if (Model.WasModified) { <span class="badge bg-secondary">PetWork editörleri düzenledi</span> }
+            </div>
+            @if (Model.TranslationProvider == "PetWorkCurated")
+            { <div class="alert alert-info py-2">Bu yazı, açık erişimli araştırma makalesinin PetWork tarafından hazırlanmış Türkçe özetidir.</div> }
+            else if (Model.ReviewStatus == ExternalContentReviewStatuses.PublishedUnreviewed)
+            { <div class="alert alert-info py-2">Bu içerik özgün kaynağından otomatik olarak Türkçeye çevrilmiştir.</div> }
+            <p class="mb-2">@Model.AttributionText</p>
+            <dl class="row small mb-2"><dt class="col-sm-3">Kaynak</dt><dd class="col-sm-9">@Model.Provider</dd>
+                <dt class="col-sm-3">Yazar</dt><dd class="col-sm-9">@(Model.SourceAuthorName ?? "Belirtilmemiş")</dd>
+                <dt class="col-sm-3">Lisans</dt><dd class="col-sm-9">@Model.LicenseCode</dd>
+                <dt class="col-sm-3">Son kontrol</dt><dd class="col-sm-9">@Model.LastCheckedAt.ToString("dd.MM.yyyy")</dd></dl>
+            <div class="d-flex gap-2">@if (Model.IsSourceAvailable) { <a href="@Model.SourceUrl" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-dark">Orijinal içeriği gör</a> }
+                <a href="@Model.LicenseUrl" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">Lisansı gör</a></div>
+            @if (!Model.IsSourceAvailable) { <div class="alert alert-danger mt-3 mb-0">Kaynak bağlantısı artık doğrulanamıyor; içerik yeniden incelemeye alındı.</div> }
+            @if (Model.RiskLevel != ExternalContentRiskLevels.Low)
+            { <div class="alert alert-warning mt-3 mb-0"><strong>Önemli:</strong> Bu içerik bilgilendirme amaçlıdır; veteriner muayenesinin yerini tutmaz.</div> }
+        </div>
+    </aside>
+}

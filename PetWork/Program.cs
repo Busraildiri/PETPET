@@ -9,6 +9,7 @@ builder.Services.AddControllersWithViews();
 
 // Session servisi ekle
 builder.Services.AddDistributedMemoryCache();
+builder.Services.AddMemoryCache();
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(30);
@@ -89,6 +90,43 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 
 // HttpClient ve web scraping servisleri
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient<StackExchangeContentProvider>(client =>
+{
+    client.BaseAddress = new Uri("https://api.stackexchange.com/");
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("PetWork/1.0 (https://github.com/Busraildiri/PETPET)");
+});
+builder.Services.AddHttpClient<UsdaFoodDataProvider>(client =>
+{
+    client.BaseAddress = new Uri("https://api.nal.usda.gov/fdc/v1/");
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("PetWork/1.0 (https://github.com/Busraildiri/PETPET)");
+});
+builder.Services.AddHttpClient<WikimediaContentProvider>(client =>
+{
+    client.BaseAddress = new Uri("https://en.wikipedia.org/");
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("PetWork/1.0 (https://github.com/Busraildiri/PETPET)");
+});
+builder.Services.AddHttpClient<WikibooksRecipeProvider>(client =>
+{
+    client.BaseAddress = new Uri("https://en.wikibooks.org/");
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("PetWork/1.0 (https://github.com/Busraildiri/PETPET)");
+});
+builder.Services.AddScoped<IExternalContentProvider>(sp => sp.GetRequiredService<StackExchangeContentProvider>());
+builder.Services.AddScoped<IExternalContentProvider>(sp => sp.GetRequiredService<UsdaFoodDataProvider>());
+builder.Services.AddScoped<IExternalContentProvider>(sp => sp.GetRequiredService<WikimediaContentProvider>());
+builder.Services.AddScoped<IExternalContentProvider>(sp => sp.GetRequiredService<WikibooksRecipeProvider>());
+builder.Services.AddSingleton<IContentLicensePolicy, ContentLicensePolicy>();
+builder.Services.AddSingleton<IContentSanitizer, HtmlPlainTextSanitizer>();
+builder.Services.AddSingleton<IContentSafetyReviewService, ContentSafetyReviewService>();
+builder.Services.AddHttpClient<ITranslationService, ConfigurableTranslationService>(client =>
+    client.Timeout = TimeSpan.FromSeconds(45));
+builder.Services.AddScoped<IExternalContentImportService, ExternalContentImportService>();
+builder.Services.AddScoped<IExternalContentPublishingService, ExternalContentPublishingService>();
+builder.Services.AddHostedService<ExternalContentAutoPublisher>();
+builder.Services.AddHostedService<ExternalContentBootstrapService>();
 builder.Services.AddScoped<WebScrapingService>();
 builder.Services.AddScoped<ExperienceService>();
 

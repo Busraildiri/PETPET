@@ -76,13 +76,16 @@
             <div class="row">
                 @foreach (var recipe in Model.Recipes)
                 {
+                    var recipeImage = string.IsNullOrWhiteSpace(recipe.ImageUrl) || recipe.ImageUrl == "img/recipe-default.jpg" ||
+                                      recipe.ImageUrl is "img/recipes/recipe1.jpg" or "img/recipes/recipe2.jpg" or "img/recipes/recipe3.jpg"
+                        ? "img/hero-recipes-v2.png" : recipe.ImageUrl;
                     <div class="col-md-4 mb-4">
                         <div class="card h-100">
                             <div class="card-header bg-transparent border-0">
                                 <span class="badge @(recipe.AnimalType == "Kedi" ? "bg-success" : (recipe.AnimalType == "Köpek" ? "bg-primary" : "bg-info"))">@recipe.AnimalType</span>
                                 <span class="badge bg-secondary ms-2">@recipe.Difficulty</span>
                             </div>
-                            <img src="~/@(string.IsNullOrEmpty(recipe.ImageUrl) ? "img/recipe-default.jpg" : recipe.ImageUrl)" class="card-img-top" alt="@recipe.Title">
+                            <img src="~/@recipeImage" class="card-img-top" alt="@recipe.Title">
                             <div class="card-body">
                                 <h5 class="card-title">@recipe.Title</h5>
                                 <p class="card-text">@recipe.Description</p>

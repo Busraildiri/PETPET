@@ -1,6 +1,8 @@
 @model BlogPost
-@{
+@{ 
     ViewData["Title"] = Model.Title;
+    var blogImage = string.IsNullOrWhiteSpace(Model.ImageUrl) || Model.ImageUrl == "img/blog-default.jpg"
+        ? "img/hero-community-v2.png" : Model.ImageUrl;
 }
 
 <div class="container py-5">
@@ -37,7 +39,7 @@
             </div>
 
             <div class="blog-featured-image mb-4">
-                <img src="~/@Model.ImageUrl" class="img-fluid rounded" alt="@Model.Title">
+                <img src="~/@blogImage" class="img-fluid rounded" alt="@Model.Title">
             </div>
 
             <div class="blog-content mb-5">
@@ -165,30 +167,16 @@
                 </div>
                 <div class="card-body">
                     <ul class="list-group list-group-flush">
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                            <a href="#" class="text-decoration-none">Kedi Bakımı</a>
-                            <span class="badge bg-primary rounded-pill">14</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                            <a href="#" class="text-decoration-none">Köpek Bakımı</a>
-                            <span class="badge bg-primary rounded-pill">22</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                            <a href="#" class="text-decoration-none">Kuş Bakımı</a>
-                            <span class="badge bg-primary rounded-pill">9</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                            <a href="#" class="text-decoration-none">Kemirgen Bakımı</a>
-                            <span class="badge bg-primary rounded-pill">5</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                            <a href="#" class="text-decoration-none">Beslenme</a>
-                            <span class="badge bg-primary rounded-pill">18</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                            <a href="#" class="text-decoration-none">Eğitim</a>
-                            <span class="badge bg-primary rounded-pill">12</span>
-                        </li>
+                        @if (ViewBag.BlogCategories is Dictionary<string, int> categoryCounts)
+                        {
+                            foreach (var category in categoryCounts)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <a asp-controller="Blog" asp-action="Index" asp-route-category="@category.Key" class="text-decoration-none">@category.Key</a>
+                                    <span class="badge bg-primary rounded-pill">@category.Value</span>
+                                </li>
+                            }
+                        }
                     </ul>
                 </div>
             </div>
@@ -204,4 +192,5 @@
             </div>
         </div>
     </div>
-</div> 
+</div>
+@if (ViewBag.ExternalSource is PetWork.Models.ExternalContentSource source) { <div class="container"><partial name="_ExternalSourceAttribution" model="source" /></div> }

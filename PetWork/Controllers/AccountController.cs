@@ -235,6 +235,7 @@ namespace PetWork.Controllers
             if (!ModelState.IsValid)
                 return View(model);
 
+            var completedProfileNow = string.IsNullOrWhiteSpace(user.Bio) && !string.IsNullOrWhiteSpace(model.Bio);
             user.Username = model.Username.Trim();
             user.Email = model.Email.Trim();
             user.Bio = model.Bio?.Trim();
@@ -254,6 +255,9 @@ namespace PetWork.Controllers
             }
 
             await _context.SaveChangesAsync();
+            if (completedProfileNow)
+                await _experienceService.AddExperienceAsync(user.Id,
+                    ExperienceService.ExperiencePoints.ProfileCompletion, "Profil bilgilerini tamamladı");
             HttpContext.Session.SetString("Username", user.Username);
             TempData["SuccessMessage"] = "Profiliniz güncellendi.";
             return RedirectToAction("Index", "Profile");

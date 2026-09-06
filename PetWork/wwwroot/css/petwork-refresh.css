@@ -314,3 +314,327 @@ img { max-width: 100%; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* Renkli deneyim rozetleri */
+.achievement-medal {
+    position: relative;
+    display: block;
+    width: 112px;
+    height: 112px;
+    margin: 0 auto .7rem;
+    filter: drop-shadow(0 10px 10px rgba(67, 47, 60, .18));
+    transition: transform .22s ease, filter .22s ease;
+}
+
+.achievement-medal:hover {
+    transform: translateY(-4px) rotate(-2deg);
+    filter: drop-shadow(0 13px 12px rgba(67, 47, 60, .3));
+}
+
+.achievement-badge-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.profile-badge-grid {
+    --bs-gutter-x: .4rem;
+}
+
+.profile-badge-grid .achievement-medal,
+.card-body .col-4 > .achievement-medal {
+    width: 76px;
+    height: 76px;
+    margin-bottom: .35rem;
+}
+
+.profile-badge-grid .col-4 {
+    min-width: 0;
+    padding-inline: .2rem;
+}
+
+.badge-level-5 {
+    animation: guru-badge-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes guru-badge-glow {
+    0%, 100% { filter: drop-shadow(0 10px 10px rgba(67, 47, 60, .18)); }
+    50% { filter: drop-shadow(0 10px 16px rgba(255, 178, 30, .52)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .badge-level-5 { animation: none; }
+}
+
+/* Kabul edilen topluluk cevabı */
+.answer-card {
+    overflow: hidden;
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.accepted-answer-card {
+    border: 2px solid #5fa77d !important;
+    background: linear-gradient(145deg, #fffdf8 0%, #f0f9f2 100%);
+    box-shadow: 0 16px 34px rgba(59, 116, 79, .16);
+}
+
+.accepted-answer-header {
+    border-bottom: 1px solid rgba(59, 116, 79, .2);
+    color: #285f3d;
+    background: linear-gradient(90deg, #d9f1df, #f5ecd0);
+    font-weight: 800;
+}
+
+.accept-answer-btn {
+    border: 1px solid #5fa77d;
+    color: #285f3d;
+    background: #eef8f0;
+    font-weight: 700;
+}
+
+.accept-answer-btn:hover,
+.accept-answer-btn:focus {
+    border-color: #356d4b;
+    color: #fff;
+    background: #356d4b;
+}
+
+/* Pet’im mobil uygulama tanıtımı */
+.petim-nav-link {
+    display: inline-flex !important;
+    align-items: center;
+    gap: .38rem;
+    color: #7a3f68 !important;
+    font-weight: 800 !important;
+}
+
+.petim-nav-link i { color: #e06f85; font-size: .8rem; }
+
+.petim-page main { overflow: hidden; }
+
+.petim-hero {
+    position: relative;
+    padding: 5.2rem 0 6.5rem;
+    background:
+        radial-gradient(circle at 86% 18%, rgba(255, 201, 139, .38), transparent 27%),
+        radial-gradient(circle at 8% 72%, rgba(169, 221, 205, .32), transparent 25%),
+        linear-gradient(145deg, #fffaf2 0%, #fff5ef 52%, #f8f0f5 100%);
+}
+
+.petim-hero::after {
+    position: absolute;
+    right: -90px;
+    bottom: -110px;
+    width: 300px;
+    height: 300px;
+    border: 55px solid rgba(255, 255, 255, .5);
+    border-radius: 50%;
+    content: "";
+}
+
+.petim-hero-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.04fr) minmax(360px, .78fr);
+    gap: clamp(3rem, 8vw, 7.5rem);
+    align-items: center;
+}
+
+.petim-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    margin-bottom: 1.2rem;
+    color: #9d536d;
+    font-size: .78rem;
+    font-weight: 800;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+}
+
+.petim-wordmark {
+    display: inline-flex;
+    margin-bottom: 1.1rem;
+    padding: .5rem .85rem;
+    border: 1px solid rgba(93, 64, 88, .12);
+    border-radius: 15px;
+    color: var(--pw-ink);
+    background: rgba(255, 255, 255, .7);
+    box-shadow: 0 10px 28px rgba(76, 44, 66, .08);
+    font: 700 1.05rem/1 "Fraunces", serif;
+}
+
+.petim-wordmark strong { color: #cf5f7a; }
+
+.petim-hero h1,
+.petim-match-content h2,
+.petim-download-card h2 {
+    margin-bottom: 1.35rem;
+    color: var(--pw-ink);
+    font-family: "Fraunces", serif;
+    font-weight: 700;
+    letter-spacing: -.045em;
+}
+
+.petim-hero h1 { font-size: clamp(3.5rem, 6vw, 5.8rem); line-height: .96; }
+.petim-hero h1 em,
+.petim-match-content h2 em { color: #a34e70; font-weight: 600; }
+.petim-hero-copy > p { max-width: 670px; color: #685d63; font-size: 1.08rem; line-height: 1.85; }
+.petim-hero-actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
+.btn-petim-primary,
+.btn-petim-ghost { padding: .92rem 1.3rem; border-radius: 14px; font-weight: 800; }
+.btn-petim-primary { color: #fff; background: linear-gradient(135deg, #704861, #d5697e); box-shadow: 0 13px 25px rgba(122, 63, 104, .23); }
+.btn-petim-primary:hover { color: #fff; transform: translateY(-2px); }
+.btn-petim-ghost { border: 1px solid #b99daa; color: #654559; background: rgba(255,255,255,.55); }
+.btn-petim-ghost:hover { border-color: #704861; color: #fff; background: #704861; }
+.petim-trust-row { display: flex; flex-wrap: wrap; gap: 1.15rem; margin-top: 2rem; color: #786d72; font-size: .77rem; font-weight: 700; }
+.petim-trust-row span { display: inline-flex; align-items: center; gap: .38rem; }
+.petim-trust-row i { color: #5f9a7b; }
+
+.petim-phone-stage { position: relative; display: grid; min-height: 650px; place-items: center; }
+.petim-phone-stage::before { position: absolute; width: 430px; height: 430px; border-radius: 50%; background: linear-gradient(145deg, #f7c5b6, #c5e3d8); content: ""; filter: blur(2px); opacity: .55; }
+.petim-phone {
+    position: relative;
+    z-index: 2;
+    width: min(330px, 82vw);
+    padding: 11px;
+    border: 3px solid #3b3038;
+    border-radius: 48px;
+    background: #332b30;
+    box-shadow: 0 38px 70px rgba(61, 36, 53, .26), inset 0 0 0 2px rgba(255,255,255,.12);
+    transform: rotate(3deg);
+}
+
+.petim-phone-speaker { position: absolute; z-index: 4; top: 19px; left: 50%; width: 78px; height: 20px; border-radius: 20px; background: #332b30; transform: translateX(-50%); }
+.petim-phone-screen { overflow: hidden; min-height: 620px; border-radius: 36px; background: #fffaf1; }
+.petim-appbar { display: flex; align-items: center; justify-content: space-between; padding: 2.5rem 1rem .8rem; color: #54454d; font-size: .72rem; }
+.petim-mini-logo { display: grid; width: 28px; height: 28px; border-radius: 9px; place-items: center; color: #fff; background: #704861; font: 700 .8rem/1 "Fraunces", serif; }
+.petim-profile-preview { position: relative; overflow: hidden; height: 285px; margin: 0 .75rem; border-radius: 25px; background: #eadfd5; }
+.petim-profile-preview img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.petim-profile-preview::after { position: absolute; inset: 35% 0 0; background: linear-gradient(transparent, rgba(39,27,34,.82)); content: ""; }
+.petim-profile-overlay { position: absolute; z-index: 1; right: 1rem; bottom: 1rem; left: 1rem; color: #fff; }
+.petim-profile-overlay span { display: block; font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.petim-profile-overlay strong { display: block; font: 700 1.45rem/1.25 "Fraunces", serif; }
+.petim-profile-overlay small { font-size: .65rem; opacity: .88; }
+.petim-story-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: .3rem; padding: .9rem .75rem .5rem; }
+.petim-story-row span { text-align: center; }
+.petim-story-row b { display: grid; width: 39px; height: 39px; margin: 0 auto .22rem; border: 2px solid #f1b5a8; border-radius: 50%; place-items: center; background: #fff; font-size: .85rem; }
+.petim-story-row small { color: #6f6269; font-size: .55rem; }
+.petim-feed-card { display: flex; align-items: center; justify-content: space-between; margin: .5rem .75rem; padding: .7rem; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px rgba(66,46,57,.08); }
+.petim-feed-card > div { display: flex; align-items: center; gap: .55rem; }
+.petim-avatar { display: grid; width: 34px; height: 34px; border-radius: 50%; place-items: center; color: #fff; background: #d77b85; font-weight: 800; }
+.petim-feed-card p { margin: 0; font-size: .62rem; }
+.petim-feed-card p strong, .petim-feed-card p small { display: block; }
+.petim-feed-card p small { max-width: 180px; color: #83767c; }
+.petim-feed-card > i { color: #d5697e; }
+.petim-tabbar { display: flex; align-items: center; justify-content: space-around; margin-top: 1.2rem; padding: .7rem 1rem 1rem; border-top: 1px solid #eee3da; color: #907f87; }
+.petim-tabbar span { display: grid; width: 40px; height: 40px; margin-top: -24px; border: 4px solid #fffaf1; border-radius: 50%; place-items: center; color: #fff; background: #704861; }
+.petim-orbit { position: absolute; z-index: 3; display: grid; border-radius: 50%; place-items: center; color: #fff; box-shadow: 0 16px 30px rgba(75,46,63,.2); }
+.petim-orbit-one { top: 20%; right: 3%; width: 65px; height: 65px; background: #df7689; transform: rotate(12deg); }
+.petim-orbit-two { bottom: 18%; left: 0; width: 74px; height: 74px; background: #69a589; transform: rotate(-12deg); }
+
+.petim-section { padding: 6.5rem 0; }
+.petim-features-section { background: #fff; }
+.petim-section-heading { max-width: 780px; margin-bottom: 3.2rem; }
+.petim-section-heading > span { color: #a34e70; font-size: .76rem; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+.petim-section-heading h2 { margin: .8rem 0 1rem; font: 700 clamp(2.4rem, 4vw, 4rem)/1.06 "Fraunces", serif; letter-spacing: -.035em; }
+.petim-section-heading p { max-width: 700px; color: #756a70; line-height: 1.8; }
+.petim-section-heading-center { margin-right: auto; margin-left: auto; text-align: center; }
+.petim-feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+.petim-feature-card { min-height: 250px; padding: 1.65rem; border: 1px solid rgba(72,49,62,.07); border-radius: 28px; box-shadow: 0 15px 35px rgba(64,43,55,.07); transition: transform .2s ease; }
+.petim-feature-card:hover { transform: translateY(-5px); }
+.petim-feature-icon { display: grid; width: 52px; height: 52px; margin-bottom: 2.1rem; border-radius: 17px; place-items: center; color: #fff; font-size: 1.2rem; box-shadow: 0 8px 18px rgba(52,38,46,.15); }
+.petim-feature-card h3 { font: 700 1.35rem/1.2 "Fraunces", serif; }
+.petim-feature-card p { margin: 0; color: #756a70; font-size: .88rem; line-height: 1.7; }
+.petim-card-coral { background: #fff5ef; } .petim-card-coral .petim-feature-icon { background: #df826f; }
+.petim-card-mint { background: #f0f8f3; } .petim-card-mint .petim-feature-icon { background: #68a184; }
+.petim-card-lilac { background: #f8f1fa; } .petim-card-lilac .petim-feature-icon { background: #9670a0; }
+.petim-card-sun { background: #fff8e8; } .petim-card-sun .petim-feature-icon { background: #d3a146; }
+.petim-card-blue { background: #eef7f8; } .petim-card-blue .petim-feature-icon { background: #5b9298; }
+.petim-card-plum { color: #fff; background: #61445b; } .petim-card-plum .petim-feature-icon { color: #61445b; background: #f5c879; } .petim-card-plum p { color: #eee4eb; }
+
+.petim-match-section { background: #f7f0e8; }
+.petim-match-grid { display: grid; grid-template-columns: minmax(330px, .82fr) minmax(0, 1fr); gap: clamp(3rem, 8vw, 7rem); align-items: center; }
+.petim-match-demo { position: relative; min-height: 590px; }
+.petim-match-card { position: absolute; top: 0; left: 50%; overflow: hidden; width: min(370px, 88vw); border: 9px solid #fff; border-radius: 34px; background: #fff; box-shadow: 0 28px 60px rgba(65,44,56,.18); transform: translateX(-50%) rotate(-2deg); }
+.petim-match-card-back { top: 35px; height: 500px; background: #d7eadf; transform: translateX(-46%) rotate(7deg); }
+.petim-match-card img { width: 100%; height: 355px; object-fit: cover; }
+.petim-match-copy { padding: 1.15rem 1.2rem .7rem; }
+.petim-match-copy h3 { display: inline; font: 700 1.5rem/1.2 "Fraunces", serif; }
+.petim-match-copy p { margin: .4rem 0; color: #73676e; font-size: .78rem; }
+.petim-match-copy small { color: #8b7e84; font-size: .68rem; }
+.petim-online-dot { display: inline-block; width: 9px; height: 9px; margin-right: .35rem; border-radius: 50%; background: #62a880; }
+.petim-match-actions { display: flex; justify-content: center; gap: 1rem; padding: .8rem 1rem 1.3rem; }
+.petim-match-actions button { display: grid; width: 52px; height: 52px; border: 0; border-radius: 50%; place-items: center; background: #f4efeb; box-shadow: 0 6px 15px rgba(56,40,49,.1); }
+.petim-match-actions button:last-child { color: #fff; background: #d6677c; }
+.petim-match-content h2 { font-size: clamp(2.8rem, 5vw, 4.7rem); line-height: 1; }
+.petim-match-content > p { max-width: 620px; color: #73676e; line-height: 1.8; }
+.petim-check-list { display: grid; gap: 1rem; margin: 2rem 0 0; padding: 0; list-style: none; }
+.petim-check-list li { display: flex; gap: .8rem; align-items: flex-start; color: #675c62; }
+.petim-check-list i { display: grid; flex: 0 0 27px; height: 27px; border-radius: 50%; place-items: center; color: #fff; background: #68a184; font-size: .7rem; }
+.petim-check-list strong { color: #44363e; }
+
+.petim-journey-section { background: #fff; }
+.petim-journey { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0; padding: 0; counter-reset: petim-step; list-style: none; }
+.petim-journey li { position: relative; min-height: 250px; padding: 1.6rem; border-right: 1px solid #eadfd6; }
+.petim-journey li:last-child { border-right: 0; }
+.petim-journey b { position: absolute; top: 1rem; right: 1rem; color: #eadfd6; font: 700 2.5rem/1 "Fraunces", serif; }
+.petim-journey-icon { display: grid; width: 57px; height: 57px; margin-bottom: 2rem; border-radius: 19px; place-items: center; color: #704861; background: #f6e9ed; }
+.petim-journey h3 { font: 700 1.2rem/1.3 "Fraunces", serif; }
+.petim-journey p { color: #786d72; font-size: .82rem; line-height: 1.65; }
+
+.petim-download-section { padding: 2rem 0 7rem; background: #fff; }
+.petim-download-card { position: relative; overflow: hidden; display: grid; grid-template-columns: 1fr auto; gap: 3rem; align-items: center; padding: clamp(2.2rem, 5vw, 4rem); border-radius: 38px; color: #fff; background: linear-gradient(135deg, #4d3549, #79516c 60%, #a46176); box-shadow: 0 28px 65px rgba(72,45,64,.2); }
+.petim-download-card::after { position: absolute; right: -50px; bottom: -80px; width: 260px; height: 260px; border: 45px solid rgba(255,255,255,.08); border-radius: 50%; content: ""; }
+.petim-download-card .petim-kicker { color: #f5cbd2; }
+.petim-download-card h2 { color: #fff; font-size: clamp(2.6rem, 5vw, 4.5rem); line-height: 1; }
+.petim-download-card p { max-width: 600px; color: #f2e8ef; line-height: 1.8; }
+.petim-store-area { position: relative; z-index: 1; display: grid; min-width: 280px; gap: .7rem; }
+.petim-store-button { display: flex; align-items: center; gap: .9rem; padding: .75rem 1rem; border: 1px solid rgba(255,255,255,.25); border-radius: 15px; color: #fff; background: rgba(255,255,255,.1); text-align: left; opacity: .8; }
+.petim-store-button i { width: 28px; font-size: 1.6rem; text-align: center; }
+.petim-store-button span { font-weight: 800; }
+.petim-store-button small { display: block; font-size: .58rem; font-weight: 600; opacity: .75; }
+.petim-beta-link { margin-top: .35rem; color: #f8dae0; font-size: .72rem; text-decoration: none; }
+.petim-beta-link:hover { color: #fff; }
+
+@media (max-width: 991.98px) {
+    .petim-hero-grid, .petim-match-grid { grid-template-columns: 1fr; }
+    .petim-hero-copy { text-align: center; }
+    .petim-hero-copy > p { margin-right: auto; margin-left: auto; }
+    .petim-hero-actions, .petim-trust-row { justify-content: center; }
+    .petim-phone-stage { min-height: 660px; }
+    .petim-feature-grid { grid-template-columns: repeat(2, 1fr); }
+    .petim-match-content { text-align: center; }
+    .petim-match-content > p { margin-right: auto; margin-left: auto; }
+    .petim-check-list { max-width: 650px; margin-right: auto; margin-left: auto; text-align: left; }
+    .petim-download-card { grid-template-columns: 1fr; }
+    .petim-store-area { min-width: 0; max-width: 360px; }
+}
+
+@media (max-width: 767.98px) {
+    .petim-hero { padding: 3.5rem 0 4.5rem; }
+    .petim-hero h1 { font-size: clamp(3.1rem, 16vw, 4.7rem); }
+    .petim-phone-stage { min-height: 620px; }
+    .petim-phone-screen { min-height: 570px; }
+    .petim-profile-preview { height: 250px; }
+    .petim-section { padding: 4.5rem 0; }
+    .petim-feature-grid { grid-template-columns: 1fr; }
+    .petim-feature-card { min-height: 215px; }
+    .petim-journey { grid-template-columns: 1fr 1fr; }
+    .petim-journey li:nth-child(2) { border-right: 0; }
+    .petim-journey li { border-bottom: 1px solid #eadfd6; }
+    .petim-journey li:nth-child(n+3) { border-bottom: 0; }
+}
+
+@media (max-width: 480px) {
+    .petim-hero-actions .btn { width: 100%; }
+    .petim-trust-row { align-items: center; flex-direction: column; }
+    .petim-phone { width: min(310px, 89vw); }
+    .petim-orbit { display: none; }
+    .petim-journey { grid-template-columns: 1fr; }
+    .petim-journey li { border-right: 0; border-bottom: 1px solid #eadfd6 !important; }
+    .petim-journey li:last-child { border-bottom: 0 !important; }
+    .petim-download-card { padding: 2rem 1.3rem; border-radius: 28px; }
+}

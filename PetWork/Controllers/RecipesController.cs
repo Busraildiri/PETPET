@@ -10,6 +10,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using System.IO;
+using PetWork.Services;
 
 namespace PetWork.Controllers
 {
@@ -18,12 +19,15 @@ namespace PetWork.Controllers
         private readonly PetWorkDbContext _context;
         private readonly ILogger<RecipesController> _logger;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly ExperienceService _experienceService;
 
-        public RecipesController(PetWorkDbContext context, ILogger<RecipesController> logger, IWebHostEnvironment webHostEnvironment)
+        public RecipesController(PetWorkDbContext context, ILogger<RecipesController> logger,
+            IWebHostEnvironment webHostEnvironment, ExperienceService experienceService)
         {
             _context = context;
             _logger = logger;
             _webHostEnvironment = webHostEnvironment;
+            _experienceService = experienceService;
         }
 
         public IActionResult Index(string? animalType = null, string? difficulty = null, string? sortOption = "En Yeni", DateTime? startDate = null, DateTime? endDate = null)
@@ -144,6 +148,9 @@ namespace PetWork.Controllers
             // Görüntülenme sayısını artır
             recipe.ViewCount++;
             _context.SaveChanges();
+            ViewBag.ExternalSource = _context.ExternalContentSources.AsNoTracking().FirstOrDefault(x =>
+                x.ContentType == ExternalContentTypes.Recipe && x.LocalContentId == recipe.Id &&
+                x.ReviewStatus != ExternalContentReviewStatuses.Rejected && x.ReviewStatus != ExternalContentReviewStatuses.Archived);
 
             return View(recipe);
         }
@@ -162,7 +169,7 @@ namespace PetWork.Controllers
         }
         
         [HttpPost]
-        public IActionResult Add(Recipe recipe, IFormFile ImageFile)
+        public async Task<IActionResult> Add(Recipe recipe, IFormFile ImageFile)
         {
             try
             {
@@ -253,8 +260,8 @@ namespace PetWork.Controllers
                         else
                         {
                             // Dosya yüklenmemişse varsayılan görsel kullan
-                            recipe.ImageUrl = "img/recipe-default.jpg";
-                            recipe.FeaturedImage = "img/recipe-default.jpg";
+                            recipe.ImageUrl = "img/hero-recipes-v2.png";
+                            recipe.FeaturedImage = "img/hero-recipes-v2.png";
                         }
                         
                         // İlişkili User nesnesini yükle
@@ -273,13 +280,15 @@ namespace PetWork.Controllers
                                 .Where(e => e.State == EntityState.Added)
                                 .Select(e => e.Entity.GetType().Name)));
                         
-                        int result = _context.SaveChanges();
+                        int result = await _context.SaveChangesAsync();
 
                         // Başarılı mı kontrol et
                         if (result > 0)
                         {
+                            await _experienceService.AddExperienceAsync(userId.Value,
+                                ExperienceService.ExperiencePoints.CreateRecipe, "Tarif paylaştı");
                             _logger.LogInformation("Tarif başarıyla eklendi, ID: {0}", recipe.Id);
-                            TempData["SuccessMessage"] = "Tarifiniz başarıyla eklendi!";
+                            TempData["SuccessMessage"] = $"Tarifiniz başarıyla eklendi! +{ExperienceService.ExperiencePoints.CreateRecipe} XP";
                             return RedirectToAction("Details", new { id = recipe.Id });
                         }
                         else

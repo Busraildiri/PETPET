@@ -1,0 +1,53 @@
+@model PetWork.Models.ViewModels.ExternalContentListViewModel
+@using PetWork.Models
+@{ ViewData["Title"] = "Dış İçerikler"; }
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div><h1>Dış İçerikler</h1><p class="text-muted mb-0">Açık lisanslı içerikleri bulun; incelemeden hiçbir kayıt yayınlanmaz.</p></div>
+        <a asp-controller="Admin" asp-action="Index" class="btn btn-outline-secondary">Admin paneli</a>
+    </div>
+    <partial name="~/Views/Admin/_Messages.cshtml" />
+
+    <div class="card shadow-sm mb-4"><div class="card-body">
+        <h5 class="card-title">Kaynaklarda ara</h5>
+        <form asp-action="Search" method="get" class="row g-3">
+            <div class="col-md-3"><label class="form-label">Kaynak</label><select name="provider" class="form-select" required>
+                @foreach (var provider in Model.Providers) { <option selected="@(provider == Model.Provider)">@provider</option> }
+            </select></div>
+            <div class="col-md-3"><label class="form-label">Yayın türü</label><select name="targetContentType" class="form-select">
+                <option value="">Kaynağın varsayılanı</option><option value="Guide">Rehber</option><option value="Disease">Hastalık</option><option value="BlogPost">Blog</option>
+            </select></div>
+            <div class="col-md-3"><label class="form-label">Arama</label><input name="query" value="@Model.Query" class="form-control" placeholder="Örn. cat nutrition, dog anxiety" required /></div>
+            <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary w-100">Kaynaklarda ara</button></div>
+        </form>
+        <small class="text-muted">USDA araması için API anahtarı yalnızca User Secrets içinde tutulur.</small>
+    </div></div>
+
+    @if (Model.SearchResults.Count > 0)
+    {
+        <div class="card shadow-sm mb-4"><div class="table-responsive"><table class="table align-middle mb-0">
+            <thead><tr><th>Sonuç</th><th>Kaynak</th><th>Lisans</th><th></th></tr></thead><tbody>
+            @foreach (var item in Model.SearchResults)
+            {
+                <tr><td><a href="@item.SourceUrl" target="_blank" rel="noopener noreferrer">@item.Title</a><br><small class="text-muted">@item.AuthorName</small></td>
+                    <td>@item.Provider</td><td>@item.LicenseCode</td><td class="text-end"><form asp-action="Import" method="post">
+                        @Html.AntiForgeryToken()<input type="hidden" name="provider" value="@item.Provider" /><input type="hidden" name="externalId" value="@item.ExternalId" /><input type="hidden" name="targetContentType" value="@Model.TargetContentType" />
+                        <button class="btn btn-sm btn-primary">İncelemeye al</button></form></td></tr>
+            }
+            </tbody></table></div></div>
+    }
+
+    <div class="card shadow-sm"><div class="card-header"><form method="get" asp-action="Index" class="row g-2">
+        <div class="col-md-3"><select name="provider" class="form-select"><option value="">Tüm kaynaklar</option>@foreach (var p in Model.Providers) { <option value="@p" selected="@(p == Model.Provider)">@p</option> }</select></div>
+        <div class="col-md-3"><select name="status" class="form-select"><option value="">Tüm durumlar</option>@foreach (var s in new[]{ExternalContentReviewStatuses.Pending,ExternalContentReviewStatuses.NeedsReview,ExternalContentReviewStatuses.PublishedUnreviewed,ExternalContentReviewStatuses.Approved,ExternalContentReviewStatuses.Rejected,ExternalContentReviewStatuses.Archived}) { <option value="@s" selected="@(s == Model.Status)">@s</option> }</select></div>
+        <div class="col-md-3"><select name="contentType" class="form-select"><option value="">Tüm türler</option>@foreach (var t in new[]{ExternalContentTypes.Question,ExternalContentTypes.Answer,ExternalContentTypes.Guide,ExternalContentTypes.Disease,ExternalContentTypes.Recipe,ExternalContentTypes.BlogPost,ExternalContentTypes.FoodData}) { <option value="@t" selected="@(t == Model.ContentType)">@t</option> }</select></div>
+        <div class="col-md-3"><button class="btn btn-outline-primary w-100">Filtrele</button></div>
+    </form></div><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>İçerik</th><th>Kaynak / Tür</th><th>Risk</th><th>Durum</th><th></th></tr></thead><tbody>
+        @if (Model.Items.Count == 0) { <tr><td colspan="5" class="text-center text-muted py-4">Kuyrukta içerik yok.</td></tr> }
+        @foreach (var item in Model.Items)
+        { <tr><td>@item.SourceTitle<br><small class="text-muted">@item.ImportedAt.ToString("dd.MM.yyyy HH:mm")</small></td><td>@item.Provider<br><small>@item.ContentType</small></td>
+            <td><span class="badge @(item.RiskLevel == ExternalContentRiskLevels.High ? "bg-danger" : item.RiskLevel == ExternalContentRiskLevels.Medium ? "bg-warning text-dark" : "bg-success")">@item.RiskLevel</span></td>
+            <td><span class="badge bg-secondary">@item.ReviewStatus</span></td><td><a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">İncele</a></td></tr> }
+    </tbody></table></div></div>
+</div>

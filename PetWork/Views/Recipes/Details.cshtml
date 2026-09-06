@@ -2,6 +2,9 @@
 
 @{
     ViewData["Title"] = Model.Title;
+    var recipeImage = string.IsNullOrWhiteSpace(Model.ImageUrl) || Model.ImageUrl == "img/recipe-default.jpg" ||
+                      Model.ImageUrl is "img/recipes/recipe1.jpg" or "img/recipes/recipe2.jpg" or "img/recipes/recipe3.jpg"
+        ? "img/hero-recipes-v2.png" : Model.ImageUrl;
 }
 
 <section class="py-5">
@@ -32,7 +35,7 @@
                 </div>
                 
                 <div class="mb-4">
-                    <img src="~/@(string.IsNullOrEmpty(Model.ImageUrl) ? "img/recipe-default.jpg" : Model.ImageUrl)" class="img-fluid rounded" alt="@Model.Title">
+                    <img src="~/@recipeImage" class="img-fluid rounded" alt="@Model.Title">
                 </div>
                 
                 <div class="card mb-4">
@@ -139,4 +142,5 @@
             </div>
         </div>
     </div>
+    @if (ViewBag.ExternalSource is PetWork.Models.ExternalContentSource source) { <partial name="_ExternalSourceAttribution" model="source" /> }
 </section> 

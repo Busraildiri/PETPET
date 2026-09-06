@@ -15,9 +15,9 @@ namespace PetWork.Models
         
         public string Category { get; set; }
         
-        public string FeaturedImage { get; set; } = "img/blog-default.jpg";
+        public string FeaturedImage { get; set; } = "img/hero-community-v2.png";
         
-        public string ImageUrl { get; set; } = "img/blog-default.jpg";
+        public string ImageUrl { get; set; } = "img/hero-community-v2.png";
         
         public DateTime PublishedDate { get; set; } = DateTime.Now;
         

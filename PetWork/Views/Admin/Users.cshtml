@@ -24,13 +24,16 @@
                     <td>@user.Email</td><td>@user.RegistrationDate.ToString("dd.MM.yyyy")</td>
                     <td><span class="badge @(user.IsAdmin ? "bg-primary" : "bg-secondary")">@(user.IsAdmin ? "Admin" : "Kullanıcı")</span></td>
                     <td class="text-end">
+                        <a asp-action="ResetPassword" asp-route-id="@user.Id" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-key me-1"></i>Şifreyi sıfırla
+                        </a>
                         @if (user.Id == currentUserId)
                         {
-                            <button class="btn btn-sm btn-outline-secondary" disabled>Kendi hesabınız</button>
+                            <span class="badge bg-info ms-1">Kendi hesabınız</span>
                         }
                         else
                         {
-                            <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Bu kullanıcı ve bağlı tüm içerikleri kalıcı olarak silinsin mi?');">
+                            <form asp-action="Delete" method="post" class="d-inline ms-1" onsubmit="return confirm('Bu kullanıcı ve bağlı tüm içerikleri kalıcı olarak silinsin mi?');">
                                 <input type="hidden" name="id" value="@user.Id" /><input type="hidden" name="type" value="user" />
                                 <button class="btn btn-sm btn-danger" type="submit"><i class="fas fa-trash me-1"></i>Sil</button>
                             </form>
