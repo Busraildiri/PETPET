@@ -25,12 +25,12 @@ export function CommunityShortcuts({ onOpenAdoption, onOpenReviews, onOpenLost }
   );
 }
 
-export type NearbyCategory = 'veterinarian' | 'groomer' | 'hotel' | 'park';
+export type NearbyCategory = 'veterinarian' | 'groomer' | 'hotel';
 
 export function NearbyShortcuts({ onOpenNearby }: { onOpenNearby: (category: NearbyCategory) => void }) {
   const items = [
     ['Veterinerler', 'medical-outline', 'veterinarian'], ['Pet Kuaförleri', 'cut-outline', 'groomer'],
-    ['Pet Otelleri', 'bed-outline', 'hotel'], ['Park ve Oyun Alanları', 'leaf-outline', 'park'],
+    ['Pet Otelleri', 'bed-outline', 'hotel'],
   ] as const;
   return (
     <View>

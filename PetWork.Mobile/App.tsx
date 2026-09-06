@@ -104,10 +104,6 @@ export default function App() {
     onOpenAccount={() => setPage('account')}
     onLogin={() => setPage('login')}
     onOpenNearby={category => {
-      if (category === 'park') {
-        Alert.alert('Yakında', 'Park ve oyun alanları sıradaki geliştirme adımında bağlanacak.');
-        return;
-      }
       setNearbyCategory(category);
       setPage('nearby');
     }}
@@ -308,13 +304,6 @@ function LostHomeBanner({ onPress }: { onPress: () => void }) {
   </Pressable>;
 }
 
-const nearbyPlaces = [
-  { title: 'Veterinerler', icon: 'medical-outline' as const, count: '12 yakın sonuç' },
-  { title: 'Pet Kuaförleri', icon: 'cut-outline' as const, count: '8 yakın sonuç' },
-  { title: 'Pet Otelleri', icon: 'bed-outline' as const, count: '5 yakın sonuç' },
-  { title: 'Park ve Oyun Alanları', icon: 'leaf-outline' as const, count: '9 yakın sonuç' },
-];
-
 function ScreenShell({ title, subtitle, onBack, children }: { title: string; subtitle?: string; onBack?: () => void; children: React.ReactNode }) {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.subScreenContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
     <View style={styles.subHeader}>
@@ -323,16 +312,6 @@ function ScreenShell({ title, subtitle, onBack, children }: { title: string; sub
     </View>
     {children}
   </ScrollView>;
-}
-
-function NearbyShortcuts({ onOpen }: { onOpen: () => void }) {
-  return <View><View style={styles.sectionHeader}><View><Text style={styles.cardSectionTitle}>Yakınındakiler</Text><Text style={styles.cardSectionHint}>Konumunu yalnızca sen istediğinde kullanırız.</Text></View></View>
-    <View style={styles.nearbyGrid}>{nearbyPlaces.map((place, index) => <Pressable key={place.title} onPress={onOpen}
-      style={({ pressed }) => [styles.nearbyShortcut, { backgroundColor: index % 2 ? colors.sageSoft : colors.lilacSoft }, pressed && styles.cardPressed]}>
-      <Ionicons name={place.icon} size={27} color={index % 2 ? '#4E7458' : colors.primary} /><Text style={styles.nearbyTitle}>{place.title}</Text><Text style={styles.nearbyCount}>{place.count}</Text>
-    </Pressable>)}</View>
-    <Text style={styles.privacyNote}><Ionicons name="lock-closed-outline" size={12} /> Kesin konumun herkese açık gösterilmez.</Text>
-  </View>;
 }
 
 function NearbyScreen({ category, onBack }: { category: 'veterinarian' | 'groomer' | 'hotel'; onBack: () => void }) {
