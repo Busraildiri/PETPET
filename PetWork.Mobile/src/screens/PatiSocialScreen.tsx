@@ -11,7 +11,7 @@ import {
 import { CommentsModal } from '../components/social/CommentsModal';
 import { CreatePostModal, type SelectedPostImage } from '../components/social/CreatePostModal';
 import { CreateQuestionModal } from '../components/social/CreateQuestionModal';
-import { CommunityShortcuts, NearbyShortcuts } from '../components/social/SocialShortcuts';
+import { CommunityShortcuts, NearbyShortcuts, type NearbyCategory } from '../components/social/SocialShortcuts';
 import { PostCard } from '../components/social/PostCard';
 import { mockSocialPosts } from '../data/mockSocialPosts';
 import { colors, shadow } from '../theme';
@@ -23,7 +23,7 @@ type Props = {
   authToken: string | null;
   onOpenAccount: () => void;
   onLogin: () => void;
-  onOpenNearby: () => void;
+  onOpenNearby: (category: NearbyCategory) => void;
   onOpenAdoption: () => void;
   onOpenReviews: () => void;
   onOpenLost: () => void;

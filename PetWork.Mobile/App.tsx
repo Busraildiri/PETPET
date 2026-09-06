@@ -8,7 +8,7 @@ import {
   ActivityIndicator, Alert, Image, ImageBackground, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { apiUrl, getHome, getNearbyVeterinarians, HomePayload, mediaUrl, Question, searchVeterinariansByArea, Story, type AuthResponse, type NearbyVeterinarian } from './src/api';
+import { apiUrl, getHome, getNearbyGroomers, getNearbyVeterinarians, HomePayload, mediaUrl, Question, searchGroomersByArea, searchVeterinariansByArea, Story, type AuthResponse, type NearbyVeterinarian } from './src/api';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
@@ -45,6 +45,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>('posts');
+  const [nearbyCategory, setNearbyCategory] = useState<'veterinarian' | 'groomer'>('veterinarian');
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 1600);
@@ -88,7 +89,7 @@ export default function App() {
   if (page === 'login') screen = <AuthScreen initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
   else if (page === 'register') screen = <AuthScreen initialMode="register" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
   else if (page === 'account' && currentUser) screen = <AccountScreen username={currentUser} onBack={() => setPage('root')} onLogout={logout} />;
-  else if (page === 'nearby') screen = <NearbyScreen onBack={() => setPage('root')} />;
+  else if (page === 'nearby') screen = <NearbyScreen category={nearbyCategory} onBack={() => setPage('root')} />;
   else if (page === 'adoption') screen = <AdoptionScreen onBack={() => setPage('root')} />;
   else if (page === 'reviews') screen = <ReviewsScreen onBack={() => setPage('root')} />;
   else if (page === 'lost-form') screen = <LostPetForm mode="lost" onBack={() => setPage('root')} />;
@@ -102,7 +103,14 @@ export default function App() {
     authToken={authToken}
     onOpenAccount={() => setPage('account')}
     onLogin={() => setPage('login')}
-    onOpenNearby={() => setPage('nearby')}
+    onOpenNearby={category => {
+      if (category === 'hotel' || category === 'park') {
+        Alert.alert('Yakında', category === 'hotel' ? 'Pet otelleri sıradaki geliştirme adımında bağlanacak.' : 'Park ve oyun alanları sıradaki geliştirme adımında bağlanacak.');
+        return;
+      }
+      setNearbyCategory(category);
+      setPage('nearby');
+    }}
     onOpenAdoption={() => setPage('adoption')}
     onOpenReviews={() => setPage('reviews')}
     onOpenLost={openLost}
@@ -327,7 +335,10 @@ function NearbyShortcuts({ onOpen }: { onOpen: () => void }) {
   </View>;
 }
 
-function NearbyScreen({ onBack }: { onBack: () => void }) {
+function NearbyScreen({ category, onBack }: { category: 'veterinarian' | 'groomer'; onBack: () => void }) {
+  const isGroomer = category === 'groomer';
+  const placeLabel = isGroomer ? 'pet kuaförü' : 'veteriner';
+  const placeLabelPlural = isGroomer ? 'pet kuaförü' : 'veteriner';
   const [locationText, setLocationText] = useState('Konum kullanılmadı');
   const [city, setCity] = useState('');
   const [district, setDistrict] = useState('');
@@ -381,15 +392,19 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
         )),
       ]);
       setLocationText('Konum bulundu · veterinerler aranıyor…');
-      const results = await getNearbyVeterinarians(current.coords.latitude, current.coords.longitude);
+      const results = isGroomer
+        ? await getNearbyGroomers(current.coords.latitude, current.coords.longitude)
+        : await getNearbyVeterinarians(current.coords.latitude, current.coords.longitude);
       setPlaces(results);
-      setLocationText(`Konum izni açık · ${results.length} veteriner bulundu`);
+      setLocationText(`Konum izni açık · ${results.length} ${placeLabel} bulundu`);
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : 'Yakındaki veterinerler alınamadı.';
+      const message = reason instanceof Error ? reason.message : `Yakındaki ${placeLabelPlural} sonuçları alınamadı.`;
       setError(message);
       setLocationText('Konum kullanıldı ancak sonuçlar alınamadı');
-      Alert.alert('Veterinerler alınamadı', message);
-    } finally { setLoading(false); }
+      Alert.alert(`${isGroomer ? 'Pet kuaförleri' : 'Veterinerler'} alınamadı`, message);
+    } finally {
+      setLoading(false);
+    }
   };
   const askLocation = () => {
     if (!locationConsent) {
@@ -426,36 +441,40 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
     setError(null);
     setLocationText(`${[trimmedDistrict, trimmedCity].filter(Boolean).join(', ')} için veterinerler aranıyor…`);
     try {
-      const results = await searchVeterinariansByArea(trimmedCity, trimmedDistrict);
+      const results = isGroomer
+        ? await searchGroomersByArea(trimmedCity, trimmedDistrict)
+        : await searchVeterinariansByArea(trimmedCity, trimmedDistrict);
       setPlaces(results);
-      setLocationText(`Manuel konum uygulandı · ${results.length} veteriner bulundu`);
+      setLocationText(`Manuel konum uygulandı · ${results.length} ${placeLabel} bulundu`);
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : 'Bu konumdaki veterinerler alınamadı.';
+      const message = reason instanceof Error ? reason.message : `Bu konumdaki ${placeLabelPlural} sonuçları alınamadı.`;
       setError(message);
       setLocationText('Manuel konum uygulanamadı');
-      Alert.alert('Veterinerler alınamadı', message);
-    } finally { setLoading(false); }
+      Alert.alert(`${isGroomer ? 'Pet kuaförleri' : 'Veterinerler'} alınamadı`, message);
+    } finally {
+      setLoading(false);
+    }
   };
-  return <><ScreenShell title="Yakınındakiler" subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
+  return <><ScreenShell title={isGroomer ? 'Pet Kuaförleri' : 'Veterinerler'} subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
     <View style={styles.mapCard}><Ionicons name="map-outline" size={54} color={colors.primary} /><Text style={styles.mapTitle}>Harita ve liste görünümü</Text><Text style={styles.mapText}>{locationText}</Text>
-      <ActionButton label={loading ? 'Veterinerler aranıyor…' : 'Konumumu kullan'} icon="navigate-outline" onPress={() => { if (!loading) askLocation(); }} />
+      <ActionButton label={loading ? `${isGroomer ? 'Pet kuaförleri' : 'Veterinerler'} aranıyor…` : 'Konumumu kullan'} icon="navigate-outline" onPress={() => { if (!loading) askLocation(); }} />
       <Pressable onPress={() => setPrivacyVisible(true)} hitSlop={8}><Text style={styles.locationPrivacyLink}>Konum ve gizlilik bilgisi</Text></Pressable>
     </View>
     <Text style={styles.formLabel}>Manuel konum (isteğe bağlı)</Text><View style={styles.inlineFields}><FormInput value={city} onChangeText={setCity} placeholder="Şehir (isteğe bağlı)" /><FormInput value={district} onChangeText={setDistrict} placeholder="İlçe (isteğe bağlı)" /></View>
     <ActionButton label={loading ? 'Aranıyor…' : 'Uygula'} icon="search-outline" onPress={() => { if (!loading) void applyManualLocation(); }} />
-    <SectionTitle title="Yakındaki veterinerler" />
+    <SectionTitle title={isGroomer ? 'Yakındaki pet kuaförleri' : 'Yakındaki veterinerler'} />
     {loading ? <View style={styles.nearbyState}><ActivityIndicator color={colors.primary} /><Text style={styles.mapText}>Google Places sonuçları alınıyor…</Text></View> : null}
     {!loading && error ? <Pressable onPress={() => void askLocation()} style={styles.nearbyError}><Text style={styles.nearbyErrorText}>{error}</Text><Text style={styles.textAction}>Tekrar dene</Text></Pressable> : null}
-    {!loading && !error && places.length === 0 ? <View style={styles.nearbyState}><Ionicons name="navigate-outline" size={28} color={colors.primary} /><Text style={styles.mapText}>Yakındaki veterinerleri görmek için konumunu kullan.</Text></View> : null}
-    {!loading && places.map(place => <PlaceCard key={place.id} place={place} />)}
+    {!loading && !error && places.length === 0 ? <View style={styles.nearbyState}><Ionicons name="navigate-outline" size={28} color={colors.primary} /><Text style={styles.mapText}>Yakındaki {placeLabelPlural} sonuçlarını görmek için konumunu kullan.</Text></View> : null}
+    {!loading && places.map(place => <PlaceCard key={place.id} place={place} kind={isGroomer ? 'Pet kuaförü' : 'Veteriner'} />)}
     {places.length > 0 ? <Text style={styles.googleAttribution}>Sonuçlar Google Maps Platform tarafından sağlanır.</Text> : null}
   </ScreenShell>
     <Modal visible={privacyVisible} transparent animationType="fade" onRequestClose={() => setPrivacyVisible(false)}>
       <View style={styles.privacyOverlay}>
         <View style={styles.privacyModal}>
           <View style={styles.privacyModalHeader}><View style={styles.privacyModalIcon}><Ionicons name="shield-checkmark-outline" size={24} color="#4E7458" /></View><Text style={styles.privacyModalTitle}>Konum bilgilendirmesi</Text></View>
-          <Text style={styles.privacyModalText}>Yakındaki veterinerleri göstermek için yalnızca sen istediğinde cihazının yaklaşık konumunu kullanırız.</Text>
-          <View style={styles.privacyPoint}><Ionicons name="navigate-outline" size={18} color={colors.primary} /><Text style={styles.privacyPointText}>Koordinatın PetWork sunucusuna gönderilir ve veteriner araması için Google Maps Platform ile paylaşılır.</Text></View>
+          <Text style={styles.privacyModalText}>Yakındaki {placeLabelPlural} sonuçlarını göstermek için yalnızca sen istediğinde cihazının yaklaşık konumunu kullanırız.</Text>
+          <View style={styles.privacyPoint}><Ionicons name="navigate-outline" size={18} color={colors.primary} /><Text style={styles.privacyPointText}>Koordinatın PetWork sunucusuna gönderilir ve yakındaki yerleri aramak için Google Maps Platform ile paylaşılır.</Text></View>
           <View style={styles.privacyPoint}><Ionicons name="server-outline" size={18} color={colors.primary} /><Text style={styles.privacyPointText}>Kesin konum veritabanımıza kaydedilmez, profilinde tutulmaz ve diğer kullanıcılara gösterilmez.</Text></View>
           <View style={styles.privacyPoint}><Ionicons name="globe-outline" size={18} color={colors.primary} /><Text style={styles.privacyPointText}>Google hizmetleri nedeniyle veri yurt dışında işlenebilir. Konum kullanmak zorunlu değildir; şehir veya ilçeyle manuel arama yapabilirsin.</Text></View>
           <Text style={styles.privacyModalFoot}>İznini cihaz ayarlarından, bu tercihi ise buradaki gizlilik ekranından istediğin zaman kaldırabilirsin.</Text>
@@ -467,7 +486,7 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
   </>;
 }
 
-function PlaceCard({ place }: { place: NearbyVeterinarian }) {
+function PlaceCard({ place, kind }: { place: NearbyVeterinarian; kind: string }) {
   const distance = place.distanceMeters === null || place.distanceMeters === undefined
     ? 'Mesafe bilgisi yok'
     : place.distanceMeters < 1000 ? `${place.distanceMeters} m` : `${(place.distanceMeters / 1000).toFixed(1).replace('.', ',')} km`;
@@ -477,7 +496,7 @@ function PlaceCard({ place }: { place: NearbyVeterinarian }) {
     void Linking.openURL(url);
   };
   return <View style={styles.placeCard}><View style={styles.placePin}><Ionicons name="location" size={22} color={colors.primary} /></View><View style={styles.flexOne}>
-    <Text style={styles.placeTitle}>{place.name}</Text><Text style={styles.placeMeta}>Veteriner · {distance}{rating}</Text>
+    <Text style={styles.placeTitle}>{place.name}</Text><Text style={styles.placeMeta}>{kind} · {distance}{rating}</Text>
     {place.address ? <Text style={styles.placeAddress}>{place.address}</Text> : null}
     {place.openNow !== null && place.openNow !== undefined ? <Text style={[styles.openText, !place.openNow && styles.closedText]}>{place.openNow ? 'Şimdi açık' : 'Şu anda kapalı'}</Text> : null}
     <View style={styles.miniActions}><Pressable onPress={openMaps}><Text style={styles.textAction}>Yol tarifi</Text></Pressable><Pressable onPress={openMaps}><Text style={styles.textAction}>Google Maps'te gör</Text></Pressable></View></View></View>;
