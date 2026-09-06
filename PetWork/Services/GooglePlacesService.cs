@@ -38,14 +38,43 @@ public sealed class GooglePlacesService
             locationRestriction = new { circle = new { center = new { latitude, longitude }, radius = radiusMeters } }
         };
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, "v1/places:searchNearby") { Content = JsonContent.Create(body) };
+        var ordered = await SendSearchAsync("v1/places:searchNearby", body, latitude, longitude, cancellationToken);
+        _cache.Set(cacheKey, ordered, TimeSpan.FromMinutes(15));
+        return ordered;
+    }
+
+    public async Task<IReadOnlyList<NearbyVeterinarian>> SearchVeterinariansByAreaAsync(
+        string? city, string? district, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+            throw new InvalidOperationException("Google Places API anahtarı yapılandırılmamış.");
+        var area = string.Join(", ", new[] { district?.Trim(), city?.Trim() }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        if (string.IsNullOrWhiteSpace(area))
+            throw new ArgumentException("Şehir veya ilçe bilgilerinden en az biri gereklidir.");
+
+        var cacheKey = $"google-vets-area:{area.ToLowerInvariant()}";
+        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<NearbyVeterinarian>? cached) && cached is not null)
+            return cached;
+        var body = new
+        {
+            textQuery = $"{area} veteriner klinikleri", includedType = "veterinary_care",
+            maxResultCount = 20, languageCode = "tr", regionCode = "TR"
+        };
+        var results = await SendSearchAsync("v1/places:searchText", body, null, null, cancellationToken);
+        _cache.Set(cacheKey, results, TimeSpan.FromMinutes(30));
+        return results;
+    }
+
+    private async Task<IReadOnlyList<NearbyVeterinarian>> SendSearchAsync(
+        string endpoint, object body, double? originLatitude, double? originLongitude,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = JsonContent.Create(body) };
         request.Headers.Add("X-Goog-Api-Key", _apiKey);
         request.Headers.Add("X-Goog-FieldMask", FieldMask);
-
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException($"Google Places isteği başarısız oldu ({(int)response.StatusCode}).");
-
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
         var results = new List<NearbyVeterinarian>();
@@ -63,7 +92,9 @@ public sealed class GooglePlacesService
                 results.Add(new NearbyVeterinarian(
                     place.GetProperty("id").GetString() ?? Guid.NewGuid().ToString("N"), displayName,
                     place.TryGetProperty("formattedAddress", out var address) ? address.GetString() : null,
-                    CalculateDistanceMeters(latitude, longitude, placeLatitude, placeLongitude),
+                    originLatitude.HasValue && originLongitude.HasValue
+                        ? CalculateDistanceMeters(originLatitude.Value, originLongitude.Value, placeLatitude, placeLongitude)
+                        : null,
                     place.TryGetProperty("rating", out var rating) ? rating.GetDouble() : null,
                     place.TryGetProperty("userRatingCount", out var ratingCount) ? ratingCount.GetInt32() : null,
                     place.TryGetProperty("currentOpeningHours", out var hours) && hours.TryGetProperty("openNow", out var openNow) ? openNow.GetBoolean() : null,
@@ -72,9 +103,7 @@ public sealed class GooglePlacesService
             }
         }
 
-        var ordered = results.OrderBy(place => place.DistanceMeters).ToArray();
-        _cache.Set(cacheKey, ordered, TimeSpan.FromMinutes(15));
-        return ordered;
+        return results.OrderBy(place => place.DistanceMeters ?? int.MaxValue).ToArray();
     }
 
     private static int CalculateDistanceMeters(double latitude1, double longitude1, double latitude2, double longitude2)
@@ -91,5 +120,5 @@ public sealed class GooglePlacesService
     private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180;
 }
 
-public sealed record NearbyVeterinarian(string Id, string Name, string? Address, int DistanceMeters,
+public sealed record NearbyVeterinarian(string Id, string Name, string? Address, int? DistanceMeters,
     double? Rating, int? UserRatingCount, bool? OpenNow, string? GoogleMapsUri, double Latitude, double Longitude);

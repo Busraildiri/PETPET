@@ -8,7 +8,7 @@ import {
   ActivityIndicator, Alert, Image, ImageBackground, Linking, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { apiUrl, getHome, getNearbyVeterinarians, HomePayload, mediaUrl, Question, Story, type AuthResponse, type NearbyVeterinarian } from './src/api';
+import { apiUrl, getHome, getNearbyVeterinarians, HomePayload, mediaUrl, Question, searchVeterinariansByArea, Story, type AuthResponse, type NearbyVeterinarian } from './src/api';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
@@ -383,11 +383,33 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
       Alert.alert('Veterinerler alınamadı', message);
     } finally { setLoading(false); }
   };
+  const applyManualLocation = async () => {
+    const trimmedCity = city.trim();
+    const trimmedDistrict = district.trim();
+    if (!trimmedCity && !trimmedDistrict) {
+      Alert.alert('Konum bilgisi gerekli', 'Şehir veya ilçe alanlarından en az birini yaz.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setLocationText(`${[trimmedDistrict, trimmedCity].filter(Boolean).join(', ')} için veterinerler aranıyor…`);
+    try {
+      const results = await searchVeterinariansByArea(trimmedCity, trimmedDistrict);
+      setPlaces(results);
+      setLocationText(`Manuel konum uygulandı · ${results.length} veteriner bulundu`);
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Bu konumdaki veterinerler alınamadı.';
+      setError(message);
+      setLocationText('Manuel konum uygulanamadı');
+      Alert.alert('Veterinerler alınamadı', message);
+    } finally { setLoading(false); }
+  };
   return <ScreenShell title="Yakınındakiler" subtitle="İhtiyacın olan yerleri güvenle bul" onBack={onBack}>
     <View style={styles.mapCard}><Ionicons name="map-outline" size={54} color={colors.primary} /><Text style={styles.mapTitle}>Harita ve liste görünümü</Text><Text style={styles.mapText}>{locationText}</Text>
       <ActionButton label={loading ? 'Veterinerler aranıyor…' : 'Konumumu kullan'} icon="navigate-outline" onPress={() => { if (!loading) void askLocation(); }} />
     </View>
-    <Text style={styles.formLabel}>Manuel konum</Text><View style={styles.inlineFields}><FormInput value={city} onChangeText={setCity} placeholder="Şehir" /><FormInput value={district} onChangeText={setDistrict} placeholder="İlçe" /></View>
+    <Text style={styles.formLabel}>Manuel konum (isteğe bağlı)</Text><View style={styles.inlineFields}><FormInput value={city} onChangeText={setCity} placeholder="Şehir (isteğe bağlı)" /><FormInput value={district} onChangeText={setDistrict} placeholder="İlçe (isteğe bağlı)" /></View>
+    <ActionButton label={loading ? 'Aranıyor…' : 'Uygula'} icon="search-outline" onPress={() => { if (!loading) void applyManualLocation(); }} />
     <SectionTitle title="Yakındaki veterinerler" />
     {loading ? <View style={styles.nearbyState}><ActivityIndicator color={colors.primary} /><Text style={styles.mapText}>Google Places sonuçları alınıyor…</Text></View> : null}
     {!loading && error ? <Pressable onPress={() => void askLocation()} style={styles.nearbyError}><Text style={styles.nearbyErrorText}>{error}</Text><Text style={styles.textAction}>Tekrar dene</Text></Pressable> : null}
@@ -398,7 +420,9 @@ function NearbyScreen({ onBack }: { onBack: () => void }) {
 }
 
 function PlaceCard({ place }: { place: NearbyVeterinarian }) {
-  const distance = place.distanceMeters < 1000 ? `${place.distanceMeters} m` : `${(place.distanceMeters / 1000).toFixed(1).replace('.', ',')} km`;
+  const distance = place.distanceMeters === null || place.distanceMeters === undefined
+    ? 'Mesafe bilgisi yok'
+    : place.distanceMeters < 1000 ? `${place.distanceMeters} m` : `${(place.distanceMeters / 1000).toFixed(1).replace('.', ',')} km`;
   const rating = place.rating ? ` · ★ ${place.rating.toFixed(1).replace('.', ',')}${place.userRatingCount ? ` (${place.userRatingCount})` : ''}` : '';
   const openMaps = () => {
     const url = place.googleMapsUri || `https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`;

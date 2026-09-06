@@ -97,7 +97,7 @@ export type NearbyVeterinarian = {
   id: string;
   name: string;
   address?: string | null;
-  distanceMeters: number;
+  distanceMeters?: number | null;
   rating?: number | null;
   userRatingCount?: number | null;
   openNow?: boolean | null;
@@ -213,6 +213,24 @@ export async function getNearbyVeterinarians(
     radiusMeters: radiusMeters.toString(),
   });
   const response = await fetch(`${apiUrl}/api/mobile/nearby/veterinarians?${query}`, {
+    headers: { Accept: 'application/json' },
+  });
+  const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
+  if (!response.ok) {
+    const errorPayload = payload as { message?: string } | null;
+    throw new Error(errorPayload?.message || `Veterinerler alınamadı (${response.status}).`);
+  }
+  return payload as NearbyVeterinarian[];
+}
+
+export async function searchVeterinariansByArea(
+  city?: string,
+  district?: string,
+): Promise<NearbyVeterinarian[]> {
+  const query = new URLSearchParams();
+  if (city?.trim()) query.set('city', city.trim());
+  if (district?.trim()) query.set('district', district.trim());
+  const response = await fetch(`${apiUrl}/api/mobile/nearby/veterinarians/search?${query}`, {
     headers: { Accept: 'application/json' },
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;

@@ -41,4 +41,32 @@ public sealed class MobileNearbyApiController : ControllerBase
             return StatusCode(StatusCodes.Status502BadGateway, new { message = "Veterinerler şu anda alınamadı. Lütfen tekrar dene." });
         }
     }
+
+    [HttpGet("veterinarians/search")]
+    [EnableRateLimiting("mobile-content")]
+    public async Task<ActionResult<IReadOnlyList<NearbyVeterinarian>>> SearchVeterinarians(
+        [FromQuery] string? city, [FromQuery] string? district,
+        CancellationToken cancellationToken = default)
+    {
+        city = city?.Trim();
+        district = district?.Trim();
+        if (string.IsNullOrWhiteSpace(city) && string.IsNullOrWhiteSpace(district))
+            return BadRequest(new { message = "Şehir veya ilçe bilgilerinden en az birini yazmalısın." });
+        if (city?.Length > 80 || district?.Length > 80)
+            return BadRequest(new { message = "Şehir ve ilçe bilgisi 80 karakterden uzun olamaz." });
+        try
+        {
+            return Ok(await _googlePlaces.SearchVeterinariansByAreaAsync(city, district, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Google Places yapılandırması eksik.");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Yakındaki veteriner hizmeti henüz yapılandırılmadı." });
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Google Places manuel veteriner araması başarısız oldu.");
+            return StatusCode(StatusCodes.Status502BadGateway, new { message = "Bu konumdaki veterinerler şu anda alınamadı. Lütfen tekrar dene." });
+        }
+    }
 }
