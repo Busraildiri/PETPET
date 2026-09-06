@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using PetWork.Data;
 using PetWork.Services;
+using System.Text;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +32,31 @@ builder.Services.AddRateLimiter(options =>
             }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
+
+var mobileJwtKey = builder.Configuration["MobileAuth:JwtKey"];
+if (string.IsNullOrWhiteSpace(mobileJwtKey) || Encoding.UTF8.GetByteCount(mobileJwtKey) < 32)
+{
+    throw new InvalidOperationException(
+        "MobileAuth:JwtKey must be configured and contain at least 32 UTF-8 bytes.");
+}
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(mobileJwtKey)),
+            ValidateIssuer = true,
+            ValidIssuer = "PetWork",
+            ValidateAudience = true,
+            ValidAudience = "PetimMobile",
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
+builder.Services.AddAuthorization();
 
 // Session servisi ekle
 builder.Services.AddDistributedMemoryCache();
