@@ -233,7 +233,7 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
         </>
       ) : null}
 
-      {activeTab === 'questions' ? <QuestionsPanel key={questionsRevision} username={username} authToken={authToken} onLogin={onLogin} /> : null}
+      {activeTab === 'questions' ? <QuestionsPanel key={questionsRevision} username={username} authToken={authToken} onLogin={onLogin} onAsk={openQuestionComposer} /> : null}
       {activeTab === 'nearby' ? <NearbyShortcuts onOpenNearby={onOpenNearby} /> : null}
     </ScrollView>
     {activeTab === 'questions' ? <Pressable
@@ -249,7 +249,7 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
   );
 }
 
-function QuestionsPanel({ username, authToken, onLogin }: { username: string | null; authToken: string | null; onLogin: () => void }) {
+function QuestionsPanel({ username, authToken, onLogin, onAsk }: { username: string | null; authToken: string | null; onLogin: () => void; onAsk: () => void }) {
   const { width } = useWindowDimensions();
   const [payload, setPayload] = useState<QuestionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -312,11 +312,16 @@ function QuestionsPanel({ username, authToken, onLogin }: { username: string | n
   />;
 
   return <View>
-    <View style={styles.questionIntro}>
+    <Pressable
+      onPress={onAsk}
+      accessibilityRole="button"
+      accessibilityLabel="Topluluğa yeni soru sor"
+      style={({ pressed }) => [styles.questionIntro, pressed && styles.pressed]}
+    >
       <View style={styles.questionIntroIcon}><Ionicons name="chatbubbles-outline" size={27} color={colors.primary} /></View>
-      <View style={styles.headerCopy}><Text style={styles.questionIntroTitle}>Topluluğa sor</Text><Text style={styles.questionIntroText}>Web sitesindeki güncel sorular ve yanıtlar burada.</Text></View>
+      <View style={styles.headerCopy}><Text style={styles.questionIntroTitle}>Topluluğa sor</Text><Text style={styles.questionIntroText}>Yeni bir soru oluştur veya güncel soruları incele.</Text></View>
       <View style={styles.questionCount}><Text style={styles.questionCountValue}>{payload?.totalCount ?? '—'}</Text><Text style={styles.questionCountLabel}>soru</Text></View>
-    </View>
+    </Pressable>
 
     <View style={styles.questionSearch}>
       <Ionicons name="search-outline" size={19} color={colors.primary} />
