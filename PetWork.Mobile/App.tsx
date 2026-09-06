@@ -1,18 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, ImageBackground, Platform, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Alert, Image, ImageBackground, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { apiUrl, getHome, HomePayload, mediaUrl, Question, Story } from './src/api';
+import { AuthScreen } from './src/screens/AuthScreen';
+import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
 import { colors, shadow } from './src/theme';
 
 type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
-type PageKey = 'root' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting';
+type PageKey = 'root' | 'login' | 'register' | 'account' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting';
 
 const communityDemoImage = require('./assets/community-demo.png');
 
@@ -36,20 +39,58 @@ const tabs = [
 export default function App() {
   const [tab, setTab] = useState<TabKey>('home');
   const [page, setPage] = useState<PageKey>('root');
+  const [showSplash, setShowSplash] = useState(true);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), 1600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    SecureStore.getItemAsync('petim.session').then(value => {
+      if (!value) return;
+      try {
+        const session = JSON.parse(value) as { username?: string; expiresAt?: string };
+        if (session.username && session.expiresAt && new Date(session.expiresAt) > new Date()) setCurrentUser(session.username);
+        else SecureStore.deleteItemAsync('petim.session');
+      } catch { SecureStore.deleteItemAsync('petim.session'); }
+    });
+  }, []);
+
+  if (showSplash) {
+    return <View style={styles.splashView}>
+      <StatusBar style="dark" />
+      <Image source={require('./assets/splash-petim.png')} style={styles.splashArtwork} resizeMode="contain" accessibilityLabel="Pet'im by PetWork" />
+    </View>;
+  }
 
   const changeTab = (next: TabKey) => { setTab(next); setPage('root'); };
   const openLost = () => { setTab('lost'); setPage('root'); };
+  const authenticated = (username: string) => { setCurrentUser(username); setTab('home'); setPage('root'); };
+  const logout = async () => {
+    await SecureStore.deleteItemAsync('petim.session');
+    setCurrentUser(null);
+    setTab('home');
+    setPage('root');
+  };
 
   let screen;
-  if (page === 'nearby') screen = <NearbyScreen onBack={() => setPage('root')} />;
+  if (page === 'login') screen = <AuthScreen initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
+  else if (page === 'register') screen = <AuthScreen initialMode="register" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
+  else if (page === 'account' && currentUser) screen = <AccountScreen username={currentUser} onBack={() => setPage('root')} onLogout={logout} />;
+  else if (page === 'nearby') screen = <NearbyScreen onBack={() => setPage('root')} />;
   else if (page === 'adoption') screen = <AdoptionScreen onBack={() => setPage('root')} />;
   else if (page === 'reviews') screen = <ReviewsScreen onBack={() => setPage('root')} />;
   else if (page === 'lost-form') screen = <LostPetForm mode="lost" onBack={() => setPage('root')} />;
   else if (page === 'found-form') screen = <LostPetForm mode="found" onBack={() => setPage('root')} />;
   else if (page === 'lost-detail') screen = <LostDetailScreen onBack={() => setPage('root')} onSighting={() => setPage('sighting')} />;
   else if (page === 'sighting') screen = <SightingForm onBack={() => setPage('lost-detail')} />;
-  else if (tab === 'home') screen = <HomeScreen onOpenLost={openLost} />;
+  else if (tab === 'home') screen = <HomeScreen currentUser={currentUser} onOpenAccount={() => setPage('account')} onOpenLost={openLost} onLogin={() => setPage('login')} onRegister={() => setPage('register')} />;
   else if (tab === 'social') screen = <PatiSocialScreen
+    username={currentUser}
+    onOpenAccount={() => setPage('account')}
+    onLogin={() => setPage('login')}
     onOpenNearby={() => setPage('nearby')}
     onOpenAdoption={() => setPage('adoption')}
     onOpenReviews={() => setPage('reviews')}
@@ -62,12 +103,12 @@ export default function App() {
     <View style={styles.app}>
       <StatusBar style={tab === 'home' ? 'light' : 'dark'} />
       {screen}
-      <BottomTabs active={tab} onChange={changeTab} />
+      {page !== 'login' && page !== 'register' ? <BottomTabs active={tab} onChange={changeTab} /> : null}
     </View>
   );
 }
 
-function HomeScreen({ onOpenLost }: { onOpenLost: () => void }) {
+function HomeScreen({ currentUser, onOpenAccount, onOpenLost, onLogin, onRegister }: { currentUser: string | null; onOpenAccount: () => void; onOpenLost: () => void; onLogin: () => void; onRegister: () => void }) {
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -112,7 +153,7 @@ function HomeScreen({ onOpenLost }: { onOpenLost: () => void }) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
       keyboardShouldPersistTaps="handled"
     >
-      <Hero query={query} setQuery={setQuery} />
+      <Hero currentUser={currentUser} query={query} setQuery={setQuery} onOpenAccount={onOpenAccount} onLogin={onLogin} onRegister={onRegister} />
       <View style={styles.content}>
         {query.trim() ? <SearchResults query={query} results={results} loading={loading} /> : (
           <>
@@ -144,7 +185,7 @@ function HomeScreen({ onOpenLost }: { onOpenLost: () => void }) {
   );
 }
 
-function Hero({ query, setQuery }: { query: string; setQuery: (value: string) => void }) {
+function Hero({ currentUser, query, setQuery, onOpenAccount, onLogin, onRegister }: { currentUser: string | null; query: string; setQuery: (value: string) => void; onOpenAccount: () => void; onLogin: () => void; onRegister: () => void }) {
   return (
     <LinearGradient colors={[colors.primaryDark, colors.primary, '#845B7C']} style={styles.hero}>
       <View style={styles.headerRow}>
@@ -152,18 +193,18 @@ function Hero({ query, setQuery }: { query: string; setQuery: (value: string) =>
           <View style={styles.brandRow}><Ionicons name="paw" size={19} color={colors.peach} /><Text style={styles.brand}>Pet'im</Text></View>
           <Text style={styles.byline}>by PetWork</Text>
         </View>
-        <View style={styles.authRow}>
+        {currentUser ? <Pressable onPress={onOpenAccount} accessibilityRole="button" accessibilityLabel={`${currentUser} hesap menüsünü aç`} style={({ pressed }) => [styles.userChip, pressed && styles.pressed]}><Ionicons name="person-circle-outline" size={21} color={colors.primary} /><Text style={styles.userChipText} numberOfLines={1}>{currentUser}</Text></Pressable> : <View style={styles.authRow}>
           <Pressable accessibilityRole="button" accessibilityLabel="Giriş yap"
-            onPress={() => Alert.alert('Giriş ekranı', 'Web hesabıyla giriş akışını bir sonraki adımda bağlıyoruz.')}
+            onPress={onLogin}
             style={({ pressed }) => [styles.loginButton, pressed && styles.pressed]}>
             <Text style={styles.loginText}>Giriş Yap</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Üye ol"
-            onPress={() => Alert.alert('Üyelik', 'Mobil üyelik akışı bir sonraki adımda eklenecek.')}
+            onPress={onRegister}
             style={({ pressed }) => [styles.joinButton, pressed && styles.pressed]}>
             <Text style={styles.joinText}>Üye Ol</Text>
           </Pressable>
-        </View>
+        </View>}
       </View>
       <View style={styles.searchBox}>
         <Ionicons name="search" size={18} color={colors.peach} />
@@ -467,10 +508,12 @@ const statusInset = Platform.OS === 'android' ? NativeStatusBar.currentHeight ??
 
 const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: colors.background }, screen: { flex: 1, backgroundColor: colors.background }, scrollContent: { paddingBottom: 108 },
+  splashView: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }, splashArtwork: { width: '100%', height: '100%' },
   hero: { paddingTop: statusInset + 14, paddingHorizontal: 22, paddingBottom: 24, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, brandRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   brand: { color: colors.white, fontFamily: serif, fontSize: 29, fontWeight: '700', letterSpacing: -0.6 }, byline: { color: '#DDCED9', fontSize: 11, marginTop: 1, marginLeft: 27, letterSpacing: 0.3 },
   authRow: { flexDirection: 'row', gap: 8 }, loginButton: { minHeight: 42, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.card, justifyContent: 'center' },
+  userChip: { maxWidth: 150, minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.card, paddingHorizontal: 13, borderRadius: 22 }, userChipText: { flexShrink: 1, color: colors.primaryDark, fontSize: 12, fontWeight: '800' },
   loginText: { color: colors.primaryDark, fontWeight: '700', fontSize: 13 }, joinButton: { minHeight: 42, paddingHorizontal: 15, borderRadius: 22, borderWidth: 1.2, borderColor: '#F6EAF2', justifyContent: 'center' },
   joinText: { color: colors.white, fontWeight: '700', fontSize: 13 }, pressed: { opacity: 0.78, transform: [{ scale: 0.98 }] },
   searchBox: { minHeight: 48, marginTop: 22, borderWidth: 1, borderColor: '#A987A0', borderRadius: 25, backgroundColor: '#FFFFFF16', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17, gap: 10 },

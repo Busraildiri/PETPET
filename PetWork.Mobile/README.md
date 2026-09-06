@@ -7,6 +7,16 @@ blog, hastalık, tarif ve soru-cevap içeriklerini `/api/mobile/home` üzerinden
 
 Telefon ve bilgisayar aynı Wi-Fi ağına bağlı olmalıdır.
 
+Backend kullanıcı sırlarında `MobileAuth:JwtKey` yoksa bir kez güvenli anahtar oluşturun:
+
+```powershell
+$jwtBytes = New-Object byte[] 64
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($jwtBytes)
+$jwtSecret = [Convert]::ToBase64String($jwtBytes)
+dotnet user-secrets set "MobileAuth:JwtKey" $jwtSecret --project .\PetWork\PetWork.csproj
+Remove-Variable jwtSecret,jwtBytes
+```
+
 1. Visual Studio'da çalışmakta olan PetWork varsa durdurun.
 2. Visual Studio üst çubuğundan `mobile-dev` profilini seçip backend'i başlatın.
    Profil görünmüyorsa çözümü kapatıp `PetWork.sln` dosyasını yeniden açın.

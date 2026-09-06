@@ -17,6 +17,9 @@ artifacts/
 *.tmp
 *.log
 temp/
+.local/
+*.bak
+*.bacpac
 
 ## Local database migration artifacts and secrets
 PetWork/local-backups/

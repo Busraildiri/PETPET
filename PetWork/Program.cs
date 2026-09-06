@@ -1,11 +1,25 @@
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Services;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("mobile-auth", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 8,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 // Session servisi ekle
 builder.Services.AddDistributedMemoryCache();
@@ -188,6 +202,7 @@ app.Use(async (context, next) =>
 });
 
 app.UseRouting();
+app.UseRateLimiter();
 
 app.UseSession(); // Use Session middleware
 
@@ -197,11 +212,12 @@ app.UseSession(); // Use Session middleware
 app.Use(async (context, next) =>
 {
     var isApiRequest = context.Request.Path.StartsWithSegments("/api");
+    var isMobileAuthRequest = context.Request.Path.StartsWithSegments("/api/mobile/auth");
     var isReadOnlyMethod = HttpMethods.IsGet(context.Request.Method) ||
                            HttpMethods.IsHead(context.Request.Method) ||
                            HttpMethods.IsOptions(context.Request.Method);
 
-    if (isApiRequest && !isReadOnlyMethod)
+    if (isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest)
     {
         var userId = context.Session.GetInt32("UserId");
         if (userId is null)
