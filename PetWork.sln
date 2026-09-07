@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PetWork", "PetWork\PetWork.csproj", "{182A5D4C-AEB4-4FEA-AAAF-130FFD180AD2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PetWork.Tests", "PetWork.Tests\PetWork.Tests.csproj", "{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,18 @@ Global
 		{182A5D4C-AEB4-4FEA-AAAF-130FFD180AD2}.Release|x64.Build.0 = Release|Any CPU
 		{182A5D4C-AEB4-4FEA-AAAF-130FFD180AD2}.Release|x86.ActiveCfg = Release|Any CPU
 		{182A5D4C-AEB4-4FEA-AAAF-130FFD180AD2}.Release|x86.Build.0 = Release|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Debug|x64.Build.0 = Debug|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Debug|x86.Build.0 = Debug|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Release|x64.ActiveCfg = Release|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Release|x64.Build.0 = Release|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Release|x86.ActiveCfg = Release|Any CPU
+		{EDAF0A61-07A0-48AC-BDD9-BA6F3E1EEBF9}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

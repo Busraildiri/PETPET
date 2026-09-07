@@ -8,28 +8,33 @@ import {
   ActivityIndicator, Alert, Image, ImageBackground, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { apiUrl, getHome, getNearbyGroomers, getNearbyPetHotels, getNearbyVeterinarians, HomePayload, mediaUrl, Question, searchGroomersByArea, searchPetHotelsByArea, searchVeterinariansByArea, Story, type AuthResponse, type NearbyVeterinarian } from './src/api';
+import { apiUrl, getHome, getNearbyGroomers, getNearbyPetHotels, getNearbyVeterinarians, HomePayload, logoutSession, mediaUrl, Question, searchGroomersByArea, searchPetHotelsByArea, searchVeterinariansByArea, Story, type AuthResponse, type ContentKind, type NearbyVeterinarian } from './src/api';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
 import { PetsScreen } from './src/screens/PetsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { ContentScreen } from './src/screens/ContentScreen';
+import { configureNotifications } from './src/notifications';
 import { colors, shadow } from './src/theme';
 import type { SocialTab } from './src/types/social';
+import { clearSession, restoreSession, saveSession } from './src/session';
 
 type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
-type PageKey = 'root' | 'login' | 'register' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting';
+type PageKey = 'root' | 'login' | 'register' | 'reset' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting' | 'content';
 
 const communityDemoImage = require('./assets/community-demo.png');
 const locationConsentKey = 'petwork_location_consent_v1';
 
+void configureNotifications();
+
 const categories = [
-  { title: 'Soru-Cevap', icon: 'help-circle-outline' as const, color: colors.lilacSoft, ink: colors.primary },
-  { title: 'Bakım Rehberleri', icon: 'book-outline' as const, color: colors.sageSoft, ink: '#4E7458' },
-  { title: 'Hastalıklar', icon: 'medkit-outline' as const, color: colors.peachSoft, ink: '#A65345' },
-  { title: 'Tarifler', icon: 'restaurant-outline' as const, color: colors.yellowSoft, ink: '#8A6515' },
-  { title: 'Blog', icon: 'create-outline' as const, color: colors.lilacSoft, ink: colors.primary },
-  { title: 'Yas ve Kayıp', icon: 'heart-outline' as const, color: colors.sageSoft, ink: '#4E7458' },
+  { title: 'Soru-Cevap', icon: 'help-circle-outline' as const, color: colors.lilacSoft, ink: colors.primary, kind: null },
+  { title: 'Bakım Rehberleri', icon: 'book-outline' as const, color: colors.sageSoft, ink: '#4E7458', kind: 'guides' as ContentKind },
+  { title: 'Hastalıklar', icon: 'medkit-outline' as const, color: colors.peachSoft, ink: '#A65345', kind: 'diseases' as ContentKind },
+  { title: 'Tarifler', icon: 'restaurant-outline' as const, color: colors.yellowSoft, ink: '#8A6515', kind: 'recipes' as ContentKind },
+  { title: 'Blog', icon: 'create-outline' as const, color: colors.lilacSoft, ink: colors.primary, kind: 'blogs' as ContentKind },
+  { title: 'Yas ve Kayıp', icon: 'heart-outline' as const, color: colors.sageSoft, ink: '#4E7458', kind: 'grief' as ContentKind },
 ];
 
 const tabs = [
@@ -44,31 +49,40 @@ export default function App() {
   const [tab, setTab] = useState<TabKey>('home');
   const [page, setPage] = useState<PageKey>('root');
   const [showSplash, setShowSplash] = useState(true);
+  const [restoringSession, setRestoringSession] = useState(true);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [resetToken, setResetToken] = useState('');
   const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>('posts');
   const [nearbyCategory, setNearbyCategory] = useState<'veterinarian' | 'groomer' | 'hotel'>('veterinarian');
+  const [contentKind, setContentKind] = useState<ContentKind>('blogs');
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 1600);
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => { void restoreSession().then(result => {
+    if (result) { setCurrentUser(result.user.username); setAuthToken(result.session.token); }
+  }).finally(() => setRestoringSession(false)); }, []);
+
   useEffect(() => {
-    SecureStore.getItemAsync('petim.session').then(value => {
-      if (!value) return;
+    const handleUrl = (url: string | null) => {
+      if (!url) return;
       try {
-        const session = JSON.parse(value) as { username?: string; token?: string; expiresAt?: string };
-        if (session.username && session.token && session.expiresAt && new Date(session.expiresAt) > new Date()) {
-          setCurrentUser(session.username);
-          setAuthToken(session.token);
+        const parsed = new URL(url);
+        if (parsed.hostname === 'reset-password' || parsed.pathname.includes('reset-password')) {
+          const token = parsed.searchParams.get('token');
+          if (token) { setResetToken(token); setPage('reset'); }
         }
-        else SecureStore.deleteItemAsync('petim.session');
-      } catch { SecureStore.deleteItemAsync('petim.session'); }
-    });
+      } catch { /* Ignore malformed external links. */ }
+    };
+    void Linking.getInitialURL().then(handleUrl);
+    const subscription = Linking.addEventListener('url', event => handleUrl(event.url));
+    return () => subscription.remove();
   }, []);
 
-  if (showSplash) {
+  if (showSplash || restoringSession) {
     return <View style={styles.splashView}>
       <StatusBar style="dark" />
       <Image source={require('./assets/splash-petim.png')} style={styles.splashArtwork} resizeMode="contain" accessibilityLabel="Pet'im by PetWork" />
@@ -78,9 +92,11 @@ export default function App() {
   const changeTab = (next: TabKey) => { if (next === 'social') setSocialInitialTab('posts'); setTab(next); setPage('root'); };
   const openLost = () => { setTab('lost'); setPage('root'); };
   const openQuestions = () => { setSocialInitialTab('questions'); setTab('social'); setPage('root'); };
-  const authenticated = (session: AuthResponse) => { setCurrentUser(session.username); setAuthToken(session.token); setTab('home'); setPage('root'); };
+  const sessionChanged = (session: AuthResponse) => { void saveSession(session); setCurrentUser(session.username); setAuthToken(session.token); };
+  const authenticated = (session: AuthResponse) => { sessionChanged(session); setTab('home'); setPage('root'); };
   const logout = async () => {
-    await SecureStore.deleteItemAsync('petim.session');
+    if (authToken) { try { await logoutSession(authToken); } catch { /* Local logout must still complete. */ } }
+    await clearSession();
     setCurrentUser(null);
     setAuthToken(null);
     setTab('home');
@@ -88,9 +104,10 @@ export default function App() {
   };
 
   let screen;
-  if (page === 'login') screen = <AuthScreen initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
-  else if (page === 'register') screen = <AuthScreen initialMode="register" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
-  else if (page === 'account' && currentUser) screen = <AccountScreen username={currentUser} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} />;
+  if (page === 'login') screen = <AuthScreen key="login" initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
+  else if (page === 'register') screen = <AuthScreen key="register" initialMode="register" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
+  else if (page === 'reset') screen = <AuthScreen key={`reset-${resetToken}`} initialMode="reset" resetToken={resetToken} onBack={() => setPage('login')} onAuthenticated={authenticated} />;
+  else if (page === 'account' && currentUser && authToken) screen = <AccountScreen username={currentUser} token={authToken} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} onSessionChanged={sessionChanged} onDeleted={logout} />;
   else if (page === 'pets' && authToken) screen = <PetsScreen token={authToken} onBack={() => setPage('account')} />;
   else if (page === 'nearby') screen = <NearbyScreen category={nearbyCategory} onBack={() => setPage('root')} />;
   else if (page === 'adoption') screen = <AdoptionScreen onBack={() => setPage('root')} />;
@@ -99,7 +116,8 @@ export default function App() {
   else if (page === 'found-form') screen = <LostPetForm mode="found" onBack={() => setPage('root')} />;
   else if (page === 'lost-detail') screen = <LostDetailScreen onBack={() => setPage('root')} onSighting={() => setPage('sighting')} />;
   else if (page === 'sighting') screen = <SightingForm onBack={() => setPage('lost-detail')} />;
-  else if (tab === 'home') screen = <HomeScreen currentUser={currentUser} onOpenAccount={() => setPage('account')} onOpenLost={openLost} onOpenQuestions={openQuestions} onLogin={() => setPage('login')} onRegister={() => setPage('register')} />;
+  else if (page === 'content') screen = <ContentScreen kind={contentKind} onBack={() => setPage('root')} onOpenLost={openLost} />;
+  else if (tab === 'home') screen = <HomeScreen currentUser={currentUser} onOpenAccount={() => setPage('account')} onOpenLost={openLost} onOpenQuestions={openQuestions} onOpenContent={kind => { setContentKind(kind); setPage('content'); }} onLogin={() => setPage('login')} onRegister={() => setPage('register')} />;
   else if (tab === 'social') screen = <PatiSocialScreen
     initialTab={socialInitialTab}
     username={currentUser}
@@ -115,19 +133,19 @@ export default function App() {
     onOpenLost={openLost}
   />;
   else if (tab === 'lost') screen = <LostHub onNavigate={setPage} />;
-  else if (tab === 'settings') screen = <SettingsScreen username={currentUser} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} />;
+  else if (tab === 'settings') screen = <SettingsScreen username={currentUser} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} />;
   else screen = <ComingSoon tab={tab} onHome={() => changeTab('home')} />;
 
   return (
     <View style={styles.app}>
       <StatusBar style={tab === 'home' ? 'light' : 'dark'} />
       {screen}
-      {page !== 'login' && page !== 'register' ? <BottomTabs active={tab} onChange={changeTab} /> : null}
+      {page !== 'login' && page !== 'register' && page !== 'reset' ? <BottomTabs active={tab} onChange={changeTab} /> : null}
     </View>
   );
 }
 
-function HomeScreen({ currentUser, onOpenAccount, onOpenLost, onOpenQuestions, onLogin, onRegister }: { currentUser: string | null; onOpenAccount: () => void; onOpenLost: () => void; onOpenQuestions: () => void; onLogin: () => void; onRegister: () => void }) {
+function HomeScreen({ currentUser, onOpenAccount, onOpenLost, onOpenQuestions, onOpenContent, onLogin, onRegister }: { currentUser: string | null; onOpenAccount: () => void; onOpenLost: () => void; onOpenQuestions: () => void; onOpenContent: (kind: ContentKind) => void; onLogin: () => void; onRegister: () => void }) {
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -174,21 +192,21 @@ function HomeScreen({ currentUser, onOpenAccount, onOpenLost, onOpenQuestions, o
     >
       <Hero currentUser={currentUser} query={query} setQuery={setQuery} onOpenAccount={onOpenAccount} onLogin={onLogin} onRegister={onRegister} />
       <View style={styles.content}>
-        {query.trim() ? <SearchResults query={query} results={results} loading={loading} /> : (
+        {query.trim() ? <SearchResults query={query} results={results} loading={loading} onOpenContent={onOpenContent} onOpenQuestions={onOpenQuestions} /> : (
           <>
             <SectionTitle title="Konular" />
-            <View style={styles.categoryGrid}>{categories.map(category => <CategoryCard key={category.title} {...category} onPress={category.title === 'Soru-Cevap' ? onOpenQuestions : undefined} />)}</View>
+            <View style={styles.categoryGrid}>{categories.map(category => <CategoryCard key={category.title} {...category} onPress={category.kind ? () => onOpenContent(category.kind) : onOpenQuestions} />)}</View>
             <LostHomeBanner onPress={onOpenLost} />
-            <SectionTitle title="Güncel İçerikler" action="Tümü" />
+            <SectionTitle title="Güncel İçerikler" action="Tümü" onAction={() => onOpenContent('all')} />
             {loading && !data ? <LoadingCards /> : null}
             {error && !data ? <ErrorState message={error} onRetry={() => load()} /> : null}
             {data?.featured.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-                {data.featured.map(item => <StoryCard key={`${item.type}-${item.id}`} story={item} />)}
+                {data.featured.map(item => <StoryCard key={`${item.type}-${item.id}`} story={item} onPress={() => onOpenContent(storyKind(item.type))} />)}
               </ScrollView>
             ) : null}
-            {data?.blogs[0] ? <BlogSpotlight story={data.blogs[0]} /> : null}
-            {data?.questions[0] ? <QuestionCard question={data.questions[0]} /> : null}
+            {data?.blogs[0] ? <BlogSpotlight story={data.blogs[0]} onPress={() => onOpenContent('blogs')} /> : null}
+            {data?.questions[0] ? <QuestionCard question={data.questions[0]} onPress={onOpenQuestions} /> : null}
             <View style={styles.trustCard}>
               <View style={styles.trustIcon}><Ionicons name="shield-checkmark-outline" size={24} color="#4E7458" /></View>
               <View style={styles.trustCopy}>
@@ -237,9 +255,9 @@ function Hero({ currentUser, query, setQuery, onOpenAccount, onLogin, onRegister
   );
 }
 
-function SectionTitle({ title, action }: { title: string; action?: string }) {
+function SectionTitle({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
   return <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{title}</Text>
-    {action ? <Pressable onPress={() => Alert.alert(title, 'Tüm içerik listesi sıradaki ekranda açılacak.')}><Text style={styles.sectionAction}>{action} →</Text></Pressable> : null}
+    {action ? <Pressable onPress={onAction}><Text style={styles.sectionAction}>{action} →</Text></Pressable> : null}
   </View>;
 }
 
@@ -252,8 +270,8 @@ function CategoryCard({ title, icon, color, ink, onPress }: typeof categories[nu
   </Pressable>;
 }
 
-function StoryCard({ story }: { story: Story }) {
-  return <Pressable onPress={() => Alert.alert(story.title, story.excerpt)} style={({ pressed }) => [styles.storyCard, pressed && styles.cardPressed]}>
+function StoryCard({ story, onPress }: { story: Story; onPress: () => void }) {
+  return <Pressable onPress={onPress} style={({ pressed }) => [styles.storyCard, pressed && styles.cardPressed]}>
     <ImageBackground source={{ uri: mediaUrl(story.imagePath) }} style={styles.storyImage} imageStyle={styles.storyImageRadius}>
       <View style={styles.storyBadge}><Text style={styles.storyBadgeText}>{story.category}</Text></View>
     </ImageBackground>
@@ -262,15 +280,15 @@ function StoryCard({ story }: { story: Story }) {
   </Pressable>;
 }
 
-function BlogSpotlight({ story }: { story: Story }) {
-  return <Pressable onPress={() => Alert.alert(story.title, story.excerpt)} style={({ pressed }) => [styles.blogSpotlight, pressed && styles.cardPressed]}>
+function BlogSpotlight({ story, onPress }: { story: Story; onPress: () => void }) {
+  return <Pressable onPress={onPress} style={({ pressed }) => [styles.blogSpotlight, pressed && styles.cardPressed]}>
     <Text style={styles.outlineBadge}>Blog</Text><Text style={styles.spotlightTitle}>{story.title}</Text>
     <Text style={styles.spotlightMeta}>PetWork topluluğu · 5 dk okuma</Text><Text style={styles.spotlightSource}>Kaynak: PetWork</Text>
   </Pressable>;
 }
 
-function QuestionCard({ question }: { question: Question }) {
-  return <Pressable onPress={() => Alert.alert(question.title, `${question.answerCount} cevap bulunuyor.`)} style={({ pressed }) => [styles.questionCard, pressed && styles.cardPressed]}>
+function QuestionCard({ question, onPress }: { question: Question; onPress: () => void }) {
+  return <Pressable onPress={onPress} style={({ pressed }) => [styles.questionCard, pressed && styles.cardPressed]}>
     <View style={styles.questionIcon}><Ionicons name="help" size={25} color={colors.peach} /></View>
     <View style={styles.questionBody}><Text style={styles.questionTitle}>{question.title}</Text>
       <Text style={styles.questionMeta}>{question.answerCount} yanıt · {question.username}</Text><Text style={styles.questionLink}>Yanıtları gör →</Text></View>
@@ -278,13 +296,20 @@ function QuestionCard({ question }: { question: Question }) {
 }
 
 type SearchResult = { kind: 'story'; item: Story } | { kind: 'question'; item: Question };
-function SearchResults({ query, results, loading }: { query: string; results: SearchResult[]; loading: boolean }) {
+function storyKind(type: string): ContentKind {
+  if (type === 'disease') return 'diseases';
+  if (type === 'recipe') return 'recipes';
+  if (type === 'guide') return 'guides';
+  return 'blogs';
+}
+
+function SearchResults({ query, results, loading, onOpenContent, onOpenQuestions }: { query: string; results: SearchResult[]; loading: boolean; onOpenContent: (kind: ContentKind) => void; onOpenQuestions: () => void }) {
   return <View><SectionTitle title={`“${query.trim()}” sonuçları`} />
     {loading ? <ActivityIndicator color={colors.primary} size="large" /> : null}
     {!loading && !results.length ? <Text style={styles.emptyText}>Bu aramayla eşleşen güncel içerik bulunamadı.</Text> : null}
     {results.map(result => result.kind === 'story'
-      ? <View key={`s-${result.item.type}-${result.item.id}`} style={styles.searchResult}><StoryCard story={result.item} /></View>
-      : <View key={`q-${result.item.id}`} style={styles.searchResult}><QuestionCard question={result.item} /></View>)}
+      ? <View key={`s-${result.item.type}-${result.item.id}`} style={styles.searchResult}><StoryCard story={result.item} onPress={() => onOpenContent(storyKind(result.item.type))} /></View>
+      : <View key={`q-${result.item.id}`} style={styles.searchResult}><QuestionCard question={result.item} onPress={onOpenQuestions} /></View>)}
   </View>;
 }
 

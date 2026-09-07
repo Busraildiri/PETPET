@@ -48,5 +48,7 @@ namespace PetWork.Models
         public List<SocialPost>? SocialPosts { get; set; }
         public List<SocialComment>? SocialComments { get; set; }
         public List<SocialPostReport>? SocialPostReports { get; set; }
+        public List<MobileAuthSession>? MobileAuthSessions { get; set; }
+        public List<PasswordResetToken>? PasswordResetTokens { get; set; }
     }
 } 

@@ -462,6 +462,80 @@ namespace PetWork.Migrations.PostgreSql
                     b.ToTable("Guides", "petwork");
                 });
 
+            modelBuilder.Entity("PetWork.Models.MobileAuthSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AccessExpiresAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("LastUsedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("RefreshExpiresAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("RefreshTokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RefreshTokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "RevokedAt", "RefreshExpiresAt");
+
+                    b.ToTable("MobileAuthSessions", "petwork");
+                });
+
+            modelBuilder.Entity("PetWork.Models.PasswordResetToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "UsedAt", "ExpiresAt");
+
+                    b.ToTable("PasswordResetTokens", "petwork");
+                });
+
             modelBuilder.Entity("PetWork.Models.Pet", b =>
                 {
                     b.Property<int>("Id")
@@ -887,6 +961,28 @@ namespace PetWork.Migrations.PostgreSql
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PetWork.Models.MobileAuthSession", b =>
+                {
+                    b.HasOne("PetWork.Models.User", "User")
+                        .WithMany("MobileAuthSessions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PetWork.Models.PasswordResetToken", b =>
+                {
+                    b.HasOne("PetWork.Models.User", "User")
+                        .WithMany("PasswordResetTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("PetWork.Models.Pet", b =>
                 {
                     b.HasOne("PetWork.Models.User", "User")
@@ -991,6 +1087,10 @@ namespace PetWork.Migrations.PostgreSql
             modelBuilder.Entity("PetWork.Models.User", b =>
                 {
                     b.Navigation("Answers");
+
+                    b.Navigation("MobileAuthSessions");
+
+                    b.Navigation("PasswordResetTokens");
 
                     b.Navigation("Pets");
 

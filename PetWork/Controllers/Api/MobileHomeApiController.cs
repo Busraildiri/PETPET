@@ -49,6 +49,19 @@ public sealed class MobileHomeApiController : ControllerBase
                 recipe.ImageUrl, recipe.PublishDate))
             .ToListAsync(cancellationToken);
 
+        blogs = blogs.Select(item => item with
+        {
+            ImagePath = MobileContentImageResolver.Resolve("blogs", item.Id, item.Title, item.Category, null)
+        }).ToList();
+        diseases = diseases.Select(item => item with
+        {
+            ImagePath = MobileContentImageResolver.Resolve("diseases", item.Id, item.Title, item.Category, null)
+        }).ToList();
+        recipes = recipes.Select(item => item with
+        {
+            ImagePath = MobileContentImageResolver.Resolve("recipes", item.Id, item.Title, item.Category, null)
+        }).ToList();
+
         var featured = diseases.Concat(recipes).Concat(blogs.Take(2))
             .OrderByDescending(item => item.PublishedAt).Take(7).ToList();
 
