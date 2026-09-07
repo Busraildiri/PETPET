@@ -1,12 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using PetWork.Data;
 using PetWork.Models;
 
@@ -22,13 +20,8 @@ public sealed class MobileQuestionsApiController : ControllerBase
         "Beslenme", "Sağlık", "Davranış", "Bakım", "Yas ve Kayıp", "Diğer"
     };
     private readonly PetWorkDbContext _context;
-    private readonly IConfiguration _configuration;
 
-    public MobileQuestionsApiController(PetWorkDbContext context, IConfiguration configuration)
-    {
-        _context = context;
-        _configuration = configuration;
-    }
+    public MobileQuestionsApiController(PetWorkDbContext context) => _context = context;
 
     [HttpGet]
     [ResponseCache(Duration = 30, Location = ResponseCacheLocation.Any)]
@@ -112,6 +105,7 @@ public sealed class MobileQuestionsApiController : ControllerBase
     }
 
     [HttpPost("{id:int}/answers")]
+    [Authorize]
     [EnableRateLimiting("mobile-content")]
     public async Task<ActionResult<MobileAnswerItem>> PostAnswer(
         int id,
@@ -134,11 +128,15 @@ public sealed class MobileQuestionsApiController : ControllerBase
         if (username is null)
             return Unauthorized(new { message = "Bu oturuma ait kullanıcı bulunamadı." });
 
+        var content = request.Content.Trim();
+        if (content.Length < 2)
+            return BadRequest(new { message = "Yanıt en az 2 görünür karakter içermelidir." });
+
         var answer = new Answer
         {
             QuestionId = id,
             UserId = userId.Value,
-            Content = request.Content.Trim(),
+            Content = content,
             CreatedDate = DateTime.Now,
             IsAccepted = false,
             UpVotes = 0,
@@ -179,10 +177,17 @@ public sealed class MobileQuestionsApiController : ControllerBase
         if (category is null)
             return BadRequest(new { message = "Lütfen geçerli bir soru kategorisi seç." });
 
+        var title = request.Title.Trim();
+        var content = request.Content.Trim();
+        if (title.Length < 5)
+            return BadRequest(new { message = "Başlık en az 5 görünür karakter içermelidir." });
+        if (content.Length < 10)
+            return BadRequest(new { message = "Soru detayı en az 10 görünür karakter içermelidir." });
+
         var question = new Question
         {
-            Title = request.Title.Trim(),
-            Content = request.Content.Trim(),
+            Title = title,
+            Content = content,
             Category = category,
             UserId = user.Id,
             CreatedDate = DateTime.Now,
@@ -211,39 +216,9 @@ public sealed class MobileQuestionsApiController : ControllerBase
 
     private int? GetAuthenticatedUserId()
     {
-        var authorization = Request.Headers.Authorization.ToString();
-        if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            return null;
-
-        var key = _configuration["MobileAuth:JwtKey"];
-        if (string.IsNullOrWhiteSpace(key) || Encoding.UTF8.GetByteCount(key) < 32)
-            return null;
-
-        try
-        {
-            var principal = new JwtSecurityTokenHandler().ValidateToken(
-                authorization["Bearer ".Length..].Trim(),
-                new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
-                    ValidateIssuer = true,
-                    ValidIssuer = "PetWork",
-                    ValidateAudience = true,
-                    ValidAudience = "PetimMobile",
-                    ValidateLifetime = true,
-                    ClockSkew = TimeSpan.FromMinutes(1)
-                },
-                out _);
-
-            var subject = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
-                          ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            return int.TryParse(subject, out var userId) ? userId : null;
-        }
-        catch (Exception exception) when (exception is SecurityTokenException or ArgumentException)
-        {
-            return null;
-        }
+        var subject = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                      ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return int.TryParse(subject, out var userId) ? userId : null;
     }
 }
 

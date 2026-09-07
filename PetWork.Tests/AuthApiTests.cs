@@ -165,7 +165,7 @@ public sealed class AuthApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("ExternalContent:BootstrapOnStartup", "false");
         builder.UseSetting("ExternalContent:AutoPublish", "false");
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?> {
-            ["DatabaseProvider"] = "SqlServer", ["ConnectionStrings:DefaultConnection"] = "Server=(localdb)\\mssqllocaldb;Database=unused", ["MobileAuth:JwtKey"] = "test-only-jwt-key-with-at-least-thirty-two-bytes", ["RateLimiting:MobileAuthPermitLimit"] = "1000", ["RateLimiting:MobileContentPermitLimit"] = "1000", ["ExternalContent:BootstrapOnStartup"] = "false", ["ExternalContent:AutoPublish"] = "false", ["DatabaseMigrations:ApplyOnStartup"] = "false"
+            ["DatabaseProvider"] = "SqlServer", ["ConnectionStrings:DefaultConnection"] = "Server=(localdb)\\mssqllocaldb;Database=unused", ["MobileAuth:JwtKey"] = "test-only-jwt-key-with-at-least-thirty-two-bytes", ["GooglePlaces:ApiKey"] = "", ["RateLimiting:MobileAuthPermitLimit"] = "1000", ["RateLimiting:MobileContentPermitLimit"] = "1000", ["ExternalContent:BootstrapOnStartup"] = "false", ["ExternalContent:AutoPublish"] = "false", ["DatabaseMigrations:ApplyOnStartup"] = "false"
         }));
         builder.ConfigureServices(services => {
             services.RemoveAll<IDbContextOptionsConfiguration<PetWorkDbContext>>();

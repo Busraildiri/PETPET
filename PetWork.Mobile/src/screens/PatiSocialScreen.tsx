@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Platform, Pressable, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View, useWindowDimensions,
+  ActivityIndicator, Alert, BackHandler, Platform, Pressable, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View, useWindowDimensions,
 } from 'react-native';
 import {
   createQuestion, createSocialPost, deleteSocialPost, getQuestionDetail, getQuestions, getSocialPosts,
@@ -86,27 +86,6 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
     loadPosts(controller.signal);
     return () => controller.abort();
   }, [loadPosts]);
-
-  const openPendingFeature = (action: string) => {
-    if (!username) {
-      Alert.alert('Giriş yapmalısın', `${action} için Pet’im hesabına giriş yap.`, [
-        { text: 'Vazgeç', style: 'cancel' },
-        { text: 'Giriş Yap', onPress: onLogin },
-      ]);
-      return;
-    }
-
-    Alert.alert(
-      `${action} hazırlanıyor`,
-      `${username} hesabıyla devam ediyorsun. Bu işlem gönderi API’si bağlandığında kaydedilecek.`,
-      [{ text: 'Tamam', style: 'cancel' }],
-    );
-  };
-
-  const openComments = (post: SocialPost) => Alert.alert(
-    `${post.petName} · Yorumlar`,
-    'Yorum ekranı bir sonraki adımda gerçek gönderi servisiyle bağlanacak.',
-  );
 
   const requireLogin = (message: string) => Alert.alert('Giriş yapmalısın', message, [
     { text: 'Vazgeç', style: 'cancel' },
@@ -286,6 +265,16 @@ function QuestionsPanel({ username, authToken, onLogin, onAsk }: { username: str
       .catch(reason => setError(reason instanceof Error ? reason.message : 'Soru ayrıntısı alınamadı.'))
       .finally(() => setDetailLoading(false));
     return () => controller.abort();
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (selectedId === null) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setSelectedId(null);
+      setError(null);
+      return true;
+    });
+    return () => subscription.remove();
   }, [selectedId]);
 
   const questions = useMemo(() => {

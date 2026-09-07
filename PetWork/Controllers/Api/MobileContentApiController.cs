@@ -9,6 +9,8 @@ namespace PetWork.Controllers.Api;
 [Route("api/mobile/content")]
 public sealed class MobileContentApiController : ControllerBase
 {
+    private static readonly HashSet<string> AllowedKinds =
+        new(["all", "guides", "diseases", "recipes", "blogs", "grief"], StringComparer.OrdinalIgnoreCase);
     private readonly PetWorkDbContext _context;
     public MobileContentApiController(PetWorkDbContext context) => _context = context;
 
@@ -17,6 +19,7 @@ public sealed class MobileContentApiController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<MobileContentItem>>> List(
         string kind, string? search, CancellationToken cancellationToken)
     {
+        if (!AllowedKinds.Contains(kind.Trim())) return NotFound();
         var items = await Query(kind, cancellationToken);
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -32,6 +35,7 @@ public sealed class MobileContentApiController : ControllerBase
     public async Task<ActionResult<MobileContentItem>> Detail(
         string kind, int id, CancellationToken cancellationToken)
     {
+        if (!AllowedKinds.Contains(kind.Trim())) return NotFound();
         var item = (await Query(kind, cancellationToken)).FirstOrDefault(value => value.Id == id);
         return item is null ? NotFound() : Ok(item);
     }

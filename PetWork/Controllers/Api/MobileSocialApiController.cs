@@ -64,6 +64,8 @@ public sealed class MobileSocialApiController : ControllerBase
             return Unauthorized(new { message = "Kullanıcı hesabı bulunamadı." });
 
         var body = request.Body.Trim();
+        if (body.Length < 2)
+            return BadRequest(new { message = "Paylaşım en az 2 görünür karakter içermelidir." });
         var tags = NormalizeTags(request.Tags);
         string? imagePath = null;
 
@@ -162,11 +164,15 @@ public sealed class MobileSocialApiController : ControllerBase
         if (user is null)
             return Unauthorized(new { message = "Kullanıcı hesabı bulunamadı." });
 
+        var body = request.Body.Trim();
+        if (body.Length < 1)
+            return BadRequest(new { message = "Yorum boş bırakılamaz." });
+
         var comment = new SocialComment
         {
             SocialPostId = postId,
             UserId = user.Id,
-            Body = request.Body.Trim(),
+            Body = body,
             CreatedAt = DateTime.Now
         };
 
@@ -241,11 +247,15 @@ public sealed class MobileSocialApiController : ControllerBase
         if (alreadyReported)
             return Conflict(new { message = "Bu gönderiyi daha önce bildirdin." });
 
+        var reason = request.Reason.Trim();
+        if (reason.Length < 3)
+            return BadRequest(new { message = "Bildirim nedeni en az 3 görünür karakter içermelidir." });
+
         _context.SocialPostReports.Add(new SocialPostReport
         {
             SocialPostId = postId,
             UserId = userId,
-            Reason = request.Reason.Trim(),
+            Reason = reason,
             CreatedAt = DateTime.Now
         });
         await _context.SaveChangesAsync(cancellationToken);

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Application from 'expo-application';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { apiUrl } from '../api';
 import {
   clearNotifications, defaultSettings, isExpoGo, NotificationPermission, NotificationSettingKey,
@@ -61,6 +61,15 @@ export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onO
     });
     return () => subscription.remove();
   }, []);
+
+  useEffect(() => {
+    if (page === 'main') return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setPage('main');
+      return true;
+    });
+    return () => subscription.remove();
+  }, [page]);
 
   const persist = async (next: PetimSettings) => {
     const previous = settings;

@@ -49,11 +49,13 @@ public sealed class MobilePetsApiController : ControllerBase
 
         var type = NormalizeType(request.Type);
         if (type is null) return BadRequest(new { message = "Lütfen geçerli bir hayvan türü seç." });
+        var name = request.Name.Trim();
+        if (name.Length < 2) return BadRequest(new { message = "Pati adı en az 2 görünür karakter içermelidir." });
 
         var pet = new Pet
         {
             UserId = userId.Value,
-            Name = request.Name.Trim(),
+            Name = name,
             Type = type,
             PetType = type,
             Breed = Clean(request.Breed),
@@ -85,8 +87,10 @@ public sealed class MobilePetsApiController : ControllerBase
 
         var type = NormalizeType(request.Type);
         if (type is null) return BadRequest(new { message = "Lütfen geçerli bir hayvan türü seç." });
+        var name = request.Name.Trim();
+        if (name.Length < 2) return BadRequest(new { message = "Pati adı en az 2 görünür karakter içermelidir." });
 
-        pet.Name = request.Name.Trim();
+        pet.Name = name;
         pet.Type = type;
         pet.PetType = type;
         pet.Breed = Clean(request.Breed);
