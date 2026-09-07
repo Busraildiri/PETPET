@@ -29,6 +29,8 @@ namespace PetWork.Data
         public DbSet<SocialPost> SocialPosts { get; set; }
         public DbSet<SocialComment> SocialComments { get; set; }
         public DbSet<SocialPostReport> SocialPostReports { get; set; }
+        public DbSet<MobileAuthSession> MobileAuthSessions { get; set; }
+        public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
         
         public override int SaveChanges()
         {
@@ -62,6 +64,9 @@ namespace PetWork.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            modelBuilder.Entity<User>().HasIndex(user => user.Username).IsUnique();
+            modelBuilder.Entity<User>().HasIndex(user => user.Email).IsUnique();
+
             if (Database.IsNpgsql())
             {
                 modelBuilder.HasDefaultSchema(PostgresPetWorkDbContext.SchemaName);
@@ -69,8 +74,6 @@ namespace PetWork.Data
 
                 modelBuilder.Entity<User>().Property(user => user.Username).HasColumnType("citext");
                 modelBuilder.Entity<User>().Property(user => user.Email).HasColumnType("citext");
-                modelBuilder.Entity<User>().HasIndex(user => user.Username).IsUnique();
-                modelBuilder.Entity<User>().HasIndex(user => user.Email).IsUnique();
 
                 // Kaynak SQL Server datetime2 değerleri saat dilimi taşımıyor. İlk aktarımda
                 // saat kaymasını önlemek için olay zamanlarını timestamp without time zone
@@ -204,6 +207,32 @@ namespace PetWork.Data
                 .WithMany()
                 .HasForeignKey(audit => audit.PerformedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<MobileAuthSession>()
+                .HasOne(session => session.User)
+                .WithMany(user => user.MobileAuthSessions)
+                .HasForeignKey(session => session.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<MobileAuthSession>()
+                .HasIndex(session => session.RefreshTokenHash)
+                .IsUnique();
+
+            modelBuilder.Entity<MobileAuthSession>()
+                .HasIndex(session => new { session.UserId, session.RevokedAt, session.RefreshExpiresAt });
+
+            modelBuilder.Entity<PasswordResetToken>()
+                .HasOne(token => token.User)
+                .WithMany(user => user.PasswordResetTokens)
+                .HasForeignKey(token => token.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PasswordResetToken>()
+                .HasIndex(token => token.TokenHash)
+                .IsUnique();
+
+            modelBuilder.Entity<PasswordResetToken>()
+                .HasIndex(token => new { token.UserId, token.UsedAt, token.ExpiresAt });
         }
     }
 } 

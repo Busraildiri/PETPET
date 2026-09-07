@@ -12,12 +12,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 builder.Services.AddRateLimiter(options =>
 {
+    var authPermitLimit = builder.Configuration.GetValue("RateLimiting:MobileAuthPermitLimit", 8);
+    var contentPermitLimit = builder.Configuration.GetValue("RateLimiting:MobileContentPermitLimit", 12);
     options.AddPolicy("mobile-auth", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 8,
+                PermitLimit = authPermitLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -26,7 +28,7 @@ builder.Services.AddRateLimiter(options =>
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 12,
+                PermitLimit = contentPermitLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -55,8 +57,34 @@ builder.Services
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(1)
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var sessionClaim = context.Principal?.FindFirst("sid")?.Value;
+                if (!Guid.TryParse(sessionClaim, out var sessionId))
+                {
+                    context.Fail("Session claim missing.");
+                    return;
+                }
+
+                var db = context.HttpContext.RequestServices.GetRequiredService<PetWorkDbContext>();
+                var now = DateTime.UtcNow;
+                var active = await db.MobileAuthSessions.AsNoTracking()
+                    .AnyAsync(session =>
+                        session.Id == sessionId &&
+                        session.RevokedAt == null &&
+                        session.AccessExpiresAt > now,
+                        context.HttpContext.RequestAborted);
+                if (!active) context.Fail("Session is no longer active.");
+            }
+        };
     });
 builder.Services.AddAuthorization();
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddScoped<IPasswordResetEmailSender, DevelopmentPasswordResetEmailSender>();
+else
+    builder.Services.AddScoped<IPasswordResetEmailSender, UnavailablePasswordResetEmailSender>();
 
 // Session servisi ekle
 builder.Services.AddDistributedMemoryCache();
@@ -316,3 +344,5 @@ static void ConfigureDatabaseDiagnostics(
         options.EnableSensitiveDataLogging();
     }
 }
+
+public partial class Program { }

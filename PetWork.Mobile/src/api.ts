@@ -27,6 +27,7 @@ export type RegisterRequest = {
   password: string;
   confirmPassword: string;
   acceptTerms: boolean;
+  rememberMe?: boolean;
 };
 
 export type AuthResponse = {
@@ -34,8 +35,16 @@ export type AuthResponse = {
   username: string;
   token: string;
   expiresAt: string;
+  refreshToken: string;
+  refreshExpiresAt: string;
   message: string;
 };
+
+export type CurrentUser = { userId: number; username: string; email: string };
+
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) { super(message); }
+}
 
 export type LoginRequest = {
   emailOrUsername: string;
@@ -160,8 +169,8 @@ async function readAuthResponse(response: Response, fallbackMessage: string): Pr
 
   if (!response.ok) {
     const validationMessage = payload?.errors ? Object.values(payload.errors).flat()[0] : undefined;
-    if (response.status === 429) throw new Error('Çok fazla deneme yapıldı. Lütfen bir dakika sonra tekrar dene.');
-    throw new Error(validationMessage || payload?.message || payload?.title || fallbackMessage);
+    if (response.status === 429) throw new ApiError('Çok fazla deneme yapıldı. Lütfen bir dakika sonra tekrar dene.', response.status);
+    throw new ApiError(validationMessage || payload?.message || payload?.title || fallbackMessage, response.status);
   }
 
   return payload as AuthResponse;
@@ -185,6 +194,70 @@ export async function loginUser(request: LoginRequest): Promise<AuthResponse> {
   });
 
   return readAuthResponse(response, 'Giriş işlemi tamamlanamadı.');
+}
+
+async function authRequest(path: string, init: RequestInit, fallback: string): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(`${apiUrl}/api/mobile/auth/${path}`, { ...init, signal: controller.signal });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+      const validation = payload?.errors ? Object.values(payload.errors).flat()[0] : undefined;
+      throw new ApiError(validation || payload?.message || payload?.title || fallback, response.status);
+    }
+    return response;
+  } catch (reason) {
+    if (reason instanceof ApiError) throw reason;
+    if (reason instanceof Error && reason.name === 'AbortError') throw new Error('Sunucu yanıt vermedi. Bağlantını kontrol edip tekrar dene.');
+    throw new Error('Sunucuya bağlanılamadı. İnternet ve API adresini kontrol et.');
+  } finally { clearTimeout(timer); }
+}
+
+export async function getCurrentUser(token: string): Promise<CurrentUser> {
+  const response = await authRequest('me', { headers: { Accept: 'application/json', Authorization: `Bearer ${token}` } }, 'Oturum doğrulanamadı.');
+  return response.json();
+}
+
+export async function refreshAuthSession(refreshToken: string): Promise<AuthResponse> {
+  const response = await fetch(`${apiUrl}/api/mobile/auth/refresh`, {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+  return readAuthResponse(response, 'Oturum yenilenemedi. Lütfen yeniden giriş yap.');
+}
+
+export async function changePassword(token: string, currentPassword: string, newPassword: string): Promise<AuthResponse> {
+  const response = await fetch(`${apiUrl}/api/mobile/auth/change-password`, {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  return readAuthResponse(response, 'Şifre değiştirilemedi.');
+}
+
+export async function forgotPassword(email: string): Promise<string> {
+  const response = await authRequest('forgot-password', {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
+  }, 'Şifre yenileme isteği gönderilemedi.');
+  return ((await response.json()) as { message: string }).message;
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<string> {
+  const response = await authRequest('reset-password', {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ token, newPassword }),
+  }, 'Şifre yenilenemedi.');
+  return ((await response.json()) as { message: string }).message;
+}
+
+export async function logoutSession(token: string): Promise<void> {
+  await authRequest('logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }, 'Oturum sunucuda kapatılamadı.');
+}
+
+export async function deleteAccount(token: string, password: string): Promise<void> {
+  await authRequest('account', {
+    method: 'DELETE', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ password }),
+  }, 'Hesap silinemedi.');
 }
 
 async function readPetResponse(response: Response, fallback: string): Promise<PetProfile> {

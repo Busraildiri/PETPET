@@ -8,7 +8,7 @@ import {
   ActivityIndicator, Alert, Image, ImageBackground, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { apiUrl, getHome, getNearbyGroomers, getNearbyPetHotels, getNearbyVeterinarians, HomePayload, mediaUrl, Question, searchGroomersByArea, searchPetHotelsByArea, searchVeterinariansByArea, Story, type AuthResponse, type ContentKind, type NearbyVeterinarian } from './src/api';
+import { apiUrl, getHome, getNearbyGroomers, getNearbyPetHotels, getNearbyVeterinarians, HomePayload, logoutSession, mediaUrl, Question, searchGroomersByArea, searchPetHotelsByArea, searchVeterinariansByArea, Story, type AuthResponse, type ContentKind, type NearbyVeterinarian } from './src/api';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
@@ -18,9 +18,10 @@ import { ContentScreen } from './src/screens/ContentScreen';
 import { configureNotifications } from './src/notifications';
 import { colors, shadow } from './src/theme';
 import type { SocialTab } from './src/types/social';
+import { clearSession, restoreSession, saveSession } from './src/session';
 
 type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
-type PageKey = 'root' | 'login' | 'register' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting' | 'content';
+type PageKey = 'root' | 'login' | 'register' | 'reset' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting' | 'content';
 
 const communityDemoImage = require('./assets/community-demo.png');
 const locationConsentKey = 'petwork_location_consent_v1';
@@ -48,8 +49,10 @@ export default function App() {
   const [tab, setTab] = useState<TabKey>('home');
   const [page, setPage] = useState<PageKey>('root');
   const [showSplash, setShowSplash] = useState(true);
+  const [restoringSession, setRestoringSession] = useState(true);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [resetToken, setResetToken] = useState('');
   const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>('posts');
   const [nearbyCategory, setNearbyCategory] = useState<'veterinarian' | 'groomer' | 'hotel'>('veterinarian');
   const [contentKind, setContentKind] = useState<ContentKind>('blogs');
@@ -59,21 +62,27 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => { void restoreSession().then(result => {
+    if (result) { setCurrentUser(result.user.username); setAuthToken(result.session.token); }
+  }).finally(() => setRestoringSession(false)); }, []);
+
   useEffect(() => {
-    SecureStore.getItemAsync('petim.session').then(value => {
-      if (!value) return;
+    const handleUrl = (url: string | null) => {
+      if (!url) return;
       try {
-        const session = JSON.parse(value) as { username?: string; token?: string; expiresAt?: string };
-        if (session.username && session.token && session.expiresAt && new Date(session.expiresAt) > new Date()) {
-          setCurrentUser(session.username);
-          setAuthToken(session.token);
+        const parsed = new URL(url);
+        if (parsed.hostname === 'reset-password' || parsed.pathname.includes('reset-password')) {
+          const token = parsed.searchParams.get('token');
+          if (token) { setResetToken(token); setPage('reset'); }
         }
-        else SecureStore.deleteItemAsync('petim.session');
-      } catch { SecureStore.deleteItemAsync('petim.session'); }
-    });
+      } catch { /* Ignore malformed external links. */ }
+    };
+    void Linking.getInitialURL().then(handleUrl);
+    const subscription = Linking.addEventListener('url', event => handleUrl(event.url));
+    return () => subscription.remove();
   }, []);
 
-  if (showSplash) {
+  if (showSplash || restoringSession) {
     return <View style={styles.splashView}>
       <StatusBar style="dark" />
       <Image source={require('./assets/splash-petim.png')} style={styles.splashArtwork} resizeMode="contain" accessibilityLabel="Pet'im by PetWork" />
@@ -83,9 +92,11 @@ export default function App() {
   const changeTab = (next: TabKey) => { if (next === 'social') setSocialInitialTab('posts'); setTab(next); setPage('root'); };
   const openLost = () => { setTab('lost'); setPage('root'); };
   const openQuestions = () => { setSocialInitialTab('questions'); setTab('social'); setPage('root'); };
-  const authenticated = (session: AuthResponse) => { setCurrentUser(session.username); setAuthToken(session.token); setTab('home'); setPage('root'); };
+  const sessionChanged = (session: AuthResponse) => { void saveSession(session); setCurrentUser(session.username); setAuthToken(session.token); };
+  const authenticated = (session: AuthResponse) => { sessionChanged(session); setTab('home'); setPage('root'); };
   const logout = async () => {
-    await SecureStore.deleteItemAsync('petim.session');
+    if (authToken) { try { await logoutSession(authToken); } catch { /* Local logout must still complete. */ } }
+    await clearSession();
     setCurrentUser(null);
     setAuthToken(null);
     setTab('home');
@@ -93,9 +104,10 @@ export default function App() {
   };
 
   let screen;
-  if (page === 'login') screen = <AuthScreen initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
-  else if (page === 'register') screen = <AuthScreen initialMode="register" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
-  else if (page === 'account' && currentUser) screen = <AccountScreen username={currentUser} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} />;
+  if (page === 'login') screen = <AuthScreen key="login" initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
+  else if (page === 'register') screen = <AuthScreen key="register" initialMode="register" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
+  else if (page === 'reset') screen = <AuthScreen key={`reset-${resetToken}`} initialMode="reset" resetToken={resetToken} onBack={() => setPage('login')} onAuthenticated={authenticated} />;
+  else if (page === 'account' && currentUser && authToken) screen = <AccountScreen username={currentUser} token={authToken} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} onSessionChanged={sessionChanged} onDeleted={logout} />;
   else if (page === 'pets' && authToken) screen = <PetsScreen token={authToken} onBack={() => setPage('account')} />;
   else if (page === 'nearby') screen = <NearbyScreen category={nearbyCategory} onBack={() => setPage('root')} />;
   else if (page === 'adoption') screen = <AdoptionScreen onBack={() => setPage('root')} />;
@@ -128,7 +140,7 @@ export default function App() {
     <View style={styles.app}>
       <StatusBar style={tab === 'home' ? 'light' : 'dark'} />
       {screen}
-      {page !== 'login' && page !== 'register' ? <BottomTabs active={tab} onChange={changeTab} /> : null}
+      {page !== 'login' && page !== 'register' && page !== 'reset' ? <BottomTabs active={tab} onChange={changeTab} /> : null}
     </View>
   );
 }
