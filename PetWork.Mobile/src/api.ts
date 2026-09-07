@@ -278,14 +278,28 @@ async function authRequest(path: string, init: RequestInit, fallback: string): P
   try {
     const response = await fetchApi(`${apiUrl}/api/mobile/auth/${path}`, { ...init, signal: controller.signal });
     if (!response.ok) {
-      const payload = await response.json().catch(() => null) as { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+      const responseText = await response.text().catch(() => '');
+      let payload: { message?: string; title?: string; errors?: Record<string, string[]> } | null = null;
+      try { payload = responseText ? JSON.parse(responseText) : null; } catch { /* The development exception page may be plain text or HTML. */ }
       const validation = payload?.errors ? Object.values(payload.errors).flat()[0] : undefined;
+      if (__DEV__) {
+        console.error('[PetWork auth API]', {
+          path,
+          url: `${apiUrl}/api/mobile/auth/${path}`,
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get('content-type'),
+          response: responseText.slice(0, 2000),
+        });
+      }
       if (response.status === 429) throw new ApiError('Çok fazla deneme yapıldı. Lütfen bir dakika sonra tekrar dene.', response.status);
-      throw new ApiError(validation || payload?.message || payload?.title || fallback, response.status);
+      const serverMessage = validation || payload?.message || payload?.title || fallback;
+      throw new ApiError(__DEV__ ? `${serverMessage} (HTTP ${response.status})` : serverMessage, response.status);
     }
     return response;
   } catch (reason) {
     if (reason instanceof ApiError) throw reason;
+    if (__DEV__) console.error('[PetWork auth transport]', { path, url: `${apiUrl}/api/mobile/auth/${path}`, reason });
     if (reason instanceof Error && reason.name === 'AbortError') throw new Error('Sunucu yanıt vermedi. Bağlantını kontrol edip tekrar dene.');
     throw new Error('Sunucuya bağlanılamadı. İnternet ve API adresini kontrol et.');
   } finally { clearTimeout(timer); }
