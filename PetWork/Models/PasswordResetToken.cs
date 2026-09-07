@@ -4,7 +4,7 @@ namespace PetWork.Models;
 
 public sealed class PasswordResetToken
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
     public int UserId { get; set; }
     public User User { get; set; } = null!;
     [Required, StringLength(64)]

@@ -6,8 +6,13 @@ namespace PetWork.Tests;
 
 public sealed class CommunityApiTests : IClassFixture<AuthApiFactory>
 {
+    private readonly AuthApiFactory _factory;
     private readonly HttpClient _client;
-    public CommunityApiTests(AuthApiFactory factory) => _client = factory.CreateClient();
+    public CommunityApiTests(AuthApiFactory factory)
+    {
+        _factory = factory;
+        _client = factory.CreateClient();
+    }
 
     [Fact]
     public async Task Questions_require_active_session_and_reject_whitespace_content()
@@ -79,7 +84,11 @@ public sealed class CommunityApiTests : IClassFixture<AuthApiFactory>
     {
         var response = await _client.PostAsJsonAsync("api/mobile/auth/register", new { username, email, password = "ValidPass1!", confirmPassword = "ValidPass1!", acceptTerms = true, rememberMe = true });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<AuthDto>())!;
+        var challenge = (await response.Content.ReadFromJsonAsync<EmailChallengeDto>())!;
+        var code = _factory.VerificationSender.GetCode(challenge.ChallengeToken);
+        var verified = await _client.PostAsJsonAsync("api/mobile/auth/verify-email", new { challengeToken = challenge.ChallengeToken, code });
+        Assert.Equal(HttpStatusCode.OK, verified.StatusCode);
+        return (await verified.Content.ReadFromJsonAsync<AuthDto>())!;
     }
     private async Task<PostDto> CreatePost(string token, string body)
     {
@@ -95,6 +104,7 @@ public sealed class CommunityApiTests : IClassFixture<AuthApiFactory>
         return await _client.SendAsync(request);
     }
     private sealed record AuthDto(int UserId, string Username, string Token, string RefreshToken);
+    private sealed record EmailChallengeDto(string ChallengeToken);
     private sealed record QuestionDto(int Id);
     private sealed record PostDto(int Id);
 }

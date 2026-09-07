@@ -22,12 +22,39 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
     public AuthApiTests(AuthApiFactory factory) { _factory = factory; _client = factory.CreateClient(); }
 
     [Fact]
+    public async Task Registration_requires_the_emailed_code()
+    {
+        var id = Guid.NewGuid().ToString("N")[..10];
+        var email = $"verify-{id}@example.com";
+        var response = await _client.PostAsJsonAsync("api/mobile/auth/register", new { username = $"verify_{id}", email, password = "Valid1!x", confirmPassword = "Valid1!x", acceptTerms = true });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var challenge = (await response.Content.ReadFromJsonAsync<EmailChallengeDto>())!;
+        var code = _factory.VerificationSender.GetCode(challenge.ChallengeToken);
+        var wrongCode = code == "000000" ? "000001" : "000000";
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.PostAsJsonAsync("api/mobile/auth/verify-email", new { challengeToken = challenge.ChallengeToken, code = wrongCode })).StatusCode);
+        var verified = await _client.PostAsJsonAsync("api/mobile/auth/verify-email", new { challengeToken = challenge.ChallengeToken, code });
+        Assert.Equal(HttpStatusCode.OK, verified.StatusCode);
+    }
+
+    [Fact]
+    public async Task Registration_email_failure_does_not_leave_an_account()
+    {
+        var id = Guid.NewGuid().ToString("N")[..10];
+        var email = $"failure-{id}@example.com";
+        _factory.VerificationSender.FailNext = true;
+        var response = await _client.PostAsJsonAsync("api/mobile/auth/register", new { username = $"failure_{id}", email, password = "Valid1!x", confirmPassword = "Valid1!x", acceptTerms = true });
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        using var scope = _factory.Services.CreateScope();
+        Assert.False(await scope.ServiceProvider.GetRequiredService<PetWorkDbContext>().Users.AnyAsync(user => user.Email == email));
+    }
+
+    [Fact]
     public async Task Register_login_and_validation_are_enforced()
     {
         var id = Guid.NewGuid().ToString("N")[..10];
         var email = $"qa-{id}@example.com";
         var registration = await Register($"qa_{id}", $"  {email.ToUpperInvariant()}  ", "Valid1!x");
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, registration.StatusCode);
         var auth = await registration.Content.ReadFromJsonAsync<AuthDto>();
         Assert.NotNull(auth?.Token); Assert.NotNull(auth?.RefreshToken);
 
@@ -88,7 +115,8 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
 
         var deleteSession = await ReadAuth(await Login(email, resetPassword));
         Assert.Equal(HttpStatusCode.BadRequest, (await Authorized(HttpMethod.Delete, "api/mobile/auth/account", deleteSession.Token, new { password = "Wrong1!x", userId = protectedUser.UserId })).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await Authorized(HttpMethod.Delete, "api/mobile/auth/account", deleteSession.Token, new { password = resetPassword, userId = protectedUser.UserId })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Authorized(HttpMethod.Delete, "api/mobile/auth/account", deleteSession.Token, new { password = resetPassword, confirmation = "yanlış", userId = protectedUser.UserId })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Authorized(HttpMethod.Delete, "api/mobile/auth/account", deleteSession.Token, new { password = resetPassword, confirmation = "SİL", userId = protectedUser.UserId })).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await Login(email, resetPassword)).StatusCode);
 
         using var scope = _factory.Services.CreateScope();
@@ -125,7 +153,15 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
         Assert.Equal(HttpStatusCode.OK, (await Authorized(HttpMethod.Put, $"api/mobile/pets/{pet.Id}", userB.Token, new { name = "Misket 2", type = "Kedi", age = 3 })).StatusCode);
     }
 
-    private Task<HttpResponseMessage> Register(string username, string email, string password) => _client.PostAsJsonAsync("api/mobile/auth/register", new { username, email, password, confirmPassword = password, acceptTerms = true, rememberMe = true });
+    private async Task<HttpResponseMessage> Register(string username, string email, string password)
+    {
+        var response = await _client.PostAsJsonAsync("api/mobile/auth/register", new { username, email, password, confirmPassword = password, acceptTerms = true, rememberMe = true });
+        if (response.StatusCode != HttpStatusCode.Created) return response;
+        var challenge = await response.Content.ReadFromJsonAsync<EmailChallengeDto>();
+        Assert.NotNull(challenge);
+        var code = _factory.VerificationSender.GetCode(challenge!.ChallengeToken);
+        return await _client.PostAsJsonAsync("api/mobile/auth/verify-email", new { challengeToken = challenge.ChallengeToken, code });
+    }
     private Task<HttpResponseMessage> Login(string email, string password) => _client.PostAsJsonAsync("api/mobile/auth/login", new { emailOrUsername = email, password, rememberMe = true });
     private static async Task<AuthDto> ReadAuth(HttpResponseMessage response) { Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync()); return (await response.Content.ReadFromJsonAsync<AuthDto>())!; }
     private async Task<HttpResponseMessage> Authorized(HttpMethod method, string path, string token, object? body = null) { using var request = new HttpRequestMessage(method, path); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); if (body is not null) request.Content = JsonContent.Create(body); return await _client.SendAsync(request); }
@@ -147,6 +183,7 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
         await db.SaveChangesAsync();
     }
     private sealed record AuthDto(int UserId, string Username, string Token, DateTime ExpiresAt, string RefreshToken, DateTime RefreshExpiresAt, string Message);
+    private sealed record EmailChallengeDto(bool RequiresEmailVerification, string ChallengeToken, DateTime ExpiresAt, string MaskedEmail, string Message);
     private sealed record PetDto(int Id, string Name);
 }
 
@@ -154,6 +191,7 @@ public sealed class AuthApiFactory : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     public CapturingPasswordResetEmailSender EmailSender { get; } = new();
+    public CapturingEmailVerificationSender VerificationSender { get; } = new();
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -173,6 +211,7 @@ public sealed class AuthApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<PetWorkDbContext>();
             _connection.Open(); services.AddSingleton(_connection); services.AddDbContext<PetWorkDbContext>(options => options.UseSqlite(_connection));
             services.RemoveAll<IPasswordResetEmailSender>(); services.AddSingleton<IPasswordResetEmailSender>(EmailSender);
+            services.RemoveAll<IEmailVerificationSender>(); services.AddSingleton<IEmailVerificationSender>(VerificationSender);
         });
     }
     protected override Microsoft.Extensions.Hosting.IHost CreateHost(Microsoft.Extensions.Hosting.IHostBuilder builder)
@@ -180,6 +219,19 @@ public sealed class AuthApiFactory : WebApplicationFactory<Program>
         var host = base.CreateHost(builder); using var scope = host.Services.CreateScope(); scope.ServiceProvider.GetRequiredService<PetWorkDbContext>().Database.EnsureCreated(); return host;
     }
     protected override void Dispose(bool disposing) { base.Dispose(disposing); if (disposing) _connection.Dispose(); }
+}
+
+public sealed class CapturingEmailVerificationSender : IEmailVerificationSender
+{
+    private readonly Dictionary<string, string> _codes = new();
+    public bool FailNext { get; set; }
+    public Task SendAsync(string email, string username, string code, string challengeToken, CancellationToken cancellationToken)
+    {
+        if (FailNext) { FailNext = false; throw new EmailDeliveryException("Test delivery failure."); }
+        lock (_codes) _codes[challengeToken] = code;
+        return Task.CompletedTask;
+    }
+    public string GetCode(string challengeToken) { lock (_codes) return _codes[challengeToken]; }
 }
 
 public sealed class CapturingPasswordResetEmailSender : IPasswordResetEmailSender

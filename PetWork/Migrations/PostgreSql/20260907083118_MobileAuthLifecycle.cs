@@ -1,105 +1,67 @@
-﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace PetWork.Migrations.PostgreSql
+namespace PetWork.Migrations.PostgreSql;
+
+public partial class MobileAuthLifecycle : Migration
 {
-    /// <inheritdoc />
-    public partial class MobileAuthLifecycle : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.CreateTable(
-                name: "MobileAuthSessions",
-                schema: "petwork",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<int>(type: "integer", nullable: false),
-                    RefreshTokenHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    LastUsedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    AccessExpiresAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    RefreshExpiresAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    RevokedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_MobileAuthSessions", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_MobileAuthSessions_Users_UserId",
-                        column: x => x.UserId,
-                        principalSchema: "petwork",
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
+        // Convergent because an early production rollout created these tables before
+        // this branch's migration id reached main.
+        migrationBuilder.Sql("""
+            CREATE TABLE IF NOT EXISTS petwork."MobileAuthSessions" (
+                "Id" uuid NOT NULL,
+                "UserId" integer NOT NULL,
+                "RefreshTokenHash" character varying(64) NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "LastUsedAt" timestamp with time zone,
+                "AccessExpiresAt" timestamp with time zone,
+                "RefreshExpiresAt" timestamp with time zone,
+                "ExpiresAt" timestamp with time zone,
+                "RevokedAt" timestamp with time zone,
+                "ReplacedByTokenHash" character varying(64),
+                CONSTRAINT "PK_MobileAuthSessions" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_MobileAuthSessions_Users_UserId" FOREIGN KEY ("UserId") REFERENCES petwork."Users" ("Id") ON DELETE CASCADE
+            );
 
-            migrationBuilder.CreateTable(
-                name: "PasswordResetTokens",
-                schema: "petwork",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    UserId = table.Column<int>(type: "integer", nullable: false),
-                    TokenHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    ExpiresAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    UsedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PasswordResetTokens", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_PasswordResetTokens_Users_UserId",
-                        column: x => x.UserId,
-                        principalSchema: "petwork",
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            ALTER TABLE petwork."MobileAuthSessions" ADD COLUMN IF NOT EXISTS "LastUsedAt" timestamp with time zone;
+            ALTER TABLE petwork."MobileAuthSessions" ADD COLUMN IF NOT EXISTS "AccessExpiresAt" timestamp with time zone;
+            ALTER TABLE petwork."MobileAuthSessions" ADD COLUMN IF NOT EXISTS "RefreshExpiresAt" timestamp with time zone;
+            ALTER TABLE petwork."MobileAuthSessions" ADD COLUMN IF NOT EXISTS "ExpiresAt" timestamp with time zone;
+            ALTER TABLE petwork."MobileAuthSessions" ADD COLUMN IF NOT EXISTS "ReplacedByTokenHash" character varying(64);
+            UPDATE petwork."MobileAuthSessions"
+               SET "LastUsedAt" = COALESCE("LastUsedAt", "CreatedAt"),
+                   "RefreshExpiresAt" = COALESCE("RefreshExpiresAt", "ExpiresAt", "CreatedAt" + interval '1 day'),
+                   "AccessExpiresAt" = COALESCE("AccessExpiresAt", LEAST(COALESCE("ExpiresAt", "CreatedAt" + interval '15 minutes'), "CreatedAt" + interval '15 minutes'));
+            ALTER TABLE petwork."MobileAuthSessions" ALTER COLUMN "LastUsedAt" SET NOT NULL;
+            ALTER TABLE petwork."MobileAuthSessions" ALTER COLUMN "AccessExpiresAt" SET NOT NULL;
+            ALTER TABLE petwork."MobileAuthSessions" ALTER COLUMN "RefreshExpiresAt" SET NOT NULL;
+            ALTER TABLE petwork."MobileAuthSessions" DROP COLUMN IF EXISTS "ExpiresAt";
+            ALTER TABLE petwork."MobileAuthSessions" DROP COLUMN IF EXISTS "ReplacedByTokenHash";
 
-            migrationBuilder.CreateIndex(
-                name: "IX_MobileAuthSessions_RefreshTokenHash",
-                schema: "petwork",
-                table: "MobileAuthSessions",
-                column: "RefreshTokenHash",
-                unique: true);
+            CREATE TABLE IF NOT EXISTS petwork."PasswordResetTokens" (
+                "Id" bigint GENERATED BY DEFAULT AS IDENTITY NOT NULL,
+                "UserId" integer NOT NULL,
+                "TokenHash" character varying(64) NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "ExpiresAt" timestamp with time zone NOT NULL,
+                "UsedAt" timestamp with time zone,
+                CONSTRAINT "PK_PasswordResetTokens" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_PasswordResetTokens_Users_UserId" FOREIGN KEY ("UserId") REFERENCES petwork."Users" ("Id") ON DELETE CASCADE
+            );
 
-            migrationBuilder.CreateIndex(
-                name: "IX_MobileAuthSessions_UserId_RevokedAt_RefreshExpiresAt",
-                schema: "petwork",
-                table: "MobileAuthSessions",
-                columns: new[] { "UserId", "RevokedAt", "RefreshExpiresAt" });
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_MobileAuthSessions_RefreshTokenHash" ON petwork."MobileAuthSessions" ("RefreshTokenHash");
+            CREATE INDEX IF NOT EXISTS "IX_MobileAuthSessions_UserId_RevokedAt_RefreshExpiresAt" ON petwork."MobileAuthSessions" ("UserId", "RevokedAt", "RefreshExpiresAt");
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_PasswordResetTokens_TokenHash" ON petwork."PasswordResetTokens" ("TokenHash");
+            CREATE INDEX IF NOT EXISTS "IX_PasswordResetTokens_UserId_UsedAt_ExpiresAt" ON petwork."PasswordResetTokens" ("UserId", "UsedAt", "ExpiresAt");
+            """);
+    }
 
-            migrationBuilder.CreateIndex(
-                name: "IX_PasswordResetTokens_TokenHash",
-                schema: "petwork",
-                table: "PasswordResetTokens",
-                column: "TokenHash",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PasswordResetTokens_UserId_UsedAt_ExpiresAt",
-                schema: "petwork",
-                table: "PasswordResetTokens",
-                columns: new[] { "UserId", "UsedAt", "ExpiresAt" });
-        }
-
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropTable(
-                name: "MobileAuthSessions",
-                schema: "petwork");
-
-            migrationBuilder.DropTable(
-                name: "PasswordResetTokens",
-                schema: "petwork");
-        }
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropTable(name: "MobileAuthSessions", schema: "petwork");
+        migrationBuilder.DropTable(name: "PasswordResetTokens", schema: "petwork");
     }
 }

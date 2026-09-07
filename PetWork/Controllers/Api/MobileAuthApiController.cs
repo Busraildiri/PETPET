@@ -30,6 +30,7 @@ public sealed class MobileAuthApiController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<MobileAuthApiController> _logger;
     private readonly IPasswordResetEmailSender _passwordResetSender;
+    private readonly EmailVerificationService _emailVerificationService;
     private readonly IWebHostEnvironment _environment;
 
     public MobileAuthApiController(
@@ -37,17 +38,19 @@ public sealed class MobileAuthApiController : ControllerBase
         IConfiguration configuration,
         ILogger<MobileAuthApiController> logger,
         IPasswordResetEmailSender passwordResetSender,
+        EmailVerificationService emailVerificationService,
         IWebHostEnvironment environment)
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
         _passwordResetSender = passwordResetSender;
+        _emailVerificationService = emailVerificationService;
         _environment = environment;
     }
 
     [HttpPost("register")]
-    public async Task<ActionResult<MobileAuthResponse>> Register(MobileRegisterRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<object>> Register(MobileRegisterRequest request, CancellationToken cancellationToken)
     {
         var username = request.Username.Trim();
         var email = request.Email.Trim().ToLowerInvariant();
@@ -66,7 +69,8 @@ public sealed class MobileAuthApiController : ControllerBase
             Email = email,
             PasswordHash = string.Empty,
             RegistrationDate = DateTime.UtcNow,
-            ExperiencePoints = 50
+            ExperiencePoints = 50,
+            IsEmailVerified = false
         };
         user.PasswordHash = new PasswordHasher<User>().HashPassword(user, request.Password);
         _context.Users.Add(user);
@@ -74,16 +78,22 @@ public sealed class MobileAuthApiController : ControllerBase
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
-            var response = await CreateSessionAsync(user, request.RememberMe, "Kaydın başarıyla tamamlandı.", cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            _logger.LogInformation("Mobil üyelik tamamlandı. UserId: {UserId}", user.Id);
-            return Created(string.Empty, response);
+            var challenge = await CreateEmailChallengeAsync(user, request.RememberMe, cancellationToken);
+            _logger.LogInformation("Mobil üyelik oluşturuldu; e-posta doğrulaması bekleniyor. UserId: {UserId}", user.Id);
+            return Created(string.Empty, challenge);
         }
         catch (DbUpdateException exception)
         {
             await transaction.RollbackAsync(cancellationToken);
             _logger.LogWarning(exception, "Mobil üyelik sırasında benzersiz alan çakışması oluştu.");
             return Conflict(new MobileAuthError("Bu e-posta veya kullanıcı adı zaten kayıtlı."));
+        }
+        catch (EmailDeliveryException exception)
+        {
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync(CancellationToken.None);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new MobileAuthError(exception.Message));
         }
     }
 
@@ -102,9 +112,41 @@ public sealed class MobileAuthApiController : ControllerBase
         if (verification == PasswordVerificationResult.SuccessRehashNeeded)
             user.PasswordHash = hasher.HashPassword(user, request.Password);
 
+        if (!user.IsEmailVerified)
+        {
+            try { return Ok(await CreateEmailChallengeAsync(user, request.RememberMe, cancellationToken)); }
+            catch (EmailDeliveryException exception) { return StatusCode(StatusCodes.Status503ServiceUnavailable, new MobileAuthError(exception.Message)); }
+        }
+
         var response = await CreateSessionAsync(user, request.RememberMe, "Tekrar hoş geldin.", cancellationToken);
         _logger.LogInformation("Mobil giriş tamamlandı. UserId: {UserId}", user.Id);
         return Ok(response);
+    }
+
+    [HttpPost("verify-email")]
+    [AllowAnonymous]
+    public async Task<ActionResult<MobileAuthResponse>> VerifyEmail(MobileVerifyEmailRequest request, CancellationToken cancellationToken)
+    {
+        var verification = _emailVerificationService.Verify(request.ChallengeToken, request.Code);
+        if (!verification.Succeeded)
+            return Unauthorized(new MobileAuthError(verification.Failure == EmailVerificationFailure.Invalid ? "Doğrulama kodu hatalı." : "Doğrulama isteğinin süresi doldu. Yeniden giriş yap."));
+        var user = await _context.Users.FirstOrDefaultAsync(candidate => candidate.Id == verification.UserId, cancellationToken);
+        if (user is null) return Unauthorized(new MobileAuthError("Kullanıcı hesabı bulunamadı."));
+        user.IsEmailVerified = true;
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(await CreateSessionAsync(user, verification.RememberMe, "E-posta adresin doğrulandı.", cancellationToken));
+    }
+
+    [HttpPost("resend-email-code")]
+    [AllowAnonymous]
+    public async Task<ActionResult<MobileEmailChallengeResponse>> ResendEmailCode(MobileResendEmailCodeRequest request, CancellationToken cancellationToken)
+    {
+        if (!_emailVerificationService.TryConsumeContext(request.ChallengeToken, out var userId, out var rememberMe))
+            return Unauthorized(new MobileAuthError("Doğrulama isteğinin süresi doldu. Yeniden giriş yap."));
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(candidate => candidate.Id == userId && !candidate.IsEmailVerified, cancellationToken);
+        if (user is null) return Unauthorized(new MobileAuthError("Kullanıcı hesabı bulunamadı."));
+        try { return Ok(await CreateEmailChallengeAsync(user, rememberMe, cancellationToken)); }
+        catch (EmailDeliveryException exception) { return StatusCode(StatusCodes.Status503ServiceUnavailable, new MobileAuthError(exception.Message)); }
     }
 
     [HttpGet("me")]
@@ -251,6 +293,8 @@ public sealed class MobileAuthApiController : ControllerBase
         var user = await _context.Users.FirstOrDefaultAsync(candidate => candidate.Id == userId.Value, cancellationToken);
         if (user is null) return Unauthorized(new MobileAuthError("Oturumun geçersiz veya süresi dolmuş."));
         if (user.IsAdmin) return StatusCode(StatusCodes.Status403Forbidden, new MobileAuthError("Yönetici hesabı mobil uygulamadan silinemez."));
+        if (!string.Equals(request.Confirmation.Trim(), "SİL", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new MobileAuthError("Hesabı silmek için onay alanına SİL yazmalısın."));
 
         var hasher = new PasswordHasher<User>();
         if (hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password) == PasswordVerificationResult.Failed)
@@ -311,6 +355,13 @@ public sealed class MobileAuthApiController : ControllerBase
         _context.MobileAuthSessions.Add(session);
         await _context.SaveChangesAsync(cancellationToken);
         return CreateResponse(user, session, rawRefreshToken, message);
+    }
+
+    private async Task<MobileEmailChallengeResponse> CreateEmailChallengeAsync(User user, bool rememberMe, CancellationToken cancellationToken)
+    {
+        var challenge = await _emailVerificationService.CreateAsync(user.Id, user.Email, user.Username, rememberMe, cancellationToken);
+        return new(true, challenge.ChallengeToken, challenge.ExpiresAt, challenge.MaskedEmail,
+            $"{challenge.MaskedEmail} adresine 6 haneli doğrulama kodu gönderdik.");
     }
 
     private MobileAuthResponse CreateResponse(User user, MobileAuthSession session, string refreshToken, string message) =>
@@ -422,7 +473,27 @@ public sealed class MobileDeleteAccountRequest
 {
     [Required(ErrorMessage = "Şifre gereklidir."), StringLength(100)]
     public string Password { get; init; } = string.Empty;
+    [Required(ErrorMessage = "SİL onayı gereklidir."), StringLength(3)]
+    public string Confirmation { get; init; } = string.Empty;
 }
+
+public sealed class MobileVerifyEmailRequest
+{
+    [Required, StringLength(200)] public string ChallengeToken { get; init; } = string.Empty;
+    [Required, RegularExpression(@"^\d{6}$")] public string Code { get; init; } = string.Empty;
+}
+
+public sealed class MobileResendEmailCodeRequest
+{
+    [Required, StringLength(200)] public string ChallengeToken { get; init; } = string.Empty;
+}
+
+public sealed record MobileEmailChallengeResponse(
+    bool RequiresEmailVerification,
+    string ChallengeToken,
+    DateTime ExpiresAt,
+    string MaskedEmail,
+    string Message);
 
 public sealed record MobileAuthResponse(
     int UserId,

@@ -36,7 +36,7 @@ export function AccountScreen({ username, token, onBack, onOpenPets, onLogout, o
     if (!currentPassword) return setError('Mevcut şifreni girmelisin.');
     if (deletePhrase.trim().toLocaleUpperCase('tr-TR') !== 'SİL') return setError('Onay alanına SİL yazmalısın.');
     setBusy(true);
-    try { await deleteAccount(token, currentPassword); setDialog(null); clearForm(); onDeleted(); }
+    try { await deleteAccount(token, currentPassword, 'SİL'); setDialog(null); clearForm(); onDeleted(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Hesap silinemedi.'); }
     finally { setBusy(false); }
   };

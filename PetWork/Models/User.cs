@@ -17,6 +17,8 @@ namespace PetWork.Models
         [EmailAddress]
         [JsonIgnore]
         public string Email { get; set; }
+
+        public bool IsEmailVerified { get; set; }
         
         [Required]
         [JsonIgnore]
