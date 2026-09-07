@@ -40,6 +40,14 @@ export type AuthResponse = {
   message: string;
 };
 
+export type EmailVerificationChallengeResponse = {
+  requiresEmailVerification: true;
+  challengeToken: string;
+  expiresAt: string;
+  maskedEmail: string;
+  message: string;
+};
+
 export type CurrentUser = { userId: number; username: string; email: string };
 
 export class ApiError extends Error {
@@ -136,8 +144,15 @@ export type NearbyVeterinarian = {
   longitude: number;
 };
 
-const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/$/, '');
-export const apiUrl = configuredUrl || 'http://localhost:5147';
+function resolveApiUrl(value?: string) {
+  const normalized = value?.trim().replace(/\/+$/, '') || (__DEV__ ? 'http://localhost:5147' : '');
+  if (!normalized) throw new Error('Production API adresi tanımlanmamış.');
+  let parsed: URL;
+  try { parsed = new URL(normalized); } catch { throw new Error('API adresi geçerli bir URL değil.'); }
+  if (!__DEV__ && parsed.protocol !== 'https:') throw new Error('Production API adresi HTTPS olmalıdır.');
+  return normalized;
+}
+export const apiUrl = resolveApiUrl(process.env.EXPO_PUBLIC_API_URL);
 
 export function mediaUrl(path?: string | null) {
   if (!path) return `${apiUrl}/img/petwork-community-hero-our-pets-v2.png`;
@@ -160,7 +175,7 @@ export async function getContent(kind: ContentKind, search = '', signal?: AbortS
   return response.json();
 }
 
-async function readAuthResponse(response: Response, fallbackMessage: string): Promise<AuthResponse> {
+async function readAuthResponse<T extends AuthResponse | EmailVerificationChallengeResponse>(response: Response, fallbackMessage: string): Promise<T> {
   const payload = await response.json().catch(() => null) as {
     message?: string;
     title?: string;
@@ -173,10 +188,10 @@ async function readAuthResponse(response: Response, fallbackMessage: string): Pr
     throw new ApiError(validationMessage || payload?.message || payload?.title || fallbackMessage, response.status);
   }
 
-  return payload as AuthResponse;
+  return payload as T;
 }
 
-export async function registerUser(request: RegisterRequest): Promise<AuthResponse> {
+export async function registerUser(request: RegisterRequest): Promise<AuthResponse | EmailVerificationChallengeResponse> {
   const response = await fetch(`${apiUrl}/api/mobile/auth/register`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -186,7 +201,7 @@ export async function registerUser(request: RegisterRequest): Promise<AuthRespon
   return readAuthResponse(response, 'Kayıt işlemi tamamlanamadı.');
 }
 
-export async function loginUser(request: LoginRequest): Promise<AuthResponse> {
+export async function loginUser(request: LoginRequest): Promise<AuthResponse | EmailVerificationChallengeResponse> {
   const response = await fetch(`${apiUrl}/api/mobile/auth/login`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -194,6 +209,22 @@ export async function loginUser(request: LoginRequest): Promise<AuthResponse> {
   });
 
   return readAuthResponse(response, 'Giriş işlemi tamamlanamadı.');
+}
+
+export async function verifyEmail(challengeToken: string, code: string): Promise<AuthResponse> {
+  const response = await fetch(`${apiUrl}/api/mobile/auth/verify-email`, {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challengeToken, code }),
+  });
+  return readAuthResponse<AuthResponse>(response, 'Doğrulama kodu kabul edilmedi.');
+}
+
+export async function resendEmailCode(challengeToken: string): Promise<EmailVerificationChallengeResponse> {
+  const response = await fetch(`${apiUrl}/api/mobile/auth/resend-email-code`, {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challengeToken }),
+  });
+  return readAuthResponse<EmailVerificationChallengeResponse>(response, 'Doğrulama kodu yeniden gönderilemedi.');
 }
 
 async function authRequest(path: string, init: RequestInit, fallback: string): Promise<Response> {
@@ -253,10 +284,10 @@ export async function logoutSession(token: string): Promise<void> {
   await authRequest('logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }, 'Oturum sunucuda kapatılamadı.');
 }
 
-export async function deleteAccount(token: string, password: string): Promise<void> {
+export async function deleteAccount(token: string, password: string, confirmation: string): Promise<void> {
   await authRequest('account', {
     method: 'DELETE', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ password, confirmation }),
   }, 'Hesap silinemedi.');
 }
 

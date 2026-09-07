@@ -221,6 +221,15 @@ namespace PetWork.Data
             modelBuilder.Entity<MobileAuthSession>()
                 .HasIndex(session => new { session.UserId, session.RevokedAt, session.RefreshExpiresAt });
 
+            if (Database.IsNpgsql())
+            {
+                modelBuilder.Entity<MobileAuthSession>().Property(session => session.CreatedAt).HasColumnType("timestamp with time zone");
+                modelBuilder.Entity<MobileAuthSession>().Property(session => session.LastUsedAt).HasColumnType("timestamp with time zone");
+                modelBuilder.Entity<MobileAuthSession>().Property(session => session.AccessExpiresAt).HasColumnType("timestamp with time zone");
+                modelBuilder.Entity<MobileAuthSession>().Property(session => session.RefreshExpiresAt).HasColumnType("timestamp with time zone");
+                modelBuilder.Entity<MobileAuthSession>().Property(session => session.RevokedAt).HasColumnType("timestamp with time zone");
+            }
+
             modelBuilder.Entity<PasswordResetToken>()
                 .HasOne(token => token.User)
                 .WithMany(user => user.PasswordResetTokens)
@@ -233,6 +242,13 @@ namespace PetWork.Data
 
             modelBuilder.Entity<PasswordResetToken>()
                 .HasIndex(token => new { token.UserId, token.UsedAt, token.ExpiresAt });
+
+            if (Database.IsNpgsql())
+            {
+                modelBuilder.Entity<PasswordResetToken>().Property(token => token.CreatedAt).HasColumnType("timestamp with time zone");
+                modelBuilder.Entity<PasswordResetToken>().Property(token => token.ExpiresAt).HasColumnType("timestamp with time zone");
+                modelBuilder.Entity<PasswordResetToken>().Property(token => token.UsedAt).HasColumnType("timestamp with time zone");
+            }
         }
     }
 } 

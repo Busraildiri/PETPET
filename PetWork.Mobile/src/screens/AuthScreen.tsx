@@ -5,7 +5,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { forgotPassword, loginUser, registerUser, resetPassword, type AuthResponse } from '../api';
+import { forgotPassword, loginUser, registerUser, resendEmailCode, resetPassword, verifyEmail, type AuthResponse, type EmailVerificationChallengeResponse } from '../api';
 import { saveSession } from '../session';
 import { colors, shadow } from '../theme';
 
@@ -23,6 +23,8 @@ export function AuthScreen({ initialMode, resetToken = '', onBack, onAuthenticat
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [emailChallenge, setEmailChallenge] = useState<EmailVerificationChallengeResponse | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
 
   const isLogin = mode === 'login';
   const isRegister = mode === 'register';
@@ -36,6 +38,8 @@ export function AuthScreen({ initialMode, resetToken = '', onBack, onAuthenticat
     setPassword('');
     setConfirmPassword('');
     setFormError(null);
+    setEmailChallenge(null);
+    setVerificationCode('');
   };
 
   const submit = async () => {
@@ -83,6 +87,11 @@ export function AuthScreen({ initialMode, resetToken = '', onBack, onAuthenticat
         : await registerUser({
           username: name.trim(), email: email.trim(), password, confirmPassword, acceptTerms: accepted, rememberMe: true,
         });
+      if ('requiresEmailVerification' in result) {
+        setEmailChallenge(result);
+        setVerificationCode('');
+        return;
+      }
       await saveSession(result);
       Alert.alert(isLogin ? 'Hoş geldin!' : 'Kaydın tamamlandı!', result.message, [{ text: 'Devam Et', onPress: () => onAuthenticated(result) }]);
     } catch (reason) {
@@ -91,6 +100,41 @@ export function AuthScreen({ initialMode, resetToken = '', onBack, onAuthenticat
       setSubmitting(false);
     }
   };
+
+  const submitVerification = async () => {
+    if (!emailChallenge || !/^\d{6}$/.test(verificationCode)) { setFormError('E-postana gelen 6 haneli kodu girmelisin.'); return; }
+    setSubmitting(true); setFormError(null);
+    try {
+      const session = await verifyEmail(emailChallenge.challengeToken, verificationCode);
+      await saveSession(session);
+      Alert.alert('E-posta doğrulandı', session.message, [{ text: 'Devam Et', onPress: () => onAuthenticated(session) }]);
+    } catch (reason) { setFormError(reason instanceof Error ? reason.message : 'Kod doğrulanamadı.'); }
+    finally { setSubmitting(false); }
+  };
+
+  const resendVerification = async () => {
+    if (!emailChallenge) return;
+    setSubmitting(true); setFormError(null);
+    try { setEmailChallenge(await resendEmailCode(emailChallenge.challengeToken)); setVerificationCode(''); }
+    catch (reason) { setFormError(reason instanceof Error ? reason.message : 'Kod yeniden gönderilemedi.'); }
+    finally { setSubmitting(false); }
+  };
+
+  if (emailChallenge) return <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <StatusBar style="dark" />
+    <View style={[styles.card, styles.verifyCard]}>
+      <Pressable onPress={() => { setEmailChallenge(null); setVerificationCode(''); }} style={styles.backLink}><Ionicons name="arrow-back" size={20} color={colors.primary} /></Pressable>
+      <View style={styles.verifyBody}>
+        <Ionicons name="mail-unread-outline" size={48} color={colors.primary} />
+        <Text style={styles.title}>E-postanı doğrula</Text>
+        <Text style={styles.verifyText}>{emailChallenge.message}</Text>
+        <TextInput value={verificationCode} onChangeText={value => setVerificationCode(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={6} placeholder="000000" placeholderTextColor="#A79AA2" style={styles.codeInput} />
+        {formError ? <View style={styles.errorBox}><Ionicons name="alert-circle-outline" size={17} color="#A44A3F" /><Text style={styles.errorText}>{formError}</Text></View> : null}
+        <Pressable disabled={submitting} onPress={submitVerification} style={[styles.submitButton, submitting && styles.submitDisabled]}>{submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.submitText}>Kodu Doğrula</Text>}</Pressable>
+        <Pressable disabled={submitting} onPress={resendVerification} style={styles.switchRow}><Text style={styles.switchLink}>Kodu yeniden gönder</Text></Pressable>
+      </View>
+    </View>
+  </KeyboardAvoidingView>;
 
   return <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar style="dark" />
@@ -175,6 +219,10 @@ const isStrongPassword = (value: string) => value.length >= 8 && value.length <=
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.card }, scroll: { flexGrow: 1, justifyContent: 'center', paddingVertical: Platform.OS === 'ios' ? 30 : 18, paddingHorizontal: 24, backgroundColor: '#F2F0F1' }, scrollPhone: { justifyContent: 'flex-start', paddingVertical: 0, paddingHorizontal: 0, backgroundColor: colors.card },
   card: { width: '100%', maxWidth: 390, minHeight: 650, alignSelf: 'center', backgroundColor: colors.card, borderRadius: 24, paddingHorizontal: 34, paddingVertical: 24, overflow: 'hidden', ...shadow }, registerCard: { minHeight: 720 },
+  verifyCard: { justifyContent: 'center', margin: 24, minHeight: 520 },
+  verifyBody: { alignItems: 'center', gap: 14 },
+  verifyText: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  codeInput: { width: '100%', minHeight: 64, borderWidth: 2, borderColor: colors.primary, borderRadius: 16, color: colors.text, fontSize: 28, fontWeight: '800', letterSpacing: 12, textAlign: 'center' },
   cardPhone: { maxWidth: '100%', borderRadius: 0, paddingTop: Platform.OS === 'ios' ? 52 : 28, paddingBottom: 32, shadowOpacity: 0, elevation: 0 },
   cornerWash: { position: 'absolute', width: 245, height: 175, borderBottomRightRadius: 120, backgroundColor: colors.yellowSoft, opacity: 0.58, top: 0, left: 0 },
   ribbonTop: { position: 'absolute', width: 230, height: 28, borderRadius: 18, backgroundColor: colors.peach, top: 30, left: 95, transform: [{ rotate: '-24deg' }] },

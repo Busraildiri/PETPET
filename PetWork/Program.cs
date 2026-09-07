@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.HttpOverrides;
+using System.Net;
 using PetWork.Data;
 using PetWork.Services;
 using System.Text;
@@ -81,10 +83,32 @@ builder.Services
         };
     });
 builder.Services.AddAuthorization();
-if (builder.Environment.IsDevelopment())
+builder.Services.AddSingleton<EmailVerificationService>();
+var useResend = string.Equals(builder.Configuration["Email:Provider"], "Resend", StringComparison.OrdinalIgnoreCase);
+if (useResend)
+{
+    foreach (var key in new[] { "Email:Resend:ApiKey", "Email:Resend:FromAddress", "Email:PasswordReset:DeepLinkBase" })
+        if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
+            throw new InvalidOperationException($"Required email configuration '{key}' is missing.");
+    builder.Services.AddScoped<IPasswordResetEmailSender, ResendPasswordResetEmailSender>();
+    builder.Services.AddSingleton<IEmailVerificationSender, ResendEmailVerificationSender>();
+}
+else if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+{
     builder.Services.AddScoped<IPasswordResetEmailSender, DevelopmentPasswordResetEmailSender>();
+    builder.Services.AddSingleton<IEmailVerificationSender, DevelopmentEmailVerificationSender>();
+}
 else
-    builder.Services.AddScoped<IPasswordResetEmailSender, UnavailablePasswordResetEmailSender>();
+{
+    throw new InvalidOperationException("Email:Provider must be Resend outside Development.");
+}
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    foreach (var value in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [])
+        if (IPAddress.TryParse(value, out var address)) options.KnownProxies.Add(address);
+});
 
 // Session servisi ekle
 builder.Services.AddDistributedMemoryCache();
@@ -239,6 +263,7 @@ if (builder.Configuration.GetValue<bool>("DatabaseMigrations:ApplyOnStartup"))
 }
 
 // Configure the HTTP request pipeline.
+app.UseForwardedHeaders();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
