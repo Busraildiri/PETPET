@@ -43,7 +43,14 @@
         }
       ],
       "expo-secure-store",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-notifications",
+        {
+          "color": "#6D4A65",
+          "defaultChannel": "community"
+        }
+      ]
     ]
   }
 }

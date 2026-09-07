@@ -15,6 +15,7 @@ import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
 import { PetsScreen } from './src/screens/PetsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ContentScreen } from './src/screens/ContentScreen';
+import { configureNotifications } from './src/notifications';
 import { colors, shadow } from './src/theme';
 import type { SocialTab } from './src/types/social';
 
@@ -23,6 +24,8 @@ type PageKey = 'root' | 'login' | 'register' | 'account' | 'pets' | 'nearby' | '
 
 const communityDemoImage = require('./assets/community-demo.png');
 const locationConsentKey = 'petwork_location_consent_v1';
+
+void configureNotifications();
 
 const categories = [
   { title: 'Soru-Cevap', icon: 'help-circle-outline' as const, color: colors.lilacSoft, ink: colors.primary, kind: null },
@@ -118,7 +121,7 @@ export default function App() {
     onOpenLost={openLost}
   />;
   else if (tab === 'lost') screen = <LostHub onNavigate={setPage} />;
-  else if (tab === 'settings') screen = <SettingsScreen username={currentUser} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} />;
+  else if (tab === 'settings') screen = <SettingsScreen username={currentUser} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} />;
   else screen = <ComingSoon tab={tab} onHome={() => changeTab('home')} />;
 
   return (
