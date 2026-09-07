@@ -13,6 +13,14 @@ export type HomePayload = {
   featured: Story[]; blogs: Story[]; questions: Question[]; memberCount: number; questionCount: number;
 };
 
+export type ContentKind = 'all' | 'guides' | 'diseases' | 'recipes' | 'blogs' | 'grief';
+
+export type ContentItem = {
+  id: number; kind: ContentKind; title: string; summary: string; body: string; category: string;
+  animalType?: string | null; meta?: string | null; imagePath?: string | null; publishedAt: string;
+  viewCount: number; sourceUrl?: string | null; sourceName?: string | null; attribution?: string | null;
+};
+
 export type RegisterRequest = {
   username: string;
   email: string;
@@ -131,6 +139,15 @@ export function mediaUrl(path?: string | null) {
 export async function getHome(signal?: AbortSignal): Promise<HomePayload> {
   const response = await fetch(`${apiUrl}/api/mobile/home`, { headers: { Accept: 'application/json' }, signal });
   if (!response.ok) throw new Error(`PetWork API ${response.status} döndürdü.`);
+  return response.json();
+}
+
+export async function getContent(kind: ContentKind, search = '', signal?: AbortSignal): Promise<ContentItem[]> {
+  const query = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+  const response = await fetch(`${apiUrl}/api/mobile/content/${kind}${query}`, {
+    headers: { Accept: 'application/json' }, signal,
+  });
+  if (!response.ok) throw new Error(`İçerikler alınamadı (${response.status}).`);
   return response.json();
 }
 
