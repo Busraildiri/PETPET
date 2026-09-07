@@ -34,6 +34,15 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
+    options.AddPolicy("mobile-autocomplete", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 90,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -312,11 +321,12 @@ app.Use(async (context, next) =>
     var isMobileSocialRequest = context.Request.Path.StartsWithSegments("/api/mobile/social");
     var isMobileNearbyRequest = context.Request.Path.StartsWithSegments("/api/mobile/nearby");
     var isMobilePetRequest = context.Request.Path.StartsWithSegments("/api/mobile/pets");
+    var isMobilePatiMatchRequest = context.Request.Path.StartsWithSegments("/api/mobile/pati-match");
     var isReadOnlyMethod = HttpMethods.IsGet(context.Request.Method) ||
                            HttpMethods.IsHead(context.Request.Method) ||
                            HttpMethods.IsOptions(context.Request.Method);
 
-    if (isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest && !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest && !isMobilePetRequest)
+    if (isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest && !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest && !isMobilePetRequest && !isMobilePatiMatchRequest)
     {
         var userId = context.Session.GetInt32("UserId");
         if (userId is null)

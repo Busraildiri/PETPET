@@ -71,6 +71,45 @@ export type PetProfile = {
   profileImage?: string | null;
 };
 
+export type PatiMatchMyPet = PetProfile & {
+  isActive: boolean;
+  purpose?: 'friendship' | 'mate' | null;
+  city?: string | null;
+  district?: string | null;
+  preferredTypes: string[];
+};
+
+export type PatiMatchCandidate = {
+  petId: number;
+  name: string;
+  type: string;
+  breed?: string | null;
+  age?: number | null;
+  gender?: string | null;
+  description?: string | null;
+  profileImage?: string | null;
+  purpose: 'friendship' | 'mate';
+  city: string;
+  district?: string | null;
+};
+
+export type PatiMatchOverview = { pets: PatiMatchMyPet[]; matchCount: number };
+
+export type PatiMatchMessage = {
+  id: number;
+  body: string;
+  isMine: boolean;
+  username: string;
+  createdAt: string;
+};
+
+export type LocationSuggestion = {
+  id: string;
+  name: string;
+  secondaryText?: string | null;
+  label: string;
+};
+
 export type PetProfileRequest = Omit<PetProfile, 'id' | 'profileImage'>;
 
 export type SocialPostPayload = {
@@ -659,4 +698,78 @@ export async function reportSocialPost(token: string, postId: number, reason: st
   const payload = await response.json().catch(() => null) as { message?: string } | null;
   if (!response.ok) throw new Error(payload?.message || `Gönderi bildirilemedi (${response.status}).`);
   return payload?.message || 'Bildirimin alındı.';
+}
+
+async function readPatiMatchResponse<T>(response: Response, fallback: string): Promise<T> {
+  const payload = await response.json().catch(() => null) as T | { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+  if (!response.ok) {
+    const error = payload as { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+    const validation = error?.errors ? Object.values(error.errors).flat()[0] : undefined;
+    throw new ApiError(validation || error?.message || error?.title || fallback, response.status);
+  }
+  return payload as T;
+}
+
+export async function getPatiMatchOverview(token: string, signal?: AbortSignal): Promise<PatiMatchOverview> {
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match`, { headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal });
+  return readPatiMatchResponse<PatiMatchOverview>(response, `PatiMatch bilgileri alınamadı (${response.status}).`);
+}
+
+export async function getLocationSuggestions(input: string, kind: 'city' | 'district', city?: string, signal?: AbortSignal): Promise<LocationSuggestion[]> {
+  const query = new URLSearchParams({ input: input.trim(), kind });
+  if (city?.trim()) query.set('city', city.trim());
+  const response = await fetch(`${apiUrl}/api/mobile/nearby/locations/autocomplete?${query}`, { headers: { Accept: 'application/json' }, signal });
+  return readPatiMatchResponse<LocationSuggestion[]>(response, `Konum önerileri alınamadı (${response.status}).`);
+}
+
+export async function enrollPatiMatch(token: string, request: { petId: number; purpose: 'friendship' | 'mate'; city: string; district?: string; preferredTypes: string[]; acceptSafetyTerms: boolean }): Promise<PatiMatchMyPet> {
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match/enroll`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(request),
+  });
+  return readPatiMatchResponse<PatiMatchMyPet>(response, `PatiMatch profili oluşturulamadı (${response.status}).`);
+}
+
+export async function getPatiMatchCandidates(token: string, petId: number, signal?: AbortSignal): Promise<PatiMatchCandidate[]> {
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match/candidates?petId=${petId}`, { headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal });
+  return readPatiMatchResponse<PatiMatchCandidate[]>(response, `PatiMatch adayları alınamadı (${response.status}).`);
+}
+
+export async function decidePatiMatch(token: string, sourcePetId: number, targetPetId: number, isLike: boolean): Promise<{ matched: boolean }> {
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match/decisions`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sourcePetId, targetPetId, isLike }),
+  });
+  return readPatiMatchResponse<{ matched: boolean }>(response, 'PatiMatch seçimi kaydedilemedi.');
+}
+
+export async function getPatiMatches(token: string, petId: number, signal?: AbortSignal): Promise<PatiMatchCandidate[]> {
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match/matches?petId=${petId}`, { headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal });
+  return readPatiMatchResponse<PatiMatchCandidate[]>(response, `Eşleşmeler alınamadı (${response.status}).`);
+}
+
+export async function getPatiMatchMessages(token: string, sourcePetId: number, targetPetId: number, signal?: AbortSignal): Promise<PatiMatchMessage[]> {
+  const query = new URLSearchParams({ sourcePetId: String(sourcePetId), targetPetId: String(targetPetId) });
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match/messages?${query}`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal,
+  });
+  return readPatiMatchResponse<PatiMatchMessage[]>(response, `Mesajlar alınamadı (${response.status}).`);
+}
+
+export async function sendPatiMatchMessage(token: string, sourcePetId: number, targetPetId: number, body: string): Promise<PatiMatchMessage> {
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match/messages`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sourcePetId, targetPetId, body }),
+  });
+  return readPatiMatchResponse<PatiMatchMessage>(response, `Mesaj gönderilemedi (${response.status}).`);
+}
+
+export async function deactivatePatiMatch(token: string, petId: number): Promise<void> {
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match/profiles/${petId}`, {
+    method: 'DELETE', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) await readPatiMatchResponse(response, 'PatiMatch profili kapatılamadı.');
 }

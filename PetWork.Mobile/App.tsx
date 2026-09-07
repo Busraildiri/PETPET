@@ -12,6 +12,7 @@ import { apiUrl, getHome, getNearbyGroomers, getNearbyPetHotels, getNearbyVeteri
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
+import { PatiMatchScreen } from './src/screens/PatiMatchScreen';
 import { PetsScreen } from './src/screens/PetsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ContentScreen } from './src/screens/ContentScreen';
@@ -56,6 +57,7 @@ export default function App() {
   const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>('posts');
   const [nearbyCategory, setNearbyCategory] = useState<'veterinarian' | 'groomer' | 'hotel'>('veterinarian');
   const [contentKind, setContentKind] = useState<ContentKind>('blogs');
+  const [matchChatOpen, setMatchChatOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 1600);
@@ -89,7 +91,7 @@ export default function App() {
     </View>;
   }
 
-  const changeTab = (next: TabKey) => { if (next === 'social') setSocialInitialTab('posts'); setTab(next); setPage('root'); };
+  const changeTab = (next: TabKey) => { if (next === 'social') setSocialInitialTab('posts'); setMatchChatOpen(false); setTab(next); setPage('root'); };
   const openLost = () => { setTab('lost'); setPage('root'); };
   const openQuestions = () => { setSocialInitialTab('questions'); setTab('social'); setPage('root'); };
   const sessionChanged = (session: AuthResponse) => { void saveSession(session); setCurrentUser(session.username); setAuthToken(session.token); };
@@ -133,6 +135,7 @@ export default function App() {
     onOpenLost={openLost}
   />;
   else if (tab === 'lost') screen = <LostHub onNavigate={setPage} />;
+  else if (tab === 'match') screen = <PatiMatchScreen token={authToken} username={currentUser} onLogin={() => setPage('login')} onOpenPets={() => setPage('pets')} onSessionExpired={() => { void logout(); setPage('login'); }} onChatStateChange={setMatchChatOpen} />;
   else if (tab === 'settings') screen = <SettingsScreen username={currentUser} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} />;
   else screen = <ComingSoon tab={tab} onHome={() => changeTab('home')} />;
 
@@ -140,7 +143,7 @@ export default function App() {
     <View style={styles.app}>
       <StatusBar style={tab === 'home' ? 'light' : 'dark'} />
       {screen}
-      {page !== 'login' && page !== 'register' && page !== 'reset' ? <BottomTabs active={tab} onChange={changeTab} /> : null}
+      {page !== 'login' && page !== 'register' && page !== 'reset' && !matchChatOpen ? <BottomTabs active={tab} onChange={changeTab} /> : null}
     </View>
   );
 }
