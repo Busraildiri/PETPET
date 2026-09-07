@@ -11,10 +11,50 @@ public sealed class MobileNearbyApiController : ControllerBase
     private readonly GooglePlacesService _googlePlaces;
     private readonly ILogger<MobileNearbyApiController> _logger;
 
-    public MobileNearbyApiController(GooglePlacesService googlePlaces, ILogger<MobileNearbyApiController> logger)
+    public MobileNearbyApiController(
+        GooglePlacesService googlePlaces,
+        ILogger<MobileNearbyApiController> logger)
     {
         _googlePlaces = googlePlaces;
         _logger = logger;
+    }
+
+    [HttpGet("locations/autocomplete")]
+    [EnableRateLimiting("mobile-autocomplete")]
+    public async Task<ActionResult<IReadOnlyList<LocationSuggestion>>> SearchLocations(
+        [FromQuery] string? input,
+        [FromQuery] string kind = "city",
+        [FromQuery] string? city = null,
+        CancellationToken cancellationToken = default)
+    {
+        input = input?.Trim();
+        kind = kind.Trim().ToLowerInvariant();
+        city = city?.Trim();
+        if (string.IsNullOrWhiteSpace(input) || input.Length < 2)
+            return Ok(Array.Empty<LocationSuggestion>());
+        if (input.Length > 80 || city?.Length > 80)
+            return BadRequest(new { message = "Şehir ve ilçe bilgisi 80 karakterden uzun olamaz." });
+        if (kind is not ("city" or "district"))
+            return BadRequest(new { message = "Geçersiz konum türü." });
+        if (kind == "district" && string.IsNullOrWhiteSpace(city))
+            return BadRequest(new { message = "İlçe araması için önce şehir seçilmelidir." });
+
+        try
+        {
+            return Ok(await _googlePlaces.SearchLocationSuggestionsAsync(input, kind, city, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Google Places yapılandırması eksik.");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { message = "Konum önerileri henüz yapılandırılmadı." });
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Google Places konum önerileri alınamadı.");
+            return StatusCode(StatusCodes.Status502BadGateway,
+                new { message = "Konum önerileri şu anda alınamadı. Lütfen tekrar dene." });
+        }
     }
 
     [HttpPost("veterinarians")]
@@ -27,27 +67,33 @@ public sealed class MobileNearbyApiController : ControllerBase
         var longitude = request.Longitude;
         if (latitude is < -90 or > 90 || longitude is < -180 or > 180)
             return BadRequest(new { message = "Geçerli bir konum gönderilmelidir." });
+
         var radiusMeters = Math.Clamp(request.RadiusMeters, 1000, 20_000);
+
         try
         {
-            return Ok(await _googlePlaces.SearchVeterinariansAsync(latitude, longitude, radiusMeters, cancellationToken));
+            return Ok(await _googlePlaces.SearchVeterinariansAsync(
+                latitude, longitude, radiusMeters, cancellationToken));
         }
         catch (InvalidOperationException exception)
         {
             _logger.LogWarning(exception, "Google Places yapılandırması eksik.");
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Yakındaki veteriner hizmeti henüz yapılandırılmadı." });
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { message = "Yakındaki veteriner hizmeti henüz yapılandırılmadı." });
         }
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "Google Places veteriner araması başarısız oldu.");
-            return StatusCode(StatusCodes.Status502BadGateway, new { message = "Veterinerler şu anda alınamadı. Lütfen tekrar dene." });
+            return StatusCode(StatusCodes.Status502BadGateway,
+                new { message = "Veterinerler şu anda alınamadı. Lütfen tekrar dene." });
         }
     }
 
     [HttpGet("veterinarians/search")]
     [EnableRateLimiting("mobile-content")]
     public async Task<ActionResult<IReadOnlyList<NearbyVeterinarian>>> SearchVeterinarians(
-        [FromQuery] string? city, [FromQuery] string? district,
+        [FromQuery] string? city,
+        [FromQuery] string? district,
         CancellationToken cancellationToken = default)
     {
         city = city?.Trim();
@@ -56,6 +102,7 @@ public sealed class MobileNearbyApiController : ControllerBase
             return BadRequest(new { message = "Şehir veya ilçe bilgilerinden en az birini yazmalısın." });
         if (city?.Length > 80 || district?.Length > 80)
             return BadRequest(new { message = "Şehir ve ilçe bilgisi 80 karakterden uzun olamaz." });
+
         try
         {
             return Ok(await _googlePlaces.SearchVeterinariansByAreaAsync(city, district, cancellationToken));
@@ -63,12 +110,14 @@ public sealed class MobileNearbyApiController : ControllerBase
         catch (InvalidOperationException exception)
         {
             _logger.LogWarning(exception, "Google Places yapılandırması eksik.");
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Yakındaki veteriner hizmeti henüz yapılandırılmadı." });
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { message = "Yakındaki veteriner hizmeti henüz yapılandırılmadı." });
         }
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "Google Places manuel veteriner araması başarısız oldu.");
-            return StatusCode(StatusCodes.Status502BadGateway, new { message = "Bu konumdaki veterinerler şu anda alınamadı. Lütfen tekrar dene." });
+            return StatusCode(StatusCodes.Status502BadGateway,
+                new { message = "Bu konumdaki veterinerler şu anda alınamadı. Lütfen tekrar dene." });
         }
     }
 

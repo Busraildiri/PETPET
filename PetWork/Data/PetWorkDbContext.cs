@@ -31,6 +31,9 @@ namespace PetWork.Data
         public DbSet<SocialPostReport> SocialPostReports { get; set; }
         public DbSet<MobileAuthSession> MobileAuthSessions { get; set; }
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
+        public DbSet<PatiMatchProfile> PatiMatchProfiles { get; set; }
+        public DbSet<PatiMatchDecision> PatiMatchDecisions { get; set; }
+        public DbSet<PatiMatchMessage> PatiMatchMessages { get; set; }
         
         public override int SaveChanges()
         {
@@ -189,6 +192,56 @@ namespace PetWork.Data
 
             modelBuilder.Entity<SocialPostReport>()
                 .HasIndex(report => new { report.IsResolved, report.CreatedAt });
+
+            modelBuilder.Entity<PatiMatchProfile>()
+                .HasOne(profile => profile.Pet)
+                .WithOne()
+                .HasForeignKey<PatiMatchProfile>(profile => profile.PetId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PatiMatchProfile>()
+                .HasIndex(profile => profile.PetId)
+                .IsUnique();
+
+            modelBuilder.Entity<PatiMatchProfile>()
+                .HasIndex(profile => new { profile.IsActive, profile.City });
+
+            modelBuilder.Entity<PatiMatchDecision>()
+                .HasOne(decision => decision.SourcePet)
+                .WithMany()
+                .HasForeignKey(decision => decision.SourcePetId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<PatiMatchDecision>()
+                .HasOne(decision => decision.TargetPet)
+                .WithMany()
+                .HasForeignKey(decision => decision.TargetPetId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<PatiMatchDecision>()
+                .HasIndex(decision => new { decision.SourcePetId, decision.TargetPetId })
+                .IsUnique();
+
+            modelBuilder.Entity<PatiMatchMessage>()
+                .HasOne(message => message.PetOne)
+                .WithMany()
+                .HasForeignKey(message => message.PetOneId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<PatiMatchMessage>()
+                .HasOne(message => message.PetTwo)
+                .WithMany()
+                .HasForeignKey(message => message.PetTwoId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<PatiMatchMessage>()
+                .HasOne(message => message.SenderUser)
+                .WithMany()
+                .HasForeignKey(message => message.SenderUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<PatiMatchMessage>()
+                .HasIndex(message => new { message.PetOneId, message.PetTwoId, message.CreatedAt });
 
             modelBuilder.Entity<ExternalContentSource>()
                 .HasOne(source => source.ReviewedByUser)
