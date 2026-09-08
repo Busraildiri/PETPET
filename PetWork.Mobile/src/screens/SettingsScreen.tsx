@@ -17,12 +17,13 @@ type Props = {
   onLogin: () => void;
   onLogout: () => void;
   onOpenQuestions: () => void;
+  onOpenPatiMatch: () => void;
 };
 type Page = 'main' | 'help' | 'legal';
 type Permission = NotificationPermission | null;
 const notificationKeys: NotificationSettingKey[] = ['communityNotifications', 'lostPetNotifications', 'matchNotifications'];
 
-export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onOpenQuestions }: Props) {
+export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onOpenQuestions, onOpenPatiMatch }: Props) {
   const [settings, setSettings] = useState<PetimSettings>(defaultSettings);
   const [permission, setPermission] = useState<Permission>(null);
   const [loading, setLoading] = useState(true);
@@ -39,10 +40,6 @@ export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onO
         if (currentPermission && !notificationsAllowed(currentPermission)) {
           next = { ...stored, communityNotifications: false, lostPetNotifications: false, matchNotifications: false };
           changed = notificationKeys.some(key => stored[key]);
-        }
-        if (!username && next.nearbyVisibility) {
-          next = { ...next, nearbyVisibility: false };
-          changed = true;
         }
         if (changed) await writeSettings(next);
         if (active) {
@@ -116,18 +113,6 @@ export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onO
     }
   };
 
-  const updateVisibility = async (value: boolean) => {
-    if (saving) return;
-    if (value && !username) {
-      Alert.alert('Giriş yapmalısın', 'Profilinin keşif alanında görünebilmesi için önce hesabına giriş yap.', [
-        { text: 'Vazgeç', style: 'cancel' },
-        { text: 'Giriş Yap', onPress: onLogin },
-      ]);
-      return;
-    }
-    await persist({ ...settings, nearbyVisibility: value });
-  };
-
   const confirmLogout = () => Alert.alert(
     'Çıkış yapmak istiyor musun?',
     'Bu cihazdaki oturumun kapatılacak. Hesabın ve içeriklerin silinmeyecek.',
@@ -169,7 +154,7 @@ export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onO
 
       <SectionTitle icon="shield-checkmark-outline" title="Gizlilik ve konum" />
       <View style={styles.card}>
-        <SettingSwitch icon="paw-outline" title="Yakındaki patilerde görün" subtitle={username ? 'Profilin keşif alanında gösterilsin' : 'Açmak için hesabına giriş yap'} value={settings.nearbyVisibility} disabled={saving} onChange={value => void updateVisibility(value)} />
+        <InfoRow icon="paw-outline" title="PatiMatch görünürlüğü" subtitle={username ? 'Görünür patilerini ve eşleşme tercihlerini yönet' : 'Yönetmek için hesabına giriş yap'} onPress={username ? onOpenPatiMatch : onLogin} />
         <InfoRow icon="navigate-outline" title="Yaklaşık konum koruması" subtitle="Kesin ev adresin paylaşılmaz; bu koruma her zaman açık" onPress={() => Alert.alert('Yaklaşık konum koruması', 'Pet’im diğer kullanıcılara kesin koordinatını veya ev adresini göstermez. İlan ve keşif alanlarında konum yaklaşıklaştırılır.')} />
         <InfoRow icon="options-outline" title="Cihaz konum izni" subtitle="Pet’im için konum erişimini yönet" onPress={() => void Linking.openSettings()} last />
       </View>

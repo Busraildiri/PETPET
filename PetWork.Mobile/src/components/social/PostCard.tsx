@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { colors, shadow } from '../../theme';
 import type { SocialPost } from '../../types/social';
 
@@ -13,6 +13,27 @@ type Props = {
 export function PostCard({ post, onComment, onReport }: Props) {
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const sharePost = async () => {
+    const tags = post.tags.map(tag => `#${tag.replace(/\s+/g, '')}`).join(' ');
+    const imageUrl = post.image ? publicHttpsUrl(Image.resolveAssetSource(post.image)?.uri) : undefined;
+    const message = [
+      `${post.petName} ${post.username}`,
+      post.body,
+      tags,
+      imageUrl,
+      "Pet'im by PetWork",
+    ].filter(Boolean).join('\n\n');
+
+    try {
+      await Share.share(
+        { title: `${post.petName} paylaşımı`, message },
+        { dialogTitle: "Pet'im gönderisini paylaş" },
+      );
+    } catch {
+      Alert.alert('Paylaşılamadı', 'Paylaşım menüsü şu anda açılamadı. Lütfen yeniden dene.');
+    }
+  };
 
   return (
     <View style={styles.card}>
@@ -44,7 +65,7 @@ export function PostCard({ post, onComment, onReport }: Props) {
           <Ionicons name="chatbubble-outline" size={20} color={colors.primary} />
           <Text style={styles.actionText}>{post.commentCount > 0 ? `${post.commentCount} yorum` : 'Yorum yap'}</Text>
         </Pressable>
-        <Pressable style={styles.action} accessibilityLabel="Gönderiyi paylaş">
+        <Pressable onPress={() => void sharePost()} style={styles.action} accessibilityLabel="Gönderiyi paylaş">
           <Ionicons name="paper-plane-outline" size={20} color={colors.primary} />
           <Text style={styles.actionText}>Paylaş</Text>
         </Pressable>
@@ -54,6 +75,16 @@ export function PostCard({ post, onComment, onReport }: Props) {
       </View>
     </View>
   );
+}
+
+function publicHttpsUrl(value?: string) {
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.toString() : '';
+  } catch {
+    return '';
+  }
 }
 
 const styles = StyleSheet.create({
