@@ -8,11 +8,25 @@ type Props = {
   post: SocialPost;
   onComment: (post: SocialPost) => void;
   onReport: (post: SocialPost) => void;
+  onLike: (post: SocialPost) => Promise<void>;
+  onSave: (post: SocialPost) => Promise<void>;
 };
 
-export function PostCard({ post, onComment, onReport }: Props) {
-  const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
+export function PostCard({ post, onComment, onReport, onLike, onSave }: Props) {
+  const [likeBusy, setLikeBusy] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+
+  const toggleLike = async () => {
+    if (likeBusy) return;
+    setLikeBusy(true);
+    try { await onLike(post); } finally { setLikeBusy(false); }
+  };
+
+  const toggleSave = async () => {
+    if (saveBusy) return;
+    setSaveBusy(true);
+    try { await onSave(post); } finally { setSaveBusy(false); }
+  };
 
   const sharePost = async () => {
     const tags = post.tags.map(tag => `#${tag.replace(/\s+/g, '')}`).join(' ');
@@ -57,9 +71,9 @@ export function PostCard({ post, onComment, onReport }: Props) {
       {post.image ? <Image source={post.image} style={styles.image} resizeMode="cover" accessibilityLabel={`${post.petName} gönderi görseli`} /> : null}
 
       <View style={styles.actions}>
-        <Pressable onPress={() => setLiked(value => !value)} style={styles.action} accessibilityLabel={liked ? 'Beğeniyi kaldır' : 'Gönderiyi beğen'}>
-          <Ionicons name={liked ? 'heart' : 'heart-outline'} size={22} color={liked ? colors.danger : colors.primary} />
-          <Text style={[styles.actionText, liked && styles.likedText]}>{liked ? 'Beğenildi' : 'Beğen'}</Text>
+        <Pressable disabled={likeBusy} onPress={() => void toggleLike()} style={[styles.action, likeBusy && styles.disabled]} accessibilityLabel={post.isLikedByMe ? 'Beğeniyi kaldır' : 'Gönderiyi beğen'}>
+          <Ionicons name={post.isLikedByMe ? 'heart' : 'heart-outline'} size={22} color={post.isLikedByMe ? colors.danger : colors.primary} />
+          <Text style={[styles.actionText, post.isLikedByMe && styles.likedText]}>{post.likeCount > 0 ? String(post.likeCount) : 'Beğen'}</Text>
         </Pressable>
         <Pressable onPress={() => onComment(post)} style={styles.action} accessibilityLabel="Yorumları aç">
           <Ionicons name="chatbubble-outline" size={20} color={colors.primary} />
@@ -69,8 +83,8 @@ export function PostCard({ post, onComment, onReport }: Props) {
           <Ionicons name="paper-plane-outline" size={20} color={colors.primary} />
           <Text style={styles.actionText}>Paylaş</Text>
         </Pressable>
-        <Pressable onPress={() => setSaved(value => !value)} style={styles.saveAction} accessibilityLabel={saved ? 'Kaydedilenlerden çıkar' : 'Gönderiyi kaydet'}>
-          <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={21} color={colors.primary} />
+        <Pressable disabled={saveBusy} onPress={() => void toggleSave()} style={[styles.saveAction, saveBusy && styles.disabled]} accessibilityLabel={post.isSavedByMe ? 'Kaydedilenlerden çıkar' : 'Gönderiyi kaydet'}>
+          <Ionicons name={post.isSavedByMe ? 'bookmark' : 'bookmark-outline'} size={21} color={colors.primary} />
         </Pressable>
       </View>
     </View>
@@ -101,5 +115,5 @@ const styles = StyleSheet.create({
   tag: { color: colors.primary, fontSize: 11, fontWeight: '700' }, image: { width: '100%', height: 260, backgroundColor: colors.sageSoft },
   actions: { minHeight: 55, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: colors.border, gap: 19 },
   action: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44 }, saveAction: { marginLeft: 'auto', minHeight: 44, justifyContent: 'center' },
-  actionText: { color: colors.muted, fontSize: 11, fontWeight: '700' }, likedText: { color: colors.danger },
+  actionText: { color: colors.muted, fontSize: 11, fontWeight: '700' }, likedText: { color: colors.danger }, disabled: { opacity: 0.5 },
 });

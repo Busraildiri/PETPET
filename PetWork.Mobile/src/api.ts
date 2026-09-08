@@ -121,6 +121,9 @@ export type SocialPostPayload = {
   imagePath?: string | null;
   createdAt: string;
   commentCount: number;
+  likeCount: number;
+  isLikedByMe: boolean;
+  isSavedByMe: boolean;
 };
 
 export type SocialCommentPayload = {
@@ -129,7 +132,11 @@ export type SocialCommentPayload = {
   isAdmin: boolean;
   body: string;
   createdAt: string;
+  likeCount: number;
+  isLikedByMe: boolean;
 };
+
+export type SocialReactionPayload = { active: boolean; count: number };
 
 export type QuestionSummary = {
   id: number;
@@ -393,7 +400,7 @@ export async function deletePet(token: string, id: number): Promise<void> {
   }
 }
 
-async function fetchSocialPostsOnce(signal?: AbortSignal): Promise<SocialPostPayload[]> {
+async function fetchSocialPostsOnce(token?: string | null, signal?: AbortSignal): Promise<SocialPostPayload[]> {
   const timeoutController = new AbortController();
   const abortFromCaller = () => timeoutController.abort();
   if (signal?.aborted) timeoutController.abort();
@@ -402,7 +409,11 @@ async function fetchSocialPostsOnce(signal?: AbortSignal): Promise<SocialPostPay
   const timeoutId = setTimeout(() => timeoutController.abort(), 8000);
   try {
     const response = await fetchApi(`${apiUrl}/api/mobile/social/posts`, {
-      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       signal: timeoutController.signal,
     });
 
@@ -420,13 +431,13 @@ async function fetchSocialPostsOnce(signal?: AbortSignal): Promise<SocialPostPay
   }
 }
 
-export async function getSocialPosts(signal?: AbortSignal): Promise<SocialPostPayload[]> {
+export async function getSocialPosts(token?: string | null, signal?: AbortSignal): Promise<SocialPostPayload[]> {
   try {
-    return await fetchSocialPostsOnce(signal);
+    return await fetchSocialPostsOnce(token, signal);
   } catch (firstError) {
     if (signal?.aborted) throw firstError;
     await new Promise(resolve => setTimeout(resolve, 500));
-    return fetchSocialPostsOnce(signal);
+    return fetchSocialPostsOnce(token, signal);
   }
 }
 
@@ -650,9 +661,9 @@ export async function createSocialPost(
   return payload as SocialPostPayload;
 }
 
-export async function getSocialComments(postId: number, signal?: AbortSignal): Promise<SocialCommentPayload[]> {
+export async function getSocialComments(postId: number, token?: string | null, signal?: AbortSignal): Promise<SocialCommentPayload[]> {
   const response = await fetchApi(`${apiUrl}/api/mobile/social/posts/${postId}/comments`, {
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     signal,
   });
 
@@ -691,6 +702,36 @@ export async function createSocialComment(
   }
 
   return payload as SocialCommentPayload;
+}
+
+async function setSocialReaction(path: string, token: string, active: boolean): Promise<SocialReactionPayload> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/social/posts/${path}`, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ active }),
+  });
+  const payload = await response.json().catch(() => null) as SocialReactionPayload | { message?: string } | null;
+  if (!response.ok) {
+    const message = payload && 'message' in payload ? payload.message : undefined;
+    throw new ApiError(message || `İşlem tamamlanamadı (${response.status}).`, response.status);
+  }
+  return payload as SocialReactionPayload;
+}
+
+export function setSocialPostLike(token: string, postId: number, active: boolean) {
+  return setSocialReaction(`${postId}/like`, token, active);
+}
+
+export function setSocialPostSave(token: string, postId: number, active: boolean) {
+  return setSocialReaction(`${postId}/save`, token, active);
+}
+
+export function setSocialCommentLike(token: string, commentId: number, active: boolean) {
+  return setSocialReaction(`comments/${commentId}/like`, token, active);
 }
 
 export async function deleteSocialPost(token: string, postId: number): Promise<void> {

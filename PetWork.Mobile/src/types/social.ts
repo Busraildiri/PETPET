@@ -15,4 +15,7 @@ export type SocialPost = {
   tags: string[];
   isAdmin?: boolean;
   commentCount: number;
+  likeCount: number;
+  isLikedByMe: boolean;
+  isSavedByMe: boolean;
 };

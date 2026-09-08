@@ -29,6 +29,9 @@ namespace PetWork.Data
         public DbSet<SocialPost> SocialPosts { get; set; }
         public DbSet<SocialComment> SocialComments { get; set; }
         public DbSet<SocialPostReport> SocialPostReports { get; set; }
+        public DbSet<SocialPostLike> SocialPostLikes { get; set; }
+        public DbSet<SocialPostSave> SocialPostSaves { get; set; }
+        public DbSet<SocialCommentLike> SocialCommentLikes { get; set; }
         public DbSet<MobileAuthSession> MobileAuthSessions { get; set; }
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
         public DbSet<PatiMatchProfile> PatiMatchProfiles { get; set; }
@@ -192,6 +195,54 @@ namespace PetWork.Data
 
             modelBuilder.Entity<SocialPostReport>()
                 .HasIndex(report => new { report.IsResolved, report.CreatedAt });
+
+            modelBuilder.Entity<SocialPostLike>()
+                .HasOne(like => like.SocialPost)
+                .WithMany(post => post.Likes)
+                .HasForeignKey(like => like.SocialPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SocialPostLike>()
+                .HasOne(like => like.User)
+                .WithMany()
+                .HasForeignKey(like => like.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SocialPostLike>()
+                .HasIndex(like => new { like.SocialPostId, like.UserId })
+                .IsUnique();
+
+            modelBuilder.Entity<SocialPostSave>()
+                .HasOne(save => save.SocialPost)
+                .WithMany(post => post.Saves)
+                .HasForeignKey(save => save.SocialPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SocialPostSave>()
+                .HasOne(save => save.User)
+                .WithMany()
+                .HasForeignKey(save => save.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SocialPostSave>()
+                .HasIndex(save => new { save.SocialPostId, save.UserId })
+                .IsUnique();
+
+            modelBuilder.Entity<SocialCommentLike>()
+                .HasOne(like => like.SocialComment)
+                .WithMany(comment => comment.Likes)
+                .HasForeignKey(like => like.SocialCommentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SocialCommentLike>()
+                .HasOne(like => like.User)
+                .WithMany()
+                .HasForeignKey(like => like.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SocialCommentLike>()
+                .HasIndex(like => new { like.SocialCommentId, like.UserId })
+                .IsUnique();
 
             modelBuilder.Entity<PatiMatchProfile>()
                 .HasOne(profile => profile.Pet)
