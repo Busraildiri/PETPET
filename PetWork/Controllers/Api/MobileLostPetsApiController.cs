@@ -168,6 +168,16 @@ public sealed class MobileLostPetsApiController : ControllerBase
             CreatedAt = DateTime.Now
         };
         _context.LostPetSightings.Add(sighting);
+        _context.MobileNotifications.Add(new MobileNotification
+        {
+            UserId = listing.UserId,
+            Type = "lost_sighting",
+            Title = $"{listing.PetName} için yeni görülme bildirimi",
+            Body = $"{request.LocationLabel.Trim()} konumunda yeni bir gözlem paylaşıldı.",
+            EntityType = "lost_pet",
+            EntityId = listing.Id,
+            CreatedAt = DateTime.Now
+        });
         await _context.SaveChangesAsync(cancellationToken);
         return CreatedAtAction(nameof(GetListing), new { id }, new MobileLostPetSightingResponse(
             sighting.Id, sighting.LocationLabel, sighting.SeenAt, sighting.Note,

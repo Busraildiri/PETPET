@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import { deletePet, getPets, PetProfile, PetProfileRequest, savePet } from '../api';
-import { colors, shadow } from '../theme';
+import { colors, createThemedStyles, getThemeMode, shadow } from '../theme';
 
 const petTypes = ['Kedi', 'Köpek', 'Kuş', 'Tavşan', 'Balık', 'Diğer'];
 const genders = ['Dişi', 'Erkek', 'Belirtilmedi'];
@@ -70,7 +70,7 @@ export function PetsScreen({ token, onBack }: { token: string; onBack: () => voi
   );
 
   return <View style={styles.screen}>
-    <StatusBar style="dark" />
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} />
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Pressable onPress={onBack} accessibilityLabel="Hesabıma dön" style={styles.roundButton}><Ionicons name="arrow-back" size={22} color={colors.primary} /></Pressable>
@@ -156,7 +156,7 @@ function PetFormModal({ visible, token, pet, onClose, onSaved }: { visible: bool
 }
 
 const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   screen: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingTop: Platform.OS === 'ios' ? 56 : 28, paddingHorizontal: 20, paddingBottom: 112 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, headerCopy: { alignItems: 'center' }, eyebrow: { color: colors.peach, fontSize: 9, fontWeight: '900', letterSpacing: 1.8 }, title: { color: colors.text, fontFamily: serif, fontSize: 27, fontWeight: '700', marginTop: 2 },
   roundButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', ...shadow }, addCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
@@ -168,4 +168,4 @@ const styles = StyleSheet.create({
   outlineButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1.3, borderColor: colors.primary, borderRadius: 17, marginTop: 18 }, outlineText: { color: colors.primary, fontWeight: '900', fontSize: 12 },
   modalScreen: { flex: 1, backgroundColor: colors.background }, modalContent: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 22 : 28, paddingBottom: 40 }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }, modalClose: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' }, modalTitle: { color: colors.text, fontFamily: serif, fontSize: 22, fontWeight: '700' }, label: { color: colors.text, fontSize: 11, fontWeight: '900', marginTop: 14, marginBottom: 7 }, input: { minHeight: 51, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 16, paddingHorizontal: 15, color: colors.text, fontSize: 13 }, textArea: { minHeight: 105, paddingTop: 14 }, choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, choice: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 15, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }, choiceActive: { backgroundColor: colors.primary, borderColor: colors.primary }, choiceText: { color: colors.muted, fontSize: 11, fontWeight: '700' }, choiceTextActive: { color: colors.white }, saveButton: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: 18, marginTop: 24 }, saveText: { color: colors.white, fontWeight: '900', fontSize: 13 },
   flexOne: { flex: 1 }, pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
-});
+}));

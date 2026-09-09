@@ -73,7 +73,7 @@ public sealed class ResendPasswordResetEmailSender : IPasswordResetEmailSender
         {
             from = $"{fromName} <{fromAddress}>",
             to = new[] { email },
-            subject = "Pet'im şifre yenileme",
+            subject = $"Pet'im şifre yenileme · {expiresAt.ToLocalTime():HH:mm:ss}",
             text = $"Merhaba {username}, şifreni yenilemek için bu bağlantıyı aç: {resetUrl} Bağlantı 30 dakika geçerlidir. Bu talebi sen yapmadıysan e-postayı yok say.",
             html = $"<p>Merhaba <strong>{safeName}</strong>,</p><p>Şifreni yenilemek için aşağıdaki düğmeyi kullan.</p><p><a href=\"{safeUrl}\" style=\"display:inline-block;padding:12px 20px;background:#71486B;color:#fff;text-decoration:none;border-radius:12px;font-weight:700\">Şifremi yenile</a></p><p>Bağlantı 30 dakika geçerlidir. Bu talebi sen yapmadıysan e-postayı yok say.</p>"
         };

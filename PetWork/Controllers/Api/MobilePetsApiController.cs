@@ -113,6 +113,18 @@ public sealed class MobilePetsApiController : ControllerBase
             .FirstOrDefaultAsync(item => item.Id == id && item.UserId == userId.Value, cancellationToken);
         if (pet is null) return NotFound(new { message = "Pati profili bulunamadı." });
 
+        var matchMessages = await _context.PatiMatchMessages
+            .Where(item => item.PetOneId == id || item.PetTwoId == id)
+            .ToListAsync(cancellationToken);
+        var matchDecisions = await _context.PatiMatchDecisions
+            .Where(item => item.SourcePetId == id || item.TargetPetId == id)
+            .ToListAsync(cancellationToken);
+        var matchProfile = await _context.PatiMatchProfiles
+            .FirstOrDefaultAsync(item => item.PetId == id, cancellationToken);
+
+        _context.PatiMatchMessages.RemoveRange(matchMessages);
+        _context.PatiMatchDecisions.RemoveRange(matchDecisions);
+        if (matchProfile is not null) _context.PatiMatchProfiles.Remove(matchProfile);
         _context.Pets.Remove(pet);
         await _context.SaveChangesAsync(cancellationToken);
         return NoContent();

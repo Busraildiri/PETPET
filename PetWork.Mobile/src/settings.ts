@@ -11,6 +11,7 @@ export type NotificationPermission = {
 export const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
 export type PetimSettings = {
+  darkTheme: boolean;
   communityNotifications: boolean;
   lostPetNotifications: boolean;
   matchNotifications: boolean;
@@ -25,6 +26,7 @@ export type NotificationSettingKey =
 export const SETTINGS_STORAGE_KEY = 'petim.settings';
 
 export const defaultSettings: PetimSettings = {
+  darkTheme: false,
   communityNotifications: false,
   lostPetNotifications: false,
   matchNotifications: false,

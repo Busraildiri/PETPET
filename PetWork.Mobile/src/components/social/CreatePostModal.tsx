@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { colors, shadow } from '../../theme';
+import { colors, createThemedStyles, shadow } from '../../theme';
 
 type Props = {
   visible: boolean;
@@ -134,7 +134,7 @@ export function CreatePostModal({ visible, username, submitting, error, onClose,
   </Modal>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#241B2188' },
   sheet: { maxHeight: '94%', backgroundColor: colors.background, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 10, paddingBottom: Platform.OS === 'ios' ? 18 : 12, overflow: 'hidden', ...shadow },
@@ -160,4 +160,4 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.48 },
   pressed: { opacity: 0.8 },
   xpNote: { color: colors.muted, textAlign: 'center', fontSize: 9, marginTop: 9 },
-});
+}));

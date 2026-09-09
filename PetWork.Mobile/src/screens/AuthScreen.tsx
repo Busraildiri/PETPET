@@ -7,7 +7,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { forgotPassword, loginUser, registerUser, resendEmailCode, resetPassword, verifyEmail, type AuthResponse, type EmailVerificationChallengeResponse } from '../api';
 import { saveSession } from '../session';
-import { colors, shadow } from '../theme';
+import { colors, createThemedStyles, getThemeMode, shadow } from '../theme';
 
 export type AuthMode = 'login' | 'register' | 'forgot' | 'reset';
 
@@ -121,7 +121,7 @@ export function AuthScreen({ initialMode, resetToken = '', onBack, onAuthenticat
   };
 
   if (emailChallenge) return <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <StatusBar style="dark" />
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} />
     <View style={[styles.card, styles.verifyCard]}>
       <Pressable onPress={() => { setEmailChallenge(null); setVerificationCode(''); }} style={styles.backLink}><Ionicons name="arrow-back" size={20} color={colors.primary} /></Pressable>
       <View style={styles.verifyBody}>
@@ -137,7 +137,7 @@ export function AuthScreen({ initialMode, resetToken = '', onBack, onAuthenticat
   </KeyboardAvoidingView>;
 
   return <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <StatusBar style="dark" />
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} />
     <ScrollView contentContainerStyle={[styles.scroll, isPhone && styles.scrollPhone]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentInsetAdjustmentBehavior="never">
       <View style={[
         styles.card,
@@ -216,7 +216,7 @@ const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'seri
 const passwordHelp = 'En az 8 karakter; büyük harf, küçük harf, rakam ve özel karakter kullan.';
 const isStrongPassword = (value: string) => value.length >= 8 && value.length <= 100 && /[A-Z]/.test(value) && /[a-z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value);
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   page: { flex: 1, backgroundColor: colors.card }, scroll: { flexGrow: 1, justifyContent: 'center', paddingVertical: Platform.OS === 'ios' ? 30 : 18, paddingHorizontal: 24, backgroundColor: '#F2F0F1' }, scrollPhone: { justifyContent: 'flex-start', paddingVertical: 0, paddingHorizontal: 0, backgroundColor: colors.card },
   card: { width: '100%', maxWidth: 390, minHeight: 650, alignSelf: 'center', backgroundColor: colors.card, borderRadius: 24, paddingHorizontal: 34, paddingVertical: 24, overflow: 'hidden', ...shadow }, registerCard: { minHeight: 720 },
   verifyCard: { justifyContent: 'center', margin: 24, minHeight: 520 },
@@ -237,4 +237,4 @@ const styles = StyleSheet.create({
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.peachSoft, borderRadius: 10, padding: 10, marginTop: 10 }, errorText: { flex: 1, color: '#823D35', fontSize: 10, lineHeight: 14 },
   submitButton: { minHeight: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: colors.primary, borderRadius: 7, marginTop: 19 }, submitDisabled: { opacity: 0.6 }, submitText: { color: colors.white, fontSize: 13, fontWeight: '900', textTransform: 'uppercase' }, pressed: { opacity: 0.8, transform: [{ scale: 0.99 }] },
   switchRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginTop: 17 }, switchText: { color: colors.text, fontSize: 9 }, switchLink: { color: colors.peach, fontSize: 9, fontWeight: '900', textDecorationLine: 'underline' },
-});
+}));

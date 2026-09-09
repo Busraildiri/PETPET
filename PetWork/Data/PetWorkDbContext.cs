@@ -39,6 +39,12 @@ namespace PetWork.Data
         public DbSet<PatiMatchMessage> PatiMatchMessages { get; set; }
         public DbSet<LostPetListing> LostPetListings { get; set; }
         public DbSet<LostPetSighting> LostPetSightings { get; set; }
+        public DbSet<AdoptionListing> AdoptionListings { get; set; }
+        public DbSet<AdoptionApplication> AdoptionApplications { get; set; }
+        public DbSet<AdoptionListingReport> AdoptionListingReports { get; set; }
+        public DbSet<ProductReview> ProductReviews { get; set; }
+        public DbSet<ProductReviewReport> ProductReviewReports { get; set; }
+        public DbSet<MobileNotification> MobileNotifications { get; set; }
         
         public override int SaveChanges()
         {
@@ -272,6 +278,78 @@ namespace PetWork.Data
 
             modelBuilder.Entity<LostPetSighting>()
                 .HasIndex(sighting => new { sighting.LostPetListingId, sighting.IsDeleted, sighting.SeenAt });
+
+            modelBuilder.Entity<MobileNotification>()
+                .HasOne(notification => notification.User)
+                .WithMany()
+                .HasForeignKey(notification => notification.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<MobileNotification>()
+                .HasIndex(notification => new { notification.UserId, notification.IsRead, notification.CreatedAt });
+
+            modelBuilder.Entity<AdoptionListing>()
+                .HasOne(listing => listing.User)
+                .WithMany()
+                .HasForeignKey(listing => listing.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<AdoptionListing>()
+                .HasIndex(listing => new { listing.IsDeleted, listing.Status, listing.CreatedAt });
+            modelBuilder.Entity<AdoptionListing>()
+                .HasIndex(listing => new { listing.City, listing.CreatedAt });
+
+            modelBuilder.Entity<AdoptionApplication>()
+                .HasOne(application => application.AdoptionListing)
+                .WithMany(listing => listing.Applications)
+                .HasForeignKey(application => application.AdoptionListingId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<AdoptionApplication>()
+                .HasOne(application => application.User)
+                .WithMany()
+                .HasForeignKey(application => application.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<AdoptionApplication>()
+                .HasIndex(application => new { application.AdoptionListingId, application.UserId })
+                .IsUnique();
+
+            modelBuilder.Entity<AdoptionListingReport>()
+                .HasOne(report => report.AdoptionListing)
+                .WithMany(listing => listing.Reports)
+                .HasForeignKey(report => report.AdoptionListingId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<AdoptionListingReport>()
+                .HasOne(report => report.User)
+                .WithMany()
+                .HasForeignKey(report => report.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<AdoptionListingReport>()
+                .HasIndex(report => new { report.AdoptionListingId, report.UserId })
+                .IsUnique();
+            modelBuilder.Entity<AdoptionListingReport>()
+                .HasIndex(report => new { report.IsResolved, report.CreatedAt });
+
+            modelBuilder.Entity<ProductReview>()
+                .HasOne(review => review.User)
+                .WithMany()
+                .HasForeignKey(review => review.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<ProductReview>()
+                .HasIndex(review => new { review.IsDeleted, review.CreatedAt });
+
+            modelBuilder.Entity<ProductReviewReport>()
+                .HasOne(report => report.ProductReview)
+                .WithMany(review => review.Reports)
+                .HasForeignKey(report => report.ProductReviewId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<ProductReviewReport>()
+                .HasOne(report => report.User)
+                .WithMany()
+                .HasForeignKey(report => report.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<ProductReviewReport>()
+                .HasIndex(report => new { report.ProductReviewId, report.UserId })
+                .IsUnique();
+            modelBuilder.Entity<ProductReviewReport>()
+                .HasIndex(report => new { report.IsResolved, report.CreatedAt });
 
             modelBuilder.Entity<PatiMatchProfile>()
                 .HasOne(profile => profile.Pet)

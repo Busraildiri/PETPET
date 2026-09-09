@@ -323,11 +323,14 @@ app.Use(async (context, next) =>
     var isMobilePetRequest = context.Request.Path.StartsWithSegments("/api/mobile/pets");
     var isMobilePatiMatchRequest = context.Request.Path.StartsWithSegments("/api/mobile/pati-match");
     var isMobileLostPetsRequest = context.Request.Path.StartsWithSegments("/api/mobile/lost-pets");
+    var isMobileAdoptionRequest = context.Request.Path.StartsWithSegments("/api/mobile/adoption");
+    var isMobileReviewRequest = context.Request.Path.StartsWithSegments("/api/mobile/product-reviews");
+    var isMobileNotificationRequest = context.Request.Path.StartsWithSegments("/api/mobile/notifications");
     var isReadOnlyMethod = HttpMethods.IsGet(context.Request.Method) ||
                            HttpMethods.IsHead(context.Request.Method) ||
                            HttpMethods.IsOptions(context.Request.Method);
 
-    if (isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest && !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest && !isMobilePetRequest && !isMobilePatiMatchRequest && !isMobileLostPetsRequest)
+    if (isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest && !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest && !isMobilePetRequest && !isMobilePatiMatchRequest && !isMobileLostPetsRequest && !isMobileAdoptionRequest && !isMobileReviewRequest && !isMobileNotificationRequest)
     {
         var userId = context.Session.GetInt32("UserId");
         if (userId is null)

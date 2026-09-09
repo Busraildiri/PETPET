@@ -214,6 +214,39 @@ export type CreateLostPetRequest = {
   image: { uri: string; mimeType?: string | null };
 };
 
+export type AdoptionListing = {
+  id: number; petName: string; species: string; breed?: string | null; ageYears?: number | null; gender?: string | null;
+  city: string; district?: string | null; healthInfo: string; story: string; imagePath: string;
+  status: 'active' | 'adopted' | 'closed'; ownerUsername: string; createdAt: string; isMine: boolean; hasApplied: boolean;
+};
+
+export type AdoptionApplication = { id: number; username: string; message: string; status: 'pending' | 'accepted' | 'rejected'; createdAt: string };
+
+export type MobileNotification = {
+  id: number; type: 'lost_sighting' | 'adoption_application' | 'adoption_status' | string;
+  title: string; body: string; entityType?: string | null; entityId?: number | null;
+  isRead: boolean; createdAt: string;
+};
+
+export type MobileNotificationsResponse = { items: MobileNotification[]; unreadCount: number };
+
+export type CreateAdoptionListingRequest = {
+  petName: string; species: string; breed?: string; ageYears?: number; gender?: string; city: string; district?: string;
+  healthInfo: string; story: string; image: { uri: string; mimeType?: string | null };
+};
+
+export type ProductReview = {
+  id: number; brand: string; productName: string; petType: string; experience: string;
+  tasteScore: number; ingredientScore: number; digestionScore: number; valueScore: number; averageScore: number;
+  imagePath?: string | null; username: string; createdAt: string;
+};
+
+export type CreateProductReviewRequest = {
+  brand: string; productName: string; petType: string; experience: string;
+  tasteScore: number; ingredientScore: number; digestionScore: number; valueScore: number;
+  image?: { uri: string; mimeType?: string | null };
+};
+
 function resolveApiUrl(value?: string) {
   const normalized = value?.trim().replace(/\/+$/, '') || (__DEV__ ? 'http://localhost:5147' : '');
   if (!normalized) throw new Error('Production API adresi tanımlanmamış.');
@@ -314,7 +347,7 @@ async function authRequest(path: string, init: RequestInit, fallback: string): P
       try { payload = responseText ? JSON.parse(responseText) : null; } catch { /* The development exception page may be plain text or HTML. */ }
       const validation = payload?.errors ? Object.values(payload.errors).flat()[0] : undefined;
       if (__DEV__) {
-        console.error('[PetWork auth API]', {
+        console.log('[PetWork auth API]', {
           path,
           url: `${apiUrl}/api/mobile/auth/${path}`,
           status: response.status,
@@ -330,7 +363,7 @@ async function authRequest(path: string, init: RequestInit, fallback: string): P
     return response;
   } catch (reason) {
     if (reason instanceof ApiError) throw reason;
-    if (__DEV__) console.error('[PetWork auth transport]', { path, url: `${apiUrl}/api/mobile/auth/${path}`, reason });
+    if (__DEV__) console.log('[PetWork auth transport]', { path, url: `${apiUrl}/api/mobile/auth/${path}`, reason });
     if (reason instanceof Error && reason.name === 'AbortError') throw new Error('Sunucu yanıt vermedi. Bağlantını kontrol edip tekrar dene.');
     throw new Error('Sunucuya bağlanılamadı. İnternet ve API adresini kontrol et.');
   } finally { clearTimeout(timer); }
@@ -857,6 +890,118 @@ export async function reportSocialPost(token: string, postId: number, reason: st
   const payload = await response.json().catch(() => null) as { message?: string } | null;
   if (!response.ok) throw new Error(payload?.message || `Gönderi bildirilemedi (${response.status}).`);
   return payload?.message || 'Bildirimin alındı.';
+}
+
+async function readCommunityResponse<T>(response: Response, fallback: string): Promise<T> {
+  const payload = await response.json().catch(() => null) as T | { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+  if (!response.ok) {
+    const error = payload as { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+    const validation = error?.errors ? Object.values(error.errors).flat()[0] : undefined;
+    throw new Error(validation || error?.message || error?.title || fallback);
+  }
+  return payload as T;
+}
+
+export async function getAdoptionListings(token?: string | null, signal?: AbortSignal): Promise<AdoptionListing[]> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/adoption/listings`, {
+    headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, signal,
+  });
+  return readCommunityResponse(response, 'Sahiplendirme ilanları yüklenemedi.');
+}
+
+export async function createAdoptionListing(token: string, request: CreateAdoptionListingRequest): Promise<AdoptionListing> {
+  const file = new File(request.image.uri);
+  const response = await fetchApi(`${apiUrl}/api/mobile/adoption/listings`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ ...request, image: undefined, imageBase64: await file.base64(), imageContentType: request.image.mimeType || file.type }),
+  }, 30_000);
+  return readCommunityResponse(response, 'Sahiplendirme ilanı oluşturulamadı.');
+}
+
+export async function applyToAdoptionListing(token: string, id: number, message: string): Promise<AdoptionApplication> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/adoption/listings/${id}/applications`, {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ message }),
+  });
+  return readCommunityResponse(response, 'Başvuru gönderilemedi.');
+}
+
+export async function getAdoptionApplications(token: string, listingId: number): Promise<AdoptionApplication[]> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/adoption/listings/${listingId}/applications`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  return readCommunityResponse(response, 'Başvurular yüklenemedi.');
+}
+
+export async function updateAdoptionApplication(token: string, applicationId: number, status: 'accepted' | 'rejected'): Promise<void> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/adoption/applications/${applicationId}/status`, {
+    method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status }),
+  });
+  await readCommunityResponse(response, 'Başvuru güncellenemedi.');
+}
+
+export async function updateAdoptionListingStatus(token: string, id: number, status: 'active' | 'adopted' | 'closed'): Promise<void> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/adoption/listings/${id}/status`, {
+    method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status }),
+  });
+  await readCommunityResponse(response, 'İlan durumu güncellenemedi.');
+}
+
+export async function getMobileNotifications(token: string, signal?: AbortSignal): Promise<MobileNotificationsResponse> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/notifications`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal,
+  });
+  return readCommunityResponse(response, 'Bildirimler yüklenemedi.');
+}
+
+export async function markMobileNotificationRead(token: string, id: number): Promise<void> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/notifications/${id}/read`, {
+    method: 'PUT', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) await readCommunityResponse(response, 'Bildirim güncellenemedi.');
+}
+
+export async function markAllMobileNotificationsRead(token: string): Promise<void> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/notifications/read-all`, {
+    method: 'PUT', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) await readCommunityResponse(response, 'Bildirimler güncellenemedi.');
+}
+
+export async function reportAdoptionListing(token: string, id: number, reason: string): Promise<string> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/adoption/listings/${id}/reports`, {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ reason }),
+  });
+  return (await readCommunityResponse<{ message: string }>(response, 'İlan bildirilemedi.')).message;
+}
+
+export async function getProductReviews(signal?: AbortSignal): Promise<ProductReview[]> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/product-reviews`, { headers: { Accept: 'application/json' }, signal });
+  return readCommunityResponse(response, 'Mama deneyimleri yüklenemedi.');
+}
+
+export async function createProductReview(token: string, request: CreateProductReviewRequest): Promise<ProductReview> {
+  const file = request.image ? new File(request.image.uri) : null;
+  const response = await fetchApi(`${apiUrl}/api/mobile/product-reviews`, {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      ...request, image: undefined, imageBase64: file ? await file.base64() : null,
+      imageContentType: request.image?.mimeType || file?.type || null,
+    }),
+  }, 30_000);
+  return readCommunityResponse(response, 'Mama deneyimi kaydedilemedi.');
+}
+
+export async function reportProductReview(token: string, id: number, reason: string): Promise<string> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/product-reviews/${id}/reports`, {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ reason }),
+  });
+  return (await readCommunityResponse<{ message: string }>(response, 'İçerik bildirilemedi.')).message;
 }
 
 async function readPatiMatchResponse<T>(response: Response, fallback: string): Promise<T> {

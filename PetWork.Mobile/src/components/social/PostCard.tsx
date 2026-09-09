@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Alert, Image, Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import { colors, shadow } from '../../theme';
+import { colors, createThemedStyles, shadow } from '../../theme';
 import type { SocialPost } from '../../types/social';
 
 type Props = {
@@ -101,7 +101,7 @@ function publicHttpsUrl(value?: string) {
   }
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   card: { backgroundColor: colors.card, borderRadius: 24, marginBottom: 18, overflow: 'hidden', ...shadow },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, gap: 11 },
   avatar: { width: 45, height: 45, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lilacSoft },
@@ -116,4 +116,4 @@ const styles = StyleSheet.create({
   actions: { minHeight: 55, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: colors.border, gap: 19 },
   action: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44 }, saveAction: { marginLeft: 'auto', minHeight: 44, justifyContent: 'center' },
   actionText: { color: colors.muted, fontSize: 11, fontWeight: '700' }, likedText: { color: colors.danger }, disabled: { opacity: 0.5 },
-});
+}));
