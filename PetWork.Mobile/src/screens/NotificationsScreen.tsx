@@ -12,11 +12,14 @@ type Props = {
   token: string;
   onBack: () => void;
   onUnreadChanged: (count: number) => void;
-  onOpenLost: () => void;
-  onOpenAdoption: () => void;
+  onOpenLost: (id?: number) => void;
+  onOpenAdoption: (id?: number) => void;
+  onOpenSocial: (id?: number) => void;
+  onOpenMatch: (petId?: number) => void;
+  onOpenQuestion: (id?: number) => void;
 };
 
-export function NotificationsScreen({ token, onBack, onUnreadChanged, onOpenLost, onOpenAdoption }: Props) {
+export function NotificationsScreen({ token, onBack, onUnreadChanged, onOpenLost, onOpenAdoption, onOpenSocial, onOpenMatch, onOpenQuestion }: Props) {
   const [items, setItems] = useState<MobileNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,8 +48,11 @@ export function NotificationsScreen({ token, onBack, onUnreadChanged, onOpenLost
       setItems(current => current.map(value => value.id === item.id ? { ...value, isRead: true } : value));
       onUnreadChanged(Math.max(0, items.filter(value => !value.isRead).length - 1));
     }
-    if (item.entityType === 'lost_pet') onOpenLost();
-    else if (item.entityType === 'adoption') onOpenAdoption();
+    if (item.entityType === 'lost_pet') onOpenLost(item.entityId ?? undefined);
+    else if (item.entityType === 'adoption') onOpenAdoption(item.entityId ?? undefined);
+    else if (item.entityType === 'social_post') onOpenSocial(item.entityId ?? undefined);
+    else if (item.entityType === 'pati_match') onOpenMatch(item.entityId ?? undefined);
+    else if (item.entityType === 'question') onOpenQuestion(item.entityId ?? undefined);
   };
 
   const readAll = async () => {
@@ -60,15 +66,15 @@ export function NotificationsScreen({ token, onBack, onUnreadChanged, onOpenLost
     <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} />
     <View style={styles.header}>
       <Pressable onPress={onBack} accessibilityLabel="Geri dön" style={styles.back}><Ionicons name="arrow-back" size={23} color={colors.primary} /></Pressable>
-      <View style={styles.flex}><Text style={styles.title}>Bildirimler</Text><Text style={styles.subtitle}>Başvurular ve kayıp pati güncellemeleri</Text></View>
+      <View style={styles.flex}><Text style={styles.title}>Bildirimler</Text><Text style={styles.subtitle}>Topluluk, sahiplendirme, kayıp pati ve PatiMatch</Text></View>
       {items.some(item => !item.isRead) ? <Pressable onPress={() => void readAll()}><Text style={styles.readAll}>Tümünü oku</Text></Pressable> : <View style={styles.spacer} />}
     </View>
     {loading && !items.length ? <ActivityIndicator color={colors.primary} size="large" style={styles.loader} /> : null}
     {error ? <View style={styles.error}><Text style={styles.errorText}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.retry}>Yenile</Text></Pressable></View> : null}
-    {!loading && !error && !items.length ? <View style={styles.empty}><Ionicons name="notifications-outline" size={38} color="#AA9DA4" /><Text style={styles.emptyTitle}>Henüz bildirimin yok</Text><Text style={styles.emptyText}>Yeni başvuru, başvuru sonucu veya görülme bildirimi geldiğinde burada görünecek.</Text></View> : null}
+    {!loading && !error && !items.length ? <View style={styles.empty}><Ionicons name="notifications-outline" size={38} color="#AA9DA4" /><Text style={styles.emptyTitle}>Henüz bildirimin yok</Text><Text style={styles.emptyText}>Yeni yorum, eşleşme, başvuru veya görülme bildirimi geldiğinde burada görünecek.</Text></View> : null}
     {items.map(item => <Pressable key={item.id} onPress={() => void openItem(item)} style={({ pressed }) => [styles.card, !item.isRead && styles.unread, pressed && styles.pressed]}>
       <View style={[styles.icon, item.type === 'lost_sighting' ? styles.lostIcon : styles.adoptionIcon]}>
-        <Ionicons name={item.type === 'lost_sighting' ? 'location-outline' : item.type === 'adoption_status' ? 'checkmark-circle-outline' : 'heart-outline'} size={22} color={item.type === 'lost_sighting' ? '#9B463B' : colors.primary} />
+        <Ionicons name={item.type === 'lost_sighting' ? 'location-outline' : item.type === 'adoption_status' ? 'checkmark-circle-outline' : item.type.startsWith('social_') ? 'chatbubble-outline' : 'heart-outline'} size={22} color={item.type === 'lost_sighting' ? '#9B463B' : colors.primary} />
       </View>
       <View style={styles.flex}><View style={styles.cardTop}><Text style={styles.cardTitle}>{item.title}</Text>{!item.isRead ? <View style={styles.dot} /> : null}</View><Text style={styles.body}>{item.body}</Text><Text style={styles.date}>{new Date(item.createdAt).toLocaleString('tr-TR')}</Text></View>
       <Ionicons name="chevron-forward" size={18} color="#AA9DA4" />

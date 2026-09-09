@@ -26,6 +26,8 @@ type Props = {
   onOpenAdoption: () => void;
   onOpenReviews: () => void;
   onOpenLost: () => void;
+  initialPostId?: number | null;
+  initialQuestionId?: number | null;
 };
 
 const tabs: { key: SocialTab; label: string }[] = [
@@ -54,7 +56,7 @@ function toSocialPost(post: SocialPostPayload): SocialPost {
   };
 }
 
-export function PatiSocialScreen({ initialTab = 'posts', username, authToken, onOpenAccount, onLogin, onOpenNearby, onOpenAdoption, onOpenReviews, onOpenLost }: Props) {
+export function PatiSocialScreen({ initialTab = 'posts', username, authToken, onOpenAccount, onLogin, onOpenNearby, onOpenAdoption, onOpenReviews, onOpenLost, initialPostId, initialQuestionId }: Props) {
   const { width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<SocialTab>(initialTab);
   const [posts, setPosts] = useState<SocialPost[]>([]);
@@ -64,6 +66,7 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
   const [submitting, setSubmitting] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [commentPost, setCommentPost] = useState<SocialPost | null>(null);
+  const [openedInitialPostId, setOpenedInitialPostId] = useState<number | null>(null);
   const [questionComposerOpen, setQuestionComposerOpen] = useState(false);
   const [questionSubmitting, setQuestionSubmitting] = useState(false);
   const [questionComposerError, setQuestionComposerError] = useState<string | null>(null);
@@ -88,6 +91,15 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
     loadPosts(controller.signal);
     return () => controller.abort();
   }, [loadPosts]);
+
+  useEffect(() => {
+    if (!initialPostId || openedInitialPostId === initialPostId) return;
+    const post = posts.find(item => item.serverId === initialPostId);
+    if (!post) return;
+    setActiveTab('posts');
+    setCommentPost(post);
+    setOpenedInitialPostId(initialPostId);
+  }, [initialPostId, openedInitialPostId, posts]);
 
   const requireLogin = (message: string) => Alert.alert('Giriş yapmalısın', message, [
     { text: 'Vazgeç', style: 'cancel' },
@@ -240,7 +252,7 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
         </>
       ) : null}
 
-      {activeTab === 'questions' ? <QuestionsPanel key={questionsRevision} username={username} authToken={authToken} onLogin={onLogin} onAsk={openQuestionComposer} /> : null}
+      {activeTab === 'questions' ? <QuestionsPanel key={questionsRevision} username={username} authToken={authToken} initialQuestionId={initialQuestionId} onLogin={onLogin} onAsk={openQuestionComposer} /> : null}
       {activeTab === 'nearby' ? <NearbyShortcuts onOpenNearby={onOpenNearby} /> : null}
     </ScrollView>
     {activeTab === 'questions' ? <Pressable
@@ -256,7 +268,7 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
   );
 }
 
-function QuestionsPanel({ username, authToken, onLogin, onAsk }: { username: string | null; authToken: string | null; onLogin: () => void; onAsk: () => void }) {
+function QuestionsPanel({ username, authToken, initialQuestionId, onLogin, onAsk }: { username: string | null; authToken: string | null; initialQuestionId?: number | null; onLogin: () => void; onAsk: () => void }) {
   const { width } = useWindowDimensions();
   const [payload, setPayload] = useState<QuestionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -283,6 +295,7 @@ function QuestionsPanel({ username, authToken, onLogin, onAsk }: { username: str
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (initialQuestionId) setSelectedId(initialQuestionId); }, [initialQuestionId]);
 
   useEffect(() => {
     if (selectedId === null) { setDetail(null); return; }

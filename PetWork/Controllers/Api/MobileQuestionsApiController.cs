@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Services;
 
 namespace PetWork.Controllers.Api;
 
@@ -20,8 +21,13 @@ public sealed class MobileQuestionsApiController : ControllerBase
         "Beslenme", "Sağlık", "Davranış", "Bakım", "Yas ve Kayıp", "Diğer"
     };
     private readonly PetWorkDbContext _context;
+    private readonly MobilePushNotificationService _pushNotifications;
 
-    public MobileQuestionsApiController(PetWorkDbContext context) => _context = context;
+    public MobileQuestionsApiController(PetWorkDbContext context, MobilePushNotificationService pushNotifications)
+    {
+        _context = context;
+        _pushNotifications = pushNotifications;
+    }
 
     [HttpGet]
     [ResponseCache(Duration = 30, Location = ResponseCacheLocation.Any)]
@@ -116,9 +122,11 @@ public sealed class MobileQuestionsApiController : ControllerBase
         if (userId is null)
             return Unauthorized(new { message = "Oturumun geçersiz veya süresi dolmuş. Lütfen yeniden giriş yap." });
 
-        var questionExists = await _context.Questions.AsNoTracking()
-            .AnyAsync(question => question.Id == id, cancellationToken);
-        if (!questionExists)
+        var question = await _context.Questions.AsNoTracking()
+            .Where(candidate => candidate.Id == id)
+            .Select(candidate => new { candidate.Id, candidate.Title, candidate.UserId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (question is null)
             return NotFound(new { message = "Yanıtlamak istediğin soru bulunamadı." });
 
         var username = await _context.Users.AsNoTracking()
@@ -144,7 +152,23 @@ public sealed class MobileQuestionsApiController : ControllerBase
         };
 
         _context.Answers.Add(answer);
+        MobileNotification? notification = null;
+        if (question.UserId != userId.Value)
+        {
+            notification = new MobileNotification
+            {
+                UserId = question.UserId,
+                Type = "question_answer",
+                Title = "Soruna yeni yanıt",
+                Body = $"@{username}, {question.Title} sorunu yanıtladı.",
+                EntityType = "question",
+                EntityId = question.Id,
+                CreatedAt = DateTime.Now
+            };
+            _context.MobileNotifications.Add(notification);
+        }
         await _context.SaveChangesAsync(cancellationToken);
+        if (notification is not null) await _pushNotifications.SendAsync(notification, cancellationToken);
 
         return Created(string.Empty, new MobileAnswerItem(
             answer.Id,

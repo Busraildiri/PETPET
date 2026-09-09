@@ -202,6 +202,9 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 
 // HttpClient ve web scraping servisleri
 builder.Services.AddHttpClient();
+builder.Services.AddScoped<MobilePushNotificationService>();
+builder.Services.AddScoped<MobileMediaStorageService>();
+builder.Services.AddHostedService<MobileMediaBackfillService>();
 builder.Services.AddHttpClient<GooglePlacesService>(client =>
 {
     client.BaseAddress = new Uri("https://places.googleapis.com/");

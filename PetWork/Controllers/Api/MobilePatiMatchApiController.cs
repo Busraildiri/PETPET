@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Services;
 
 namespace PetWork.Controllers.Api;
 
@@ -22,7 +23,12 @@ public sealed class MobilePatiMatchApiController : ControllerBase
     private static readonly string[] AllowedPetTypes = ["Kedi", "Köpek", "Kuş", "Tavşan", "Balık", "Diğer"];
 
     private readonly PetWorkDbContext _context;
-    public MobilePatiMatchApiController(PetWorkDbContext context) => _context = context;
+    private readonly MobilePushNotificationService _pushNotifications;
+    public MobilePatiMatchApiController(PetWorkDbContext context, MobilePushNotificationService pushNotifications)
+    {
+        _context = context;
+        _pushNotifications = pushNotifications;
+    }
 
     [HttpGet]
     public async Task<ActionResult<PatiMatchOverviewResponse>> GetOverview(CancellationToken cancellationToken)
@@ -161,6 +167,9 @@ public sealed class MobilePatiMatchApiController : ControllerBase
 
         var decision = await _context.PatiMatchDecisions.FirstOrDefaultAsync(candidate =>
             candidate.SourcePetId == request.SourcePetId && candidate.TargetPetId == request.TargetPetId, cancellationToken);
+        var reverseLiked = request.IsLike && await _context.PatiMatchDecisions.AnyAsync(reverse =>
+            reverse.SourcePetId == request.TargetPetId && reverse.TargetPetId == request.SourcePetId && reverse.IsLike, cancellationToken);
+        var wasMatched = decision?.IsLike == true && reverseLiked;
         if (decision is null)
         {
             decision = new PatiMatchDecision { SourcePetId = request.SourcePetId, TargetPetId = request.TargetPetId };
@@ -168,10 +177,33 @@ public sealed class MobilePatiMatchApiController : ControllerBase
         }
         decision.IsLike = request.IsLike;
         decision.CreatedAt = DateTime.Now;
+        var matched = request.IsLike && reverseLiked;
+        var notifications = new List<MobileNotification>();
+        if (matched && !wasMatched)
+        {
+            var pets = await _context.Pets.AsNoTracking()
+                .Where(pet => pet.Id == request.SourcePetId || pet.Id == request.TargetPetId)
+                .Select(pet => new { pet.Id, pet.Name, pet.UserId })
+                .ToListAsync(cancellationToken);
+            var sourcePet = pets.Single(pet => pet.Id == request.SourcePetId);
+            var targetPet = pets.Single(pet => pet.Id == request.TargetPetId);
+            notifications.Add(new MobileNotification
+            {
+                UserId = sourcePet.UserId, Type = "pati_match", Title = "Yeni PatiMatch!",
+                Body = $"{sourcePet.Name} ile {targetPet.Name} eşleşti.", EntityType = "pati_match",
+                EntityId = targetPet.Id, CreatedAt = DateTime.Now
+            });
+            notifications.Add(new MobileNotification
+            {
+                UserId = targetPet.UserId, Type = "pati_match", Title = "Yeni PatiMatch!",
+                Body = $"{targetPet.Name} ile {sourcePet.Name} eşleşti.", EntityType = "pati_match",
+                EntityId = sourcePet.Id, CreatedAt = DateTime.Now
+            });
+            _context.MobileNotifications.AddRange(notifications);
+        }
         await _context.SaveChangesAsync(cancellationToken);
-
-        var matched = request.IsLike && await _context.PatiMatchDecisions.AnyAsync(reverse =>
-            reverse.SourcePetId == request.TargetPetId && reverse.TargetPetId == request.SourcePetId && reverse.IsLike, cancellationToken);
+        foreach (var notification in notifications)
+            await _pushNotifications.SendAsync(notification, cancellationToken);
         return Ok(new PatiMatchDecisionResponse(matched));
     }
 
@@ -252,12 +284,23 @@ public sealed class MobilePatiMatchApiController : ControllerBase
             CreatedAt = DateTime.Now
         };
         _context.PatiMatchMessages.Add(message);
+        var participants = await _context.Pets.AsNoTracking()
+            .Where(pet => pet.Id == request.SourcePetId || pet.Id == request.TargetPetId)
+            .Select(pet => new { pet.Id, pet.Name, pet.UserId, pet.User.Username })
+            .ToListAsync(cancellationToken);
+        var sourcePet = participants.Single(pet => pet.Id == request.SourcePetId);
+        var targetPet = participants.Single(pet => pet.Id == request.TargetPetId);
+        var notification = new MobileNotification
+        {
+            UserId = targetPet.UserId, Type = "pati_match_message", Title = $"{sourcePet.Name} tarafından yeni mesaj",
+            Body = body.Length > 100 ? body[..100] + "…" : body, EntityType = "pati_match",
+            EntityId = sourcePet.Id, CreatedAt = DateTime.Now
+        };
+        _context.MobileNotifications.Add(notification);
         await _context.SaveChangesAsync(cancellationToken);
+        await _pushNotifications.SendAsync(notification, cancellationToken);
 
-        var username = await _context.Users.AsNoTracking()
-            .Where(user => user.Id == userId.Value)
-            .Select(user => user.Username)
-            .SingleAsync(cancellationToken);
+        var username = sourcePet.Username;
         return Ok(new PatiMatchMessageResponse(message.Id, message.Body, true, username, message.CreatedAt));
     }
 

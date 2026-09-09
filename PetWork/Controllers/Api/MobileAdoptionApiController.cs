@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Services;
 
 namespace PetWork.Controllers.Api;
 
@@ -18,11 +19,16 @@ public sealed class MobileAdoptionApiController : ControllerBase
     private static readonly string[] ApplicationStatuses = ["pending", "accepted", "rejected"];
     private readonly PetWorkDbContext _context;
     private readonly IWebHostEnvironment _environment;
+    private readonly MobilePushNotificationService _pushNotifications;
+    private readonly MobileMediaStorageService _mediaStorage;
 
-    public MobileAdoptionApiController(PetWorkDbContext context, IWebHostEnvironment environment)
+    public MobileAdoptionApiController(PetWorkDbContext context, IWebHostEnvironment environment,
+        MobilePushNotificationService pushNotifications, MobileMediaStorageService mediaStorage)
     {
         _context = context;
         _environment = environment;
+        _pushNotifications = pushNotifications;
+        _mediaStorage = mediaStorage;
     }
 
     [HttpGet("listings")]
@@ -33,7 +39,8 @@ public sealed class MobileAdoptionApiController : ControllerBase
         var items = await _context.AdoptionListings.AsNoTracking()
             .Include(item => item.User)
             .Include(item => item.Applications)
-            .Where(item => !item.IsDeleted && item.Status == "active")
+            .Where(item => !item.IsDeleted && (item.Status == "active" ||
+                (hasUser && (item.UserId == userId || item.Applications.Any(application => application.UserId == userId)))))
             .OrderByDescending(item => item.CreatedAt)
             .Take(100)
             .ToListAsync(cancellationToken);
@@ -47,7 +54,7 @@ public sealed class MobileAdoptionApiController : ControllerBase
     {
         if (!TryGetUserId(out var userId)) return Unauthorized(new { message = "Oturum bilgisi doğrulanamadı." });
         if (request.AgeYears is < 0 or > 40) return BadRequest(new { message = "Yaş bilgisi geçersiz." });
-        var image = await SaveImageAsync(request.ImageBase64, request.ImageContentType, cancellationToken);
+        var image = SaveImage(request.ImageBase64, request.ImageContentType);
         if (image.Error is not null) return BadRequest(new { message = image.Error });
 
         var listing = new AdoptionListing
@@ -60,7 +67,7 @@ public sealed class MobileAdoptionApiController : ControllerBase
         };
         _context.AdoptionListings.Add(listing);
         try { await _context.SaveChangesAsync(cancellationToken); }
-        catch { DeleteUploadedImage(listing.ImagePath); throw; }
+        catch { _mediaStorage.DiscardPending(listing.ImagePath); DeleteUploadedImage(listing.ImagePath); throw; }
         listing.User = await _context.Users.AsNoTracking().FirstAsync(user => user.Id == userId, cancellationToken);
         return CreatedAtAction(nameof(GetListings), new { id = listing.Id }, ToResponse(listing, userId));
     }
@@ -83,7 +90,7 @@ public sealed class MobileAdoptionApiController : ControllerBase
         };
         _context.AdoptionApplications.Add(application);
         var applicantUsername = await _context.Users.Where(user => user.Id == userId).Select(user => user.Username).FirstAsync(cancellationToken);
-        _context.MobileNotifications.Add(new MobileNotification
+        var notification = new MobileNotification
         {
             UserId = listing.UserId,
             Type = "adoption_application",
@@ -92,8 +99,10 @@ public sealed class MobileAdoptionApiController : ControllerBase
             EntityType = "adoption",
             EntityId = listing.Id,
             CreatedAt = DateTime.Now
-        });
+        };
+        _context.MobileNotifications.Add(notification);
         await _context.SaveChangesAsync(cancellationToken);
+        await _pushNotifications.SendAsync(notification, cancellationToken);
         return Ok(new MobileAdoptionApplicationResponse(application.Id, applicantUsername, application.Message, application.Status, application.CreatedAt));
     }
 
@@ -123,11 +132,14 @@ public sealed class MobileAdoptionApiController : ControllerBase
             .FirstOrDefaultAsync(item => item.Id == applicationId, cancellationToken);
         if (application is null) return NotFound(new { message = "Başvuru bulunamadı." });
         if (application.AdoptionListing.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+        if (application.AdoptionListing.Status != "active" && application.Status != status)
+            return Conflict(new { message = "Bu sahiplendirme ilanı artık aktif değil." });
         var changed = application.Status != status;
         application.Status = status;
+        var notifications = new List<MobileNotification>();
         if (changed)
         {
-            _context.MobileNotifications.Add(new MobileNotification
+            var notification = new MobileNotification
             {
                 UserId = application.UserId,
                 Type = "adoption_status",
@@ -136,9 +148,38 @@ public sealed class MobileAdoptionApiController : ControllerBase
                 EntityType = "adoption",
                 EntityId = application.AdoptionListingId,
                 CreatedAt = DateTime.Now
-            });
+            };
+            notifications.Add(notification);
+            _context.MobileNotifications.Add(notification);
+
+            if (status == "accepted")
+            {
+                application.AdoptionListing.Status = "adopted";
+                var otherApplications = await _context.AdoptionApplications
+                    .Where(item => item.AdoptionListingId == application.AdoptionListingId &&
+                                   item.Id != application.Id && item.Status == "pending")
+                    .ToListAsync(cancellationToken);
+                foreach (var other in otherApplications)
+                {
+                    other.Status = "rejected";
+                    var rejectedNotification = new MobileNotification
+                    {
+                        UserId = other.UserId,
+                        Type = "adoption_status",
+                        Title = $"{application.AdoptionListing.PetName} başvurun güncellendi",
+                        Body = "Sahiplendirme ilanı başka bir başvuruyla sonuçlandı.",
+                        EntityType = "adoption",
+                        EntityId = application.AdoptionListingId,
+                        CreatedAt = DateTime.Now
+                    };
+                    notifications.Add(rejectedNotification);
+                    _context.MobileNotifications.Add(rejectedNotification);
+                }
+            }
         }
         await _context.SaveChangesAsync(cancellationToken);
+        foreach (var notification in notifications)
+            await _pushNotifications.SendAsync(notification, cancellationToken);
         return Ok(new { status });
     }
 
@@ -172,12 +213,18 @@ public sealed class MobileAdoptionApiController : ControllerBase
         return Ok(new { message = "Bildirimin alındı." });
     }
 
-    private static MobileAdoptionListingResponse ToResponse(AdoptionListing item, int? userId) => new(
-        item.Id, item.PetName, item.Species, item.Breed, item.AgeYears, item.Gender, item.City, item.District,
-        item.HealthInfo, item.Story, item.ImagePath, item.Status, item.User.Username, item.CreatedAt,
-        userId.HasValue && item.UserId == userId, userId.HasValue && item.Applications.Any(application => application.UserId == userId));
+    private static MobileAdoptionListingResponse ToResponse(AdoptionListing item, int? userId)
+    {
+        var ownApplication = userId.HasValue
+            ? item.Applications.FirstOrDefault(application => application.UserId == userId.Value)
+            : null;
+        return new MobileAdoptionListingResponse(
+            item.Id, item.PetName, item.Species, item.Breed, item.AgeYears, item.Gender, item.City, item.District,
+            item.HealthInfo, item.Story, item.ImagePath, item.Status, item.User.Username, item.CreatedAt,
+            userId.HasValue && item.UserId == userId, ownApplication is not null, ownApplication?.Status);
+    }
 
-    private async Task<(string? Path, string? Error)> SaveImageAsync(string imageBase64, string? contentType, CancellationToken cancellationToken)
+    private (string? Path, string? Error) SaveImage(string imageBase64, string? contentType)
     {
         if (string.IsNullOrWhiteSpace(imageBase64)) return (null, "İlan fotoğrafı gereklidir.");
         if (imageBase64.Length > 11_500_000) return (null, "Fotoğraf en fazla 8 MB olabilir.");
@@ -186,10 +233,7 @@ public sealed class MobileAdoptionApiController : ControllerBase
         if (bytes.Length is <= 0 or > 8 * 1024 * 1024) return (null, "Fotoğraf en fazla 8 MB olabilir.");
         var extension = ImageExtension(contentType);
         if (extension is null || !ValidImage(bytes, extension)) return (null, "Yalnızca geçerli JPG, PNG veya WebP fotoğrafları yükleyebilirsin.");
-        var directory = Path.Combine(_environment.WebRootPath, "uploads", "adoption"); Directory.CreateDirectory(directory);
-        var fileName = $"{Guid.NewGuid():N}{extension}";
-        await System.IO.File.WriteAllBytesAsync(Path.Combine(directory, fileName), bytes, cancellationToken);
-        return ($"uploads/adoption/{fileName}", null);
+        return (_mediaStorage.StageUpload("adoption", extension, contentType!.ToLowerInvariant(), bytes), null);
     }
 
     private void DeleteUploadedImage(string path)
@@ -231,5 +275,5 @@ public sealed class MobileUpdateAdoptionListingRequest { [Required, StringLength
 public sealed class MobileReportRequest { [Required, StringLength(500, MinimumLength = 3)] public string Reason { get; init; } = string.Empty; }
 public sealed record MobileAdoptionListingResponse(int Id, string PetName, string Species, string? Breed, int? AgeYears, string? Gender,
     string City, string? District, string HealthInfo, string Story, string ImagePath, string Status, string OwnerUsername,
-    DateTime CreatedAt, bool IsMine, bool HasApplied);
+    DateTime CreatedAt, bool IsMine, bool HasApplied, string? ApplicationStatus);
 public sealed record MobileAdoptionApplicationResponse(int Id, string Username, string Message, string Status, DateTime CreatedAt);

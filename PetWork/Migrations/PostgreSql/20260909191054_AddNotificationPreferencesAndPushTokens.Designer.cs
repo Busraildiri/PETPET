@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PetWork.Data;
@@ -11,9 +12,11 @@ using PetWork.Data;
 namespace PetWork.Migrations.PostgreSql
 {
     [DbContext(typeof(PostgresPetWorkDbContext))]
-    partial class PostgresPetWorkDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260909191054_AddNotificationPreferencesAndPushTokens")]
+    partial class AddNotificationPreferencesAndPushTokens
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -807,39 +810,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.HasIndex("UserId", "RevokedAt", "RefreshExpiresAt");
 
                     b.ToTable("MobileAuthSessions", "petwork");
-                });
-
-            modelBuilder.Entity("PetWork.Models.MobileMediaAsset", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<byte[]>("Data")
-                        .IsRequired()
-                        .HasColumnType("bytea");
-
-                    b.Property<string>("StorageKey")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StorageKey")
-                        .IsUnique();
-
-                    b.ToTable("MobileMediaAssets", "petwork");
                 });
 
             modelBuilder.Entity("PetWork.Models.MobileNotification", b =>

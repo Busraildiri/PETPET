@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Services;
 
 namespace PetWork.Controllers.Api;
 
@@ -16,11 +17,16 @@ public sealed class MobileSocialApiController : ControllerBase
 {
     private readonly PetWorkDbContext _context;
     private readonly IWebHostEnvironment _environment;
+    private readonly MobilePushNotificationService _pushNotifications;
+    private readonly MobileMediaStorageService _mediaStorage;
 
-    public MobileSocialApiController(PetWorkDbContext context, IWebHostEnvironment environment)
+    public MobileSocialApiController(PetWorkDbContext context, IWebHostEnvironment environment,
+        MobilePushNotificationService pushNotifications, MobileMediaStorageService mediaStorage)
     {
         _context = context;
         _environment = environment;
+        _pushNotifications = pushNotifications;
+        _mediaStorage = mediaStorage;
     }
 
     [HttpGet]
@@ -76,10 +82,9 @@ public sealed class MobileSocialApiController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(request.ImageBase64))
         {
-            var imageResult = await SaveImageAsync(
+            var imageResult = SaveImage(
                 request.ImageBase64,
-                request.ImageContentType,
-                cancellationToken);
+                request.ImageContentType);
             if (imageResult.Error is not null)
                 return BadRequest(new { message = imageResult.Error });
 
@@ -103,6 +108,7 @@ public sealed class MobileSocialApiController : ControllerBase
         }
         catch
         {
+            _mediaStorage.DiscardPending(imagePath);
             DeleteUploadedImage(imagePath);
             throw;
         }
@@ -166,9 +172,11 @@ public sealed class MobileSocialApiController : ControllerBase
         if (!int.TryParse(userIdValue, out var userId))
             return Unauthorized(new { message = "Oturum bilgisi doğrulanamadı. Lütfen yeniden giriş yap." });
 
-        var postExists = await _context.SocialPosts
-            .AnyAsync(post => post.Id == postId && !post.IsDeleted, cancellationToken);
-        if (!postExists)
+        var post = await _context.SocialPosts
+            .Where(candidate => candidate.Id == postId && !candidate.IsDeleted)
+            .Select(candidate => new { candidate.Id, candidate.UserId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (post is null)
             return NotFound(new { message = "Gönderi bulunamadı." });
 
         var user = await _context.Users.FirstOrDefaultAsync(candidate => candidate.Id == userId, cancellationToken);
@@ -189,7 +197,23 @@ public sealed class MobileSocialApiController : ControllerBase
 
         _context.SocialComments.Add(comment);
         user.ExperiencePoints += 5;
+        MobileNotification? notification = null;
+        if (post.UserId != userId)
+        {
+            notification = new MobileNotification
+            {
+                UserId = post.UserId,
+                Type = "social_comment",
+                Title = "Paylaşımına yeni yorum",
+                Body = $"@{user.Username} paylaşımına yorum yaptı.",
+                EntityType = "social_post",
+                EntityId = postId,
+                CreatedAt = DateTime.Now
+            };
+            _context.MobileNotifications.Add(notification);
+        }
         await _context.SaveChangesAsync(cancellationToken);
+        if (notification is not null) await _pushNotifications.SendAsync(notification, cancellationToken);
 
         return CreatedAtAction(nameof(GetComments), new { postId }, new MobileSocialCommentResponse(
             comment.Id,
@@ -211,18 +235,38 @@ public sealed class MobileSocialApiController : ControllerBase
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized(new { message = "Oturum bilgisi doğrulanamadı." });
-        if (!await _context.SocialPosts.AnyAsync(post => post.Id == postId && !post.IsDeleted, cancellationToken))
+        var post = await _context.SocialPosts
+            .Where(candidate => candidate.Id == postId && !candidate.IsDeleted)
+            .Select(candidate => new { candidate.UserId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (post is null)
             return NotFound(new { message = "Gönderi bulunamadı." });
 
         var like = await _context.SocialPostLikes.FirstOrDefaultAsync(
             candidate => candidate.SocialPostId == postId && candidate.UserId == userId.Value,
             cancellationToken);
+        MobileNotification? notification = null;
         if (request.Active && like is null)
+        {
             _context.SocialPostLikes.Add(new SocialPostLike { SocialPostId = postId, UserId = userId.Value });
+            if (post.UserId != userId.Value)
+            {
+                var username = await _context.Users.Where(user => user.Id == userId.Value)
+                    .Select(user => user.Username).SingleAsync(cancellationToken);
+                notification = new MobileNotification
+                {
+                    UserId = post.UserId, Type = "social_like", Title = "Paylaşımın beğenildi",
+                    Body = $"@{username} paylaşımını beğendi.", EntityType = "social_post", EntityId = postId,
+                    CreatedAt = DateTime.Now
+                };
+                _context.MobileNotifications.Add(notification);
+            }
+        }
         else if (!request.Active && like is not null)
             _context.SocialPostLikes.Remove(like);
 
         await _context.SaveChangesAsync(cancellationToken);
+        if (notification is not null) await _pushNotifications.SendAsync(notification, cancellationToken);
         var count = await _context.SocialPostLikes.CountAsync(candidate => candidate.SocialPostId == postId, cancellationToken);
         return Ok(new MobileReactionResponse(request.Active, count));
     }
@@ -263,20 +307,38 @@ public sealed class MobileSocialApiController : ControllerBase
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized(new { message = "Oturum bilgisi doğrulanamadı." });
-        if (!await _context.SocialComments.AnyAsync(comment =>
-                comment.Id == commentId && !comment.IsDeleted && !comment.SocialPost.IsDeleted,
-                cancellationToken))
+        var comment = await _context.SocialComments
+            .Where(candidate => candidate.Id == commentId && !candidate.IsDeleted && !candidate.SocialPost.IsDeleted)
+            .Select(candidate => new { candidate.UserId, candidate.SocialPostId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (comment is null)
             return NotFound(new { message = "Yorum bulunamadı." });
 
         var like = await _context.SocialCommentLikes.FirstOrDefaultAsync(
             candidate => candidate.SocialCommentId == commentId && candidate.UserId == userId.Value,
             cancellationToken);
+        MobileNotification? notification = null;
         if (request.Active && like is null)
+        {
             _context.SocialCommentLikes.Add(new SocialCommentLike { SocialCommentId = commentId, UserId = userId.Value });
+            if (comment.UserId != userId.Value)
+            {
+                var username = await _context.Users.Where(user => user.Id == userId.Value)
+                    .Select(user => user.Username).SingleAsync(cancellationToken);
+                notification = new MobileNotification
+                {
+                    UserId = comment.UserId, Type = "social_comment_like", Title = "Yorumun beğenildi",
+                    Body = $"@{username} yorumunu beğendi.", EntityType = "social_post", EntityId = comment.SocialPostId,
+                    CreatedAt = DateTime.Now
+                };
+                _context.MobileNotifications.Add(notification);
+            }
+        }
         else if (!request.Active && like is not null)
             _context.SocialCommentLikes.Remove(like);
 
         await _context.SaveChangesAsync(cancellationToken);
+        if (notification is not null) await _pushNotifications.SendAsync(notification, cancellationToken);
         var count = await _context.SocialCommentLikes.CountAsync(candidate => candidate.SocialCommentId == commentId, cancellationToken);
         return Ok(new MobileReactionResponse(request.Active, count));
     }
@@ -307,6 +369,7 @@ public sealed class MobileSocialApiController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden, new { message = "Bu gönderiyi silme yetkin yok." });
 
         post.IsDeleted = true;
+        await _mediaStorage.StageDeleteAsync(post.ImagePath, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
         DeleteUploadedImage(post.ImagePath);
         return NoContent();
@@ -356,10 +419,9 @@ public sealed class MobileSocialApiController : ControllerBase
         return Ok(new { message = "Bildirimin alındı. Teşekkür ederiz." });
     }
 
-    private async Task<(string? Path, string? Error)> SaveImageAsync(
+    private (string? Path, string? Error) SaveImage(
         string imageBase64,
-        string? contentType,
-        CancellationToken cancellationToken)
+        string? contentType)
     {
         const int maximumImageSize = 8 * 1024 * 1024;
         if (imageBase64.Length > 11_500_000)
@@ -392,13 +454,7 @@ public sealed class MobileSocialApiController : ControllerBase
         if (!HasValidImageSignature(imageBytes, imageBytes.Length, extension))
             return (null, "Seçilen dosya geçerli bir fotoğraf değil.");
 
-        var uploadDirectory = Path.Combine(_environment.WebRootPath, "uploads", "social");
-        Directory.CreateDirectory(uploadDirectory);
-        var fileName = $"{Guid.NewGuid():N}{extension}";
-        var targetPath = Path.Combine(uploadDirectory, fileName);
-
-        await System.IO.File.WriteAllBytesAsync(targetPath, imageBytes, cancellationToken);
-        return ($"uploads/social/{fileName}", null);
+        return (_mediaStorage.StageUpload("social", extension, contentType!.ToLowerInvariant(), imageBytes), null);
     }
 
     private static bool HasValidImageSignature(byte[] bytes, int length, string extension)

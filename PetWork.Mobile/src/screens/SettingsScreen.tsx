@@ -3,18 +3,20 @@ import * as Application from 'expo-application';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { apiUrl } from '../api';
+import { apiUrl, getMobileNotificationPreferences, updateMobileNotificationPreferences } from '../api';
 import {
   clearNotifications, defaultSettings, isExpoGo, NotificationPermission, NotificationSettingKey,
   notificationsAllowed, PetimSettings, readNotificationPermission, readSettings,
   requestNotificationPermission, writeSettings,
 } from '../settings';
 import { colors, createThemedStyles, getThemeMode, shadow } from '../theme';
+import { registerForPushNotifications } from '../notifications';
 
 type Props = {
   darkTheme: boolean;
   onThemeChange: (enabled: boolean) => void;
   username: string | null;
+  token: string | null;
   unreadNotifications: number;
   onOpenNotifications: () => void;
   onOpenAccount: () => void;
@@ -27,7 +29,7 @@ type Page = 'main' | 'help' | 'legal';
 type Permission = NotificationPermission | null;
 const notificationKeys: NotificationSettingKey[] = ['communityNotifications', 'lostPetNotifications', 'matchNotifications'];
 
-export function SettingsScreen({ darkTheme, onThemeChange, username, unreadNotifications, onOpenNotifications, onOpenAccount, onLogin, onLogout, onOpenQuestions, onOpenPatiMatch }: Props) {
+export function SettingsScreen({ darkTheme, onThemeChange, username, token, unreadNotifications, onOpenNotifications, onOpenAccount, onLogin, onLogout, onOpenQuestions, onOpenPatiMatch }: Props) {
   const [settings, setSettings] = useState<PetimSettings>(defaultSettings);
   const [permission, setPermission] = useState<Permission>(null);
   const [loading, setLoading] = useState(true);
@@ -36,16 +38,32 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, unreadNotif
 
   useEffect(() => {
     let active = true;
-    Promise.all([readSettings(), readNotificationPermission().catch(() => null)])
-      .then(async ([stored, currentPermission]) => {
+    Promise.all([
+      readSettings(),
+      readNotificationPermission().catch(() => null),
+      token ? getMobileNotificationPreferences(token).catch(() => null) : Promise.resolve(null),
+    ])
+      .then(async ([stored, currentPermission, server]) => {
         if (!active) return;
-        let next = stored;
+        let next = server?.isConfigured ? {
+          ...stored,
+          communityNotifications: server.communityNotifications,
+          lostPetNotifications: server.lostPetNotifications,
+          matchNotifications: server.matchNotifications,
+        } : stored;
         let changed = false;
         if (currentPermission && !notificationsAllowed(currentPermission)) {
           next = { ...stored, communityNotifications: false, lostPetNotifications: false, matchNotifications: false };
           changed = notificationKeys.some(key => stored[key]);
         }
-        if (changed) await writeSettings(next);
+        if (changed || server?.isConfigured) await writeSettings(next);
+        if (token && (!server?.isConfigured || changed)) {
+          await updateMobileNotificationPreferences(token, {
+            communityNotifications: next.communityNotifications,
+            lostPetNotifications: next.lostPetNotifications,
+            matchNotifications: next.matchNotifications,
+          }).catch(() => undefined);
+        }
         if (active) {
           setSettings(next);
           setPermission(currentPermission);
@@ -54,7 +72,7 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, unreadNotif
       .catch(() => active && Alert.alert('Tercihler yüklenemedi', 'Ayarlar varsayılan değerlerle açıldı.'))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [username]);
+  }, [token, username]);
 
   useEffect(() => {
     setSettings(current => current.darkTheme === darkTheme ? current : { ...current, darkTheme });
@@ -95,7 +113,20 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, unreadNotif
   const updateNotification = async (key: NotificationSettingKey, value: boolean) => {
     if (saving) return;
     if (isExpoGo) {
-      await persist({ ...settings, [key]: value });
+      const next = { ...settings, [key]: value };
+      if (!(await persist(next))) return;
+      if (token) {
+        try {
+          await updateMobileNotificationPreferences(token, {
+            communityNotifications: next.communityNotifications,
+            lostPetNotifications: next.lostPetNotifications,
+            matchNotifications: next.matchNotifications,
+          });
+        } catch {
+          await persist(settings);
+          Alert.alert('Ayar kaydedilemedi', 'Bildirim tercihi sunucuya kaydedilemedi.');
+        }
+      }
       return;
     }
     if (value) {
@@ -117,7 +148,21 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, unreadNotif
       }
     }
     const next = { ...settings, [key]: value };
-    await persist(next);
+    if (!(await persist(next))) return;
+    if (token) {
+      try {
+        await updateMobileNotificationPreferences(token, {
+          communityNotifications: next.communityNotifications,
+          lostPetNotifications: next.lostPetNotifications,
+          matchNotifications: next.matchNotifications,
+        });
+        if (notificationKeys.some(item => next[item])) void registerForPushNotifications(token).catch(() => undefined);
+      } catch {
+        await persist(settings);
+        Alert.alert('Ayar kaydedilemedi', 'Bildirim tercihi sunucuya kaydedilemedi. Lütfen tekrar dene.');
+        return;
+      }
+    }
     if (!value && !notificationKeys.some(item => next[item])) {
       await clearNotifications().catch(() => undefined);
     }
