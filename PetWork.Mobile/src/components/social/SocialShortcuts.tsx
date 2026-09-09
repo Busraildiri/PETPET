@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, shadow } from '../../theme';
+import { colors, createThemedStyles, shadow } from '../../theme';
 
 type CommunityProps = {
   onOpenAdoption: () => void;
@@ -54,7 +54,7 @@ function Shortcut({ title, subtitle, icon, color, onPress }: { title: string; su
   </Pressable>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   heading: { color: colors.text, fontFamily: 'serif', fontSize: 22, fontWeight: '700', marginTop: 25, marginBottom: 5 },
   hint: { color: colors.muted, fontSize: 11, marginBottom: 14 }, pair: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 9 },
   shortcut: { width: '48.4%', minHeight: 145, borderRadius: 21, padding: 16, ...shadow },
@@ -67,4 +67,4 @@ const styles = StyleSheet.create({
   nearbyCard: { width: '48.4%', minHeight: 126, borderRadius: 20, padding: 16, justifyContent: 'space-between', ...shadow },
   nearbyTitle: { color: colors.text, fontSize: 14, lineHeight: 18, fontWeight: '900', marginTop: 13 }, nearbyLink: { color: colors.primary, fontSize: 10, fontWeight: '800', marginTop: 7 },
   privacy: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 17 }, privacyText: { color: colors.muted, fontSize: 10 }, pressed: { opacity: 0.82, transform: [{ scale: 0.985 }] },
-});
+}));

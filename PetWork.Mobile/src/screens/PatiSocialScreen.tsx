@@ -13,7 +13,7 @@ import { CreatePostModal, type SelectedPostImage } from '../components/social/Cr
 import { CreateQuestionModal } from '../components/social/CreateQuestionModal';
 import { CommunityShortcuts, NearbyShortcuts, type NearbyCategory } from '../components/social/SocialShortcuts';
 import { PostCard } from '../components/social/PostCard';
-import { colors, shadow } from '../theme';
+import { colors, createThemedStyles, shadow } from '../theme';
 import type { SocialPost, SocialTab } from '../types/social';
 
 type Props = {
@@ -449,7 +449,7 @@ function plainText(value: string) { return value.replace(/<[^>]*>/g, ' ').replac
 function formatDate(value: string) { return new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value)); }
 
 const statusInset = Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 24 : 50;
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   screen: { flex: 1, backgroundColor: colors.background }, content: { paddingTop: statusInset + 12, paddingHorizontal: 19, paddingBottom: 116, width: '100%', maxWidth: 760, alignSelf: 'center' }, contentWithFloatingAction: { paddingBottom: 180 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 }, headerIcon: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   headerCopy: { flex: 1 }, title: { color: colors.text, fontFamily: 'serif', fontSize: 30, fontWeight: '700', letterSpacing: -0.5 }, subtitle: { color: colors.muted, fontSize: 12, marginTop: 2 },
@@ -481,4 +481,4 @@ const styles = StyleSheet.create({
   answersHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 22, marginBottom: 12 }, answersTitle: { color: colors.text, fontFamily: 'serif', fontSize: 22, fontWeight: '700' }, answersCount: { color: colors.primary, backgroundColor: colors.lilacSoft, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden', fontSize: 10, fontWeight: '900' }, answerCard: { backgroundColor: colors.card, borderRadius: 19, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 11 }, acceptedAnswer: { borderColor: colors.sage, backgroundColor: '#FBFFF9' }, answerTop: { flexDirection: 'row', alignItems: 'center', gap: 9 }, answerBody: { color: colors.text, fontSize: 11, lineHeight: 18, marginTop: 12 }, answerScore: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 12 },
   answerComposer: { backgroundColor: colors.card, borderRadius: 22, borderWidth: 1, borderColor: '#D8C1E8', padding: 16, marginTop: 17, ...shadow }, answerComposerTop: { flexDirection: 'row', alignItems: 'center', gap: 10 }, answerComposerTitle: { color: colors.text, fontSize: 13, fontWeight: '900' }, answerComposerHint: { color: colors.muted, fontSize: 9, marginTop: 3 }, answerInput: { minHeight: 115, color: colors.text, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 13, fontSize: 12, lineHeight: 18, marginTop: 14 }, answerInputDisabled: { opacity: 0.65 }, answerComposerFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 10 }, characterCount: { color: colors.muted, fontSize: 9 }, sendAnswerButton: { minWidth: 132, minHeight: 43, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: colors.primary, borderRadius: 15, paddingHorizontal: 14 }, sendAnswerDisabled: { opacity: 0.6 }, sendAnswerText: { color: colors.white, fontSize: 10, fontWeight: '900' }, submitError: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.peachSoft, borderRadius: 12, padding: 10, marginTop: 10 }, submitErrorText: { flex: 1, color: '#823D35', fontSize: 9, lineHeight: 14 },
   floatingAskButton: { position: 'absolute', bottom: Platform.OS === 'ios' ? 96 : 88, minWidth: 166, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 19, borderRadius: 26, backgroundColor: colors.primary, borderWidth: 2, borderColor: '#FFFCF8', shadowColor: '#4D3D45', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.24, shadowRadius: 15, elevation: 9 }, floatingAskText: { color: colors.white, fontSize: 12, fontWeight: '900' }, pressed: { opacity: 0.8, transform: [{ scale: 0.985 }] },
-});
+}));

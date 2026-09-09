@@ -5,10 +5,10 @@ import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, BackHandler, Image, ImageBackground, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Alert, AppState, BackHandler, Image, ImageBackground, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { ApiError, apiUrl, getHome, getNearbyGroomers, getNearbyPetHotels, getNearbyVeterinarians, HomePayload, logoutSession, mediaUrl, Question, refreshAuthSession, searchGroomersByArea, searchPetHotelsByArea, searchVeterinariansByArea, Story, type AuthResponse, type ContentKind, type NearbyVeterinarian } from './src/api';
+import { ApiError, apiUrl, getHome, getMobileNotifications, getNearbyGroomers, getNearbyPetHotels, getNearbyVeterinarians, HomePayload, logoutSession, mediaUrl, Question, refreshAuthSession, searchGroomersByArea, searchPetHotelsByArea, searchVeterinariansByArea, Story, type AuthResponse, type ContentKind, type NearbyVeterinarian } from './src/api';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
@@ -17,27 +17,41 @@ import { PetsScreen } from './src/screens/PetsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ContentScreen } from './src/screens/ContentScreen';
 import { LostPetsScreen } from './src/screens/LostPetsScreen';
+import { AdoptionScreen } from './src/screens/AdoptionScreen';
+import { ReviewsScreen } from './src/screens/ReviewsScreen';
+import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { configureNotifications } from './src/notifications';
-import { colors, shadow } from './src/theme';
+import { readSettings } from './src/settings';
+import { colors, createThemedStyles, getThemeMode, setThemeMode, shadow } from './src/theme';
 import type { SocialTab } from './src/types/social';
 import { clearSession, restoreSession, saveSession } from './src/session';
 
 type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
-type PageKey = 'root' | 'login' | 'register' | 'reset' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'content';
+type PageKey = 'root' | 'login' | 'register' | 'reset' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'content' | 'notifications';
 
-const communityDemoImage = require('./assets/community-demo.png');
 const locationConsentKey = 'petwork_location_consent_v1';
 
 void configureNotifications();
 
-const categories = [
-  { title: 'Soru-Cevap', icon: 'help-circle-outline' as const, color: colors.lilacSoft, ink: colors.primary, kind: null },
-  { title: 'Bakım Rehberleri', icon: 'book-outline' as const, color: colors.sageSoft, ink: '#4E7458', kind: 'guides' as ContentKind },
-  { title: 'Hastalıklar', icon: 'medkit-outline' as const, color: colors.peachSoft, ink: '#A65345', kind: 'diseases' as ContentKind },
-  { title: 'Tarifler', icon: 'restaurant-outline' as const, color: colors.yellowSoft, ink: '#8A6515', kind: 'recipes' as ContentKind },
-  { title: 'Blog', icon: 'create-outline' as const, color: colors.lilacSoft, ink: colors.primary, kind: 'blogs' as ContentKind },
-  { title: 'Yas ve Kayıp', icon: 'heart-outline' as const, color: colors.sageSoft, ink: '#4E7458', kind: 'grief' as ContentKind },
-];
+type HomeCategory = {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  ink: string;
+  kind: ContentKind | null;
+};
+
+const getCategories = (): HomeCategory[] => {
+  const dark = getThemeMode() === 'dark';
+  return [
+    { title: 'Soru-Cevap', icon: 'help-circle-outline', color: dark ? '#352A3D' : colors.lilacSoft, ink: dark ? '#E7C8F0' : colors.primary, kind: null },
+    { title: 'Bakım Rehberleri', icon: 'book-outline', color: dark ? '#26372D' : colors.sageSoft, ink: dark ? '#AAD3B3' : '#4E7458', kind: 'guides' },
+    { title: 'Hastalıklar', icon: 'medkit-outline', color: dark ? '#432D2C' : colors.peachSoft, ink: dark ? '#F0A18F' : '#A65345', kind: 'diseases' },
+    { title: 'Tarifler', icon: 'restaurant-outline', color: dark ? '#3D3423' : colors.yellowSoft, ink: dark ? '#F1D17D' : '#8A6515', kind: 'recipes' },
+    { title: 'Blog', icon: 'create-outline', color: dark ? '#352A3D' : colors.lilacSoft, ink: dark ? '#E7C8F0' : colors.primary, kind: 'blogs' },
+    { title: 'Yas ve Kayıp', icon: 'heart-outline', color: dark ? '#26372D' : colors.sageSoft, ink: dark ? '#AAD3B3' : '#4E7458', kind: 'grief' },
+  ];
+};
 
 const tabs = [
   { key: 'home' as const, label: 'Ana Sayfa', icon: 'home-outline' as const, active: 'home' as const },
@@ -61,6 +75,18 @@ export default function App() {
   const [nearbyCategory, setNearbyCategory] = useState<'veterinarian' | 'groomer' | 'hotel'>('veterinarian');
   const [contentKind, setContentKind] = useState<ContentKind>('blogs');
   const [matchChatOpen, setMatchChatOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [darkTheme, setDarkTheme] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void readSettings().then(settings => {
+      if (!active) return;
+      setThemeMode(settings.darkTheme ? 'dark' : 'light');
+      setDarkTheme(settings.darkTheme);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 1600);
@@ -108,6 +134,20 @@ export default function App() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [authExpiresAt, refreshToken]);
 
+  const refreshUnreadNotifications = useCallback(async () => {
+    if (!authToken) { setUnreadNotifications(0); return; }
+    try { setUnreadNotifications((await getMobileNotifications(authToken)).unreadCount); }
+    catch { /* Content screens will surface API errors when explicitly opened. */ }
+  }, [authToken]);
+
+  useEffect(() => {
+    void refreshUnreadNotifications();
+    if (!authToken) return;
+    const interval = setInterval(() => void refreshUnreadNotifications(), 30_000);
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') void refreshUnreadNotifications(); });
+    return () => { clearInterval(interval); subscription.remove(); };
+  }, [authToken, refreshUnreadNotifications]);
+
   useEffect(() => {
     const handleUrl = (url: string | null) => {
       if (!url) return;
@@ -137,7 +177,7 @@ export default function App() {
 
   if (showSplash || restoringSession) {
     return <View style={styles.splashView}>
-      <StatusBar style="dark" />
+      <StatusBar style={darkTheme ? 'light' : 'dark'} />
       <Image source={require('./assets/splash-petim.png')} style={styles.splashArtwork} resizeMode="contain" accessibilityLabel="Pet'im by PetWork" />
     </View>;
   }
@@ -160,6 +200,7 @@ export default function App() {
     setAuthToken(null);
     setAuthExpiresAt(null);
     setRefreshToken(null);
+    setUnreadNotifications(0);
     setTab('home');
     setPage('root');
   };
@@ -171,10 +212,11 @@ export default function App() {
   else if (page === 'account' && currentUser && authToken) screen = <AccountScreen username={currentUser} token={authToken} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} onSessionChanged={sessionChanged} onDeleted={logout} />;
   else if (page === 'pets' && authToken) screen = <PetsScreen token={authToken} onBack={() => setPage('account')} />;
   else if (page === 'nearby') screen = <NearbyScreen category={nearbyCategory} onBack={() => setPage('root')} />;
-  else if (page === 'adoption') screen = <AdoptionScreen onBack={() => setPage('root')} />;
-  else if (page === 'reviews') screen = <ReviewsScreen onBack={() => setPage('root')} />;
+  else if (page === 'adoption') screen = <AdoptionScreen token={authToken} onLogin={() => setPage('login')} onBack={() => setPage('root')} />;
+  else if (page === 'reviews') screen = <ReviewsScreen token={authToken} onLogin={() => setPage('login')} onBack={() => setPage('root')} />;
   else if (page === 'content') screen = <ContentScreen kind={contentKind} onBack={() => setPage('root')} onOpenLost={openLost} />;
-  else if (tab === 'home') screen = <HomeScreen currentUser={currentUser} onOpenAccount={() => setPage('account')} onOpenLost={openLost} onOpenQuestions={openQuestions} onOpenContent={kind => { setContentKind(kind); setPage('content'); }} onLogin={() => setPage('login')} onRegister={() => setPage('register')} />;
+  else if (page === 'notifications' && authToken) screen = <NotificationsScreen token={authToken} onBack={() => setPage('root')} onUnreadChanged={setUnreadNotifications} onOpenLost={openLost} onOpenAdoption={() => { setTab('social'); setPage('adoption'); }} />;
+  else if (tab === 'home') screen = <HomeScreen currentUser={currentUser} unreadNotifications={unreadNotifications} onOpenNotifications={() => setPage(currentUser ? 'notifications' : 'login')} onOpenAccount={() => setPage('account')} onOpenLost={openLost} onOpenQuestions={openQuestions} onOpenContent={kind => { setContentKind(kind); setPage('content'); }} onLogin={() => setPage('login')} onRegister={() => setPage('register')} />;
   else if (tab === 'social') screen = <PatiSocialScreen
     initialTab={socialInitialTab}
     username={currentUser}
@@ -191,19 +233,19 @@ export default function App() {
   />;
   else if (tab === 'lost') screen = <LostPetsScreen token={authToken} username={currentUser} onLogin={() => setPage('login')} />;
   else if (tab === 'match') screen = <PatiMatchScreen token={authToken} username={currentUser} onLogin={() => setPage('login')} onOpenPets={() => setPage('pets')} onSessionExpired={() => { void logout(); setPage('login'); }} onChatStateChange={setMatchChatOpen} />;
-  else if (tab === 'settings') screen = <SettingsScreen username={currentUser} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} onOpenPatiMatch={() => setTab('match')} />;
+  else if (tab === 'settings') screen = <SettingsScreen darkTheme={darkTheme} onThemeChange={value => { setThemeMode(value ? 'dark' : 'light'); setDarkTheme(value); }} username={currentUser} unreadNotifications={unreadNotifications} onOpenNotifications={() => setPage(currentUser ? 'notifications' : 'login')} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} onOpenPatiMatch={() => setTab('match')} />;
   else screen = <ComingSoon tab={tab} onHome={() => changeTab('home')} />;
 
   return (
     <View style={styles.app}>
-      <StatusBar style={tab === 'home' ? 'light' : 'dark'} />
+      <StatusBar style={darkTheme || tab === 'home' ? 'light' : 'dark'} />
       {screen}
       {page !== 'login' && page !== 'register' && page !== 'reset' && !matchChatOpen ? <BottomTabs active={tab} onChange={changeTab} /> : null}
     </View>
   );
 }
 
-function HomeScreen({ currentUser, onOpenAccount, onOpenLost, onOpenQuestions, onOpenContent, onLogin, onRegister }: { currentUser: string | null; onOpenAccount: () => void; onOpenLost: () => void; onOpenQuestions: () => void; onOpenContent: (kind: ContentKind) => void; onLogin: () => void; onRegister: () => void }) {
+function HomeScreen({ currentUser, unreadNotifications, onOpenNotifications, onOpenAccount, onOpenLost, onOpenQuestions, onOpenContent, onLogin, onRegister }: { currentUser: string | null; unreadNotifications: number; onOpenNotifications: () => void; onOpenAccount: () => void; onOpenLost: () => void; onOpenQuestions: () => void; onOpenContent: (kind: ContentKind) => void; onLogin: () => void; onRegister: () => void }) {
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -248,12 +290,12 @@ function HomeScreen({ currentUser, onOpenAccount, onOpenLost, onOpenQuestions, o
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
       keyboardShouldPersistTaps="handled"
     >
-      <Hero currentUser={currentUser} query={query} setQuery={setQuery} onOpenAccount={onOpenAccount} onLogin={onLogin} onRegister={onRegister} />
+      <Hero currentUser={currentUser} unreadNotifications={unreadNotifications} query={query} setQuery={setQuery} onOpenNotifications={onOpenNotifications} onOpenAccount={onOpenAccount} onLogin={onLogin} onRegister={onRegister} />
       <View style={styles.content}>
         {query.trim() ? <SearchResults query={query} results={results} loading={loading} onOpenContent={onOpenContent} onOpenQuestions={onOpenQuestions} /> : (
           <>
             <SectionTitle title="Konular" />
-            <View style={styles.categoryGrid}>{categories.map(category => <CategoryCard key={category.title} {...category} onPress={category.kind ? () => onOpenContent(category.kind) : onOpenQuestions} />)}</View>
+            <View style={styles.categoryGrid}>{getCategories().map(category => <CategoryCard key={category.title} {...category} onPress={category.kind ? () => onOpenContent(category.kind!) : onOpenQuestions} />)}</View>
             <LostHomeBanner onPress={onOpenLost} />
             <SectionTitle title="Güncel İçerikler" action="Tümü" onAction={() => onOpenContent('all')} />
             {loading && !data ? <LoadingCards /> : null}
@@ -280,15 +322,15 @@ function HomeScreen({ currentUser, onOpenAccount, onOpenLost, onOpenQuestions, o
   );
 }
 
-function Hero({ currentUser, query, setQuery, onOpenAccount, onLogin, onRegister }: { currentUser: string | null; query: string; setQuery: (value: string) => void; onOpenAccount: () => void; onLogin: () => void; onRegister: () => void }) {
+function Hero({ currentUser, unreadNotifications, query, setQuery, onOpenNotifications, onOpenAccount, onLogin, onRegister }: { currentUser: string | null; unreadNotifications: number; query: string; setQuery: (value: string) => void; onOpenNotifications: () => void; onOpenAccount: () => void; onLogin: () => void; onRegister: () => void }) {
   return (
-    <LinearGradient colors={[colors.primaryDark, colors.primary, '#845B7C']} style={styles.hero}>
+    <LinearGradient colors={getThemeMode() === 'dark' ? ['#493044', '#352532', '#251C25'] : [colors.primaryDark, colors.primary, '#845B7C']} style={styles.hero}>
       <View style={styles.headerRow}>
         <View>
           <View style={styles.brandRow}><Ionicons name="paw" size={19} color={colors.peach} /><Text style={styles.brand}>Pet'im</Text></View>
           <Text style={styles.byline}>by PetWork</Text>
         </View>
-        {currentUser ? <Pressable onPress={onOpenAccount} accessibilityRole="button" accessibilityLabel={`${currentUser} hesap menüsünü aç`} style={({ pressed }) => [styles.userChip, pressed && styles.pressed]}><Ionicons name="person-circle-outline" size={21} color={colors.primary} /><Text style={styles.userChipText} numberOfLines={1}>{currentUser}</Text></Pressable> : <View style={styles.authRow}>
+        {currentUser ? <View style={styles.authRow}><Pressable onPress={onOpenNotifications} accessibilityRole="button" accessibilityLabel={`${unreadNotifications} okunmamış bildirim`} style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}><Ionicons name="notifications-outline" size={21} color={colors.primary} />{unreadNotifications > 0 ? <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{Math.min(unreadNotifications, 99)}</Text></View> : null}</Pressable><Pressable onPress={onOpenAccount} accessibilityRole="button" accessibilityLabel={`${currentUser} hesap menüsünü aç`} style={({ pressed }) => [styles.userChip, pressed && styles.pressed]}><Ionicons name="person-circle-outline" size={21} color={colors.primary} /><Text style={styles.userChipText} numberOfLines={1}>{currentUser}</Text></Pressable></View> : <View style={styles.authRow}>
           <Pressable accessibilityRole="button" accessibilityLabel="Giriş yap"
             onPress={onLogin}
             style={({ pressed }) => [styles.loginButton, pressed && styles.pressed]}>
@@ -319,11 +361,12 @@ function SectionTitle({ title, action, onAction }: { title: string; action?: str
   </View>;
 }
 
-function CategoryCard({ title, icon, color, ink, onPress }: typeof categories[number] & { onPress?: () => void }) {
+function CategoryCard({ title, icon, color, ink, onPress }: HomeCategory & { onPress?: () => void }) {
+  const dark = getThemeMode() === 'dark';
   return <Pressable accessibilityRole="button" accessibilityLabel={`${title} kategorisini aç`}
     onPress={onPress ?? (() => Alert.alert(title, 'Bu kategori ekranını sıradaki adımda bağlıyoruz.'))}
-    style={({ pressed }) => [styles.categoryCard, { backgroundColor: color }, pressed && styles.cardPressed]}>
-    <View style={[styles.categoryIcon, { backgroundColor: `${ink}14` }]}><Ionicons name={icon} size={27} color={ink} /></View>
+    style={({ pressed }) => [styles.categoryCard, { backgroundColor: color }, dark && styles.categoryCardDark, pressed && styles.cardPressed]}>
+    <View style={[styles.categoryIcon, { backgroundColor: `${ink}${dark ? '20' : '14'}` }]}><Ionicons name={icon} size={27} color={ink} /></View>
     <Text style={[styles.categoryLabel, { color: ink }]} numberOfLines={2}>{title}</Text>
   </Pressable>;
 }
@@ -574,54 +617,12 @@ function PlaceCard({ place, kind }: { place: NearbyVeterinarian; kind: string })
     <View style={styles.miniActions}><Pressable onPress={openMaps}><Text style={styles.textAction}>Yol tarifi</Text></Pressable><Pressable onPress={openMaps}><Text style={styles.textAction}>Google Maps'te gör</Text></Pressable></View></View></View>;
 }
 
-function AdoptionScreen({ onBack }: { onBack: () => void }) {
-  return <ScreenShell title="Sahiplendirme" subtitle="Satın alma, sahiplen" onBack={onBack}>
-    <SampleBadge />
-    <View style={styles.petProfileCard}><ImageBackground source={communityDemoImage} style={styles.petPhoto} imageStyle={styles.petPhotoRadius}>
-      <Text style={styles.safeBadge}>Sağlık bilgisi doğrulandı</Text></ImageBackground>
-      <View style={styles.petProfileBody}><View style={styles.rowBetween}><Text style={styles.petName}>Luna</Text><Text style={styles.cityBadge}>İstanbul</Text></View>
-        <Text style={styles.petMeta}>2 yaş · Tekir · Dişi</Text><InfoLine icon="medkit-outline" text="Aşıları tam, kısırlaştırılmış" />
-        <Text style={styles.storyHeading}>Luna'nın hikâyesi</Text><Text style={styles.bodyText}>İnsanlarla iletişimi güçlü, sakin ve oyun seven Luna için güvenli bir yuva aranıyor.</Text>
-        <ActionButton label="Sahiplenme başvurusu yap" icon="heart-outline" onPress={() => showUnavailable('Sahiplenme başvurusu')} />
-        <View style={styles.safetyActions}><Pressable onPress={() => showUnavailable('Güvenlik önerileri')}><Text style={styles.textAction}>Güvenlik önerileri</Text></Pressable><Pressable onPress={() => showUnavailable('İlan bildirimi')}><Text style={styles.reportAction}>İlanı bildir</Text></Pressable></View>
-      </View>
-    </View>
-    <View style={styles.noticeCard}><Ionicons name="shield-checkmark-outline" size={25} color="#4E7458" /><Text style={styles.noticeText}>Hayvan satışı ve fiyat bilgisi bu alanda yer almaz. Görüşmelerde kişisel bilgilerini koru.</Text></View>
-  </ScreenShell>;
-}
-
-function ReviewsScreen({ onBack }: { onBack: () => void }) {
-  const [adding, setAdding] = useState(false);
-  return <ScreenShell title="Pati Denedi" subtitle="Gerçek mama deneyimleri" onBack={onBack}>
-    <SampleBadge />
-    <View style={styles.ratingCard}><View style={styles.packageMock}><Ionicons name="nutrition" size={35} color="#8A6515" /><Text style={styles.packageText}>MAMA</Text></View><View style={styles.flexOne}>
-      <View style={styles.labelRow}><Text style={styles.verifiedBadge}>Doğrulanmış Deneyim</Text><Text style={styles.sponsoredBadge}>Sponsorlu</Text></View>
-      <Text style={styles.productTitle}>Somonlu Yetişkin Kedi Maması</Text><Text style={styles.productMeta}>PatiPlus · Kedi</Text><Text style={styles.ratingBig}>4,4 ★</Text></View></View>
-    <View style={styles.scoreGrid}>{[['Lezzet','4,7'], ['İçerik','4,3'], ['Sindirim','4,5'], ['Fiyat/Değer','4,0']].map(([label, score]) => <View key={label} style={styles.scoreItem}><Text style={styles.score}>{score}</Text><Text style={styles.scoreLabel}>{label}</Text></View>)}</View>
-    <View style={styles.safetyActions}><Pressable onPress={() => setAdding(!adding)}><Text style={styles.textAction}>{adding ? 'Formu kapat' : '+ Mama deneyimi ekle'}</Text></Pressable><Pressable onPress={() => showUnavailable('İçerik bildirimi')}><Text style={styles.reportAction}>İçeriği bildir</Text></Pressable></View>
-    {adding ? <ReviewForm /> : null}
-  </ScreenShell>;
-}
-
-function ReviewForm() {
-  const [brand, setBrand] = useState(''); const [product, setProduct] = useState(''); const [petType, setPetType] = useState('');
-  return <View style={styles.formCard}><Text style={styles.formTitle}>Yeni deneyim</Text><View style={styles.photoPicker}><Ionicons name="camera-outline" size={24} color={colors.primary} /><Text style={styles.photoPickerText}>Paket fotoğrafı ekle</Text></View>
-    <FormInput value={brand} onChangeText={setBrand} placeholder="Marka" /><FormInput value={product} onChangeText={setProduct} placeholder="Ürün adı" /><FormInput value={petType} onChangeText={setPetType} placeholder="Evcil hayvan türü" />
-    <Text style={styles.formHint}>Lezzet · İçerik · Sindirim · Fiyat/Değer puanları gönderim adımında seçilecek.</Text>
-    <ActionButton label="Deneyimi kaydet" icon="checkmark-circle-outline" onPress={() => showUnavailable('Mama deneyimi')} />
-  </View>;
-}
-
 function FormInput({ value, onChangeText, placeholder, multiline = false }: { value: string; onChangeText: (text: string) => void; placeholder: string; multiline?: boolean }) {
   return <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#958991" multiline={multiline} style={[styles.formInput, multiline && styles.formInputMultiline]} />;
 }
 
 function ActionButton({ label, icon, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
   return <Pressable onPress={onPress} style={({ pressed }) => [styles.fullButton, pressed && styles.pressed]}><Ionicons name={icon} size={19} color={colors.white} /><Text style={styles.fullButtonText}>{label}</Text></Pressable>;
-}
-
-function showUnavailable(feature: string) {
-  Alert.alert('Henüz kullanıma açık değil', `${feature} sunucuya bağlı olmadığı için hiçbir veri gönderilmedi veya kaydedilmedi.`);
 }
 
 async function openExternalUrl(url: string, message: string) {
@@ -651,10 +652,6 @@ function InfoLine({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: 
   return <View style={styles.infoLine}><Ionicons name={icon} size={18} color="#4E7458" /><Text style={styles.infoText}>{text}</Text></View>;
 }
 
-function SampleBadge() {
-  return <View style={styles.sampleNotice}><Ionicons name="eye-outline" size={14} color={colors.primary} /><Text style={styles.sampleNoticeText}>Örnek görünüm</Text></View>;
-}
-
 function ComingSoon({ tab, onHome }: { tab: 'match'; onHome: () => void }) {
   const current = tabs.find(item => item.key === tab)!;
   return <View style={styles.comingSoon}><View style={styles.comingIcon}><Ionicons name={current.active} size={42} color={colors.primary} /></View>
@@ -676,13 +673,14 @@ function BottomTabs({ active, onChange }: { active: TabKey; onChange: (tab: TabK
 const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
 const statusInset = Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 24 : 48;
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   app: { flex: 1, backgroundColor: colors.background }, screen: { flex: 1, backgroundColor: colors.background }, scrollContent: { paddingBottom: 108 },
   splashView: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }, splashArtwork: { width: '100%', height: '100%' },
   hero: { paddingTop: statusInset + 14, paddingHorizontal: 22, paddingBottom: 24, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, brandRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   brand: { color: colors.white, fontFamily: serif, fontSize: 29, fontWeight: '700', letterSpacing: -0.6 }, byline: { color: '#DDCED9', fontSize: 11, marginTop: 1, marginLeft: 27, letterSpacing: 0.3 },
   authRow: { flexDirection: 'row', gap: 8 }, loginButton: { minHeight: 42, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.card, justifyContent: 'center' },
+  notificationButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }, notificationBadge: { position: 'absolute', right: -2, top: -3, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.peach }, notificationBadgeText: { color: colors.primaryDark, fontSize: 9, fontWeight: '900' },
   userChip: { maxWidth: 150, minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.card, paddingHorizontal: 13, borderRadius: 22 }, userChipText: { flexShrink: 1, color: colors.primaryDark, fontSize: 12, fontWeight: '800' },
   loginText: { color: colors.primaryDark, fontWeight: '700', fontSize: 13 }, joinButton: { minHeight: 42, paddingHorizontal: 15, borderRadius: 22, borderWidth: 1.2, borderColor: '#F6EAF2', justifyContent: 'center' },
   joinText: { color: colors.white, fontWeight: '700', fontSize: 13 }, pressed: { opacity: 0.78, transform: [{ scale: 0.98 }] },
@@ -690,7 +688,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, color: colors.white, fontSize: 14, paddingVertical: 10 }, content: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: 20 },
   sectionHeader: { marginTop: 27, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, sectionTitle: { color: colors.text, fontFamily: serif, fontWeight: '700', fontSize: 23, letterSpacing: -0.4 },
   sectionAction: { color: colors.primary, fontWeight: '700', fontSize: 13, paddingVertical: 8 }, categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
-  categoryCard: { width: '31.5%', aspectRatio: 1.03, borderRadius: 19, alignItems: 'center', justifyContent: 'center', padding: 8, ...shadow }, categoryIcon: { width: 43, height: 43, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
+  categoryCard: { width: '31.5%', aspectRatio: 1.03, borderRadius: 19, alignItems: 'center', justifyContent: 'center', padding: 8, ...shadow }, categoryCardDark: { borderWidth: 1, borderColor: '#51414A' }, categoryIcon: { width: 43, height: 43, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
   categoryLabel: { textAlign: 'center', fontWeight: '700', fontSize: 12, lineHeight: 16 }, cardPressed: { opacity: 0.82, transform: [{ scale: 0.985 }] }, horizontalList: { gap: 13, paddingRight: 20, paddingBottom: 6 },
   storyCard: { width: 286, minHeight: 228, backgroundColor: colors.card, borderRadius: 20, overflow: 'hidden', ...shadow }, storyImage: { height: 145, padding: 12, justifyContent: 'flex-start', alignItems: 'flex-start', backgroundColor: colors.sageSoft },
   storyImageRadius: { borderTopLeftRadius: 20, borderTopRightRadius: 20 }, storyBadge: { backgroundColor: '#FFFCF8E8', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 14 }, storyBadgeText: { color: '#4E7458', fontWeight: '700', fontSize: 11 },
@@ -710,8 +708,8 @@ const styles = StyleSheet.create({
   comingSoon: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36, paddingBottom: 70 }, comingIcon: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' },
   comingTitle: { fontFamily: serif, fontSize: 30, fontWeight: '700', color: colors.text, marginTop: 22 }, comingText: { color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: 'center', marginTop: 10 }, primaryButton: { backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 24, paddingVertical: 14, marginTop: 24 }, primaryButtonText: { color: colors.white, fontWeight: '800' },
   flexOne: { flex: 1 }, rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }, stack: { gap: 12, marginTop: 18 },
-  lostHomeBanner: { flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 18, padding: 17, backgroundColor: colors.peachSoft, borderWidth: 1, borderColor: colors.peach, borderRadius: 22, ...shadow },
-  lostHomeIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, lostEyebrow: { color: '#9B463B', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  lostHomeBanner: { flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 18, padding: 17, backgroundColor: getThemeMode() === 'dark' ? '#302326' : colors.peachSoft, borderWidth: 1, borderColor: getThemeMode() === 'dark' ? '#A76B60' : colors.peach, borderRadius: 22, ...shadow },
+  lostHomeIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: getThemeMode() === 'dark' ? '#6D4A65' : colors.primary, alignItems: 'center', justifyContent: 'center' }, lostEyebrow: { color: getThemeMode() === 'dark' ? '#F0A18F' : '#9B463B', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   lostHomeTitle: { color: colors.text, fontFamily: serif, fontSize: 18, fontWeight: '700', marginTop: 3 }, lostHomeText: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
   subScreenContent: { paddingTop: statusInset + 8, paddingHorizontal: 20, paddingBottom: 116, width: '100%', maxWidth: 760, alignSelf: 'center' }, subHeader: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' }, headerMark: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
@@ -744,4 +742,4 @@ const styles = StyleSheet.create({
   detailHero: { height: 280, padding: 15, alignItems: 'flex-start', marginTop: 18 }, detailHeroRadius: { borderRadius: 24 }, detailCard: { backgroundColor: colors.card, borderRadius: 22, padding: 19, marginTop: 14, ...shadow }, detailTitle: { color: colors.text, fontFamily: serif, fontSize: 26, fontWeight: '700' }, timeline: { backgroundColor: colors.background, borderRadius: 16, padding: 14, marginTop: 16 }, timelineTitle: { color: colors.text, fontSize: 13, fontWeight: '800' }, timelineItem: { color: colors.primary, fontSize: 11, marginTop: 10 }, timelinePrivate: { color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 8 },
   sampleNotice: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#EEE4F2', borderWidth: 1, borderColor: '#D8C1E8', borderRadius: 13, paddingVertical: 6, paddingHorizontal: 10, marginTop: 12, marginBottom: 10 },
   sampleNoticeText: { color: colors.primary, fontSize: 9, fontWeight: '800' },
-});
+}));

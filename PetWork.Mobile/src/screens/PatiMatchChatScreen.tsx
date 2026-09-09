@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getPatiMatchMessages, mediaUrl, sendPatiMatchMessage, type PatiMatchCandidate, type PatiMatchMessage, type PatiMatchMyPet } from '../api';
-import { colors, shadow } from '../theme';
+import { colors, createThemedStyles, getThemeMode, shadow } from '../theme';
 
 type Props = {
   token: string;
@@ -61,7 +61,7 @@ export function PatiMatchChatScreen({ token, sourcePet, match, onBack }: Props) 
   };
 
   return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={8}>
-    <StatusBar style="dark" />
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} />
     <View style={styles.header}>
       <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Eşleşmelere dön" style={styles.backButton}>
         <Ionicons name="arrow-back" size={23} color={colors.primary} />
@@ -119,7 +119,7 @@ function formatTime(value: string) {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   screen:{flex:1,backgroundColor:colors.background,paddingTop:Platform.OS==='ios'?54:24},
   header:{minHeight:66,flexDirection:'row',alignItems:'center',gap:11,paddingHorizontal:18,borderBottomWidth:1,borderBottomColor:colors.border,backgroundColor:colors.card},
   backButton:{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center',backgroundColor:colors.lilacSoft},
@@ -135,4 +135,4 @@ const styles = StyleSheet.create({
   composer:{flexDirection:'row',alignItems:'flex-end',gap:9,paddingHorizontal:14,paddingTop:10,paddingBottom:Platform.OS==='ios'?34:14,backgroundColor:colors.card,borderTopWidth:1,borderTopColor:colors.border},
   input:{flex:1,maxHeight:110,minHeight:45,borderRadius:18,borderWidth:1,borderColor:colors.border,backgroundColor:colors.background,paddingHorizontal:14,paddingVertical:12,color:colors.text,fontSize:12},
   sendButton:{width:45,height:45,borderRadius:17,alignItems:'center',justifyContent:'center',backgroundColor:colors.primary},disabled:{opacity:.4},
-});
+}));

@@ -5,7 +5,7 @@ import {
   ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { ContentItem, ContentKind, getContent, mediaUrl } from '../api';
-import { colors, shadow } from '../theme';
+import { colors, createThemedStyles, shadow } from '../theme';
 
 const config: Record<ContentKind, { title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
   all: { title: 'Tüm İçerikler', subtitle: 'En yeni PetWork yayınları', icon: 'library-outline', color: colors.lilacSoft },
@@ -125,7 +125,7 @@ function Header({ title, subtitle, icon, onBack }: { title: string; subtitle: st
 
 const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
 const statusInset = Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 24 : 48;
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   screen: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingTop: statusInset + 8, paddingHorizontal: 20, paddingBottom: 116 },
   header: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 10 }, back: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' },
   mark: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1 }, title: { color: colors.text, fontFamily: serif, fontSize: 25, fontWeight: '700' }, subtitle: { color: colors.muted, fontSize: 10, marginTop: 2 },
@@ -142,4 +142,4 @@ const styles = StyleSheet.create({
   detailCard: { backgroundColor: colors.card, borderRadius: 22, padding: 19, marginTop: 16, ...shadow }, detailSummary: { color: colors.text, fontSize: 14, lineHeight: 21, fontWeight: '700', paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border }, body: { color: colors.text, fontSize: 13, lineHeight: 21, marginTop: 15 },
   sourceCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, backgroundColor: colors.sageSoft, borderRadius: 18, padding: 15, marginTop: 14 }, sourceTitle: { color: colors.text, fontSize: 12, fontWeight: '800' }, sourceCopy: { color: '#56635A', fontSize: 10, lineHeight: 15, marginTop: 4 },
   sourceButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: 17, marginTop: 12 }, sourceButtonText: { color: colors.white, fontSize: 12, fontWeight: '800' }, disclaimer: { color: '#8D4339', backgroundColor: colors.peachSoft, borderRadius: 16, padding: 14, fontSize: 10, lineHeight: 15, marginTop: 12 },
-});
+}));

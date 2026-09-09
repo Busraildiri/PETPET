@@ -4,7 +4,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { createSocialComment, getSocialComments, setSocialCommentLike, type SocialCommentPayload } from '../../api';
-import { colors, shadow } from '../../theme';
+import { colors, createThemedStyles, shadow } from '../../theme';
 import type { SocialPost } from '../../types/social';
 
 type Props = {
@@ -148,7 +148,7 @@ export function CommentsModal({ visible, post, token, username, onClose, onLogin
   </Modal>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#241B2188' },
   sheet: { height: '82%', backgroundColor: colors.background, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 10, paddingBottom: Platform.OS === 'ios' ? 28 : 18, ...shadow },
@@ -167,4 +167,4 @@ const styles = StyleSheet.create({
   errorBox: { marginHorizontal: 20, marginBottom: 10, backgroundColor: colors.peachSoft, borderRadius: 14, padding: 11 }, errorText: { color: '#8D4339', fontSize: 10 }, retry: { color: colors.primary, fontSize: 10, fontWeight: '900', marginTop: 5 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 9, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }, input: { flex: 1, minHeight: 48, maxHeight: 110, color: colors.text, backgroundColor: colors.card, borderRadius: 17, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 12 },
   sendButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary }, disabled: { opacity: 0.45 }, xpNote: { color: colors.muted, textAlign: 'center', fontSize: 8, marginTop: 7 },
-});
+}));

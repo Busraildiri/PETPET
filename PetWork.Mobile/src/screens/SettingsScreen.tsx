@@ -9,10 +9,14 @@ import {
   notificationsAllowed, PetimSettings, readNotificationPermission, readSettings,
   requestNotificationPermission, writeSettings,
 } from '../settings';
-import { colors, shadow } from '../theme';
+import { colors, createThemedStyles, getThemeMode, shadow } from '../theme';
 
 type Props = {
+  darkTheme: boolean;
+  onThemeChange: (enabled: boolean) => void;
   username: string | null;
+  unreadNotifications: number;
+  onOpenNotifications: () => void;
   onOpenAccount: () => void;
   onLogin: () => void;
   onLogout: () => void;
@@ -23,7 +27,7 @@ type Page = 'main' | 'help' | 'legal';
 type Permission = NotificationPermission | null;
 const notificationKeys: NotificationSettingKey[] = ['communityNotifications', 'lostPetNotifications', 'matchNotifications'];
 
-export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onOpenQuestions, onOpenPatiMatch }: Props) {
+export function SettingsScreen({ darkTheme, onThemeChange, username, unreadNotifications, onOpenNotifications, onOpenAccount, onLogin, onLogout, onOpenQuestions, onOpenPatiMatch }: Props) {
   const [settings, setSettings] = useState<PetimSettings>(defaultSettings);
   const [permission, setPermission] = useState<Permission>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +57,10 @@ export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onO
   }, [username]);
 
   useEffect(() => {
+    setSettings(current => current.darkTheme === darkTheme ? current : { ...current, darkTheme });
+  }, [darkTheme]);
+
+  useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') void readNotificationPermission().then(setPermission).catch(() => setPermission(null));
     });
@@ -74,9 +82,11 @@ export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onO
     setSaving(true);
     try {
       await writeSettings(next);
+      return true;
     } catch {
       setSettings(previous);
       Alert.alert('Ayar kaydedilemedi', 'Lütfen tekrar dene.');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -113,6 +123,12 @@ export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onO
     }
   };
 
+  const updateTheme = async (value: boolean) => {
+    if (saving) return;
+    const next = { ...settings, darkTheme: value };
+    if (await persist(next)) onThemeChange(value);
+  };
+
   const confirmLogout = () => Alert.alert(
     'Çıkış yapmak istiyor musun?',
     'Bu cihazdaki oturumun kapatılacak. Hesabın ve içeriklerin silinmeyecek.',
@@ -127,7 +143,7 @@ export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onO
   const build = Application.nativeBuildVersion;
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-    <StatusBar style="dark" />
+    <StatusBar style={darkTheme ? 'light' : 'dark'} />
     <View style={styles.header}>
       <View><Text style={styles.eyebrow}>PET’İM</Text><Text style={styles.title}>Ayarlar</Text><Text style={styles.subtitle}>Deneyimini ve gizliliğini yönet.</Text></View>
       <View style={styles.headerIcon}><Ionicons name="settings" size={27} color={colors.primary} /></View>
@@ -140,6 +156,11 @@ export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onO
     </Pressable>
 
     {loading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>Tercihler yükleniyor…</Text></View> : <>
+      <SectionTitle icon="color-palette-outline" title="Görünüm" />
+      <View style={styles.card}>
+        <SettingSwitch icon="moon-outline" title="Koyu tema" subtitle="Uygulamayı koyu renklerle kullan" value={settings.darkTheme} disabled={saving} onChange={value => void updateTheme(value)} last />
+      </View>
+
       <SectionTitle icon="notifications-outline" title="Bildirimler" />
       {!isExpoGo ? <View style={styles.permissionCard}>
         <View style={[styles.permissionIcon, allowed ? styles.permissionIconOn : styles.permissionIconOff]}><Ionicons name={allowed ? 'checkmark' : 'notifications-off-outline'} size={18} color={allowed ? '#3F684A' : '#9B463B'} /></View>
@@ -147,6 +168,7 @@ export function SettingsScreen({ username, onOpenAccount, onLogin, onLogout, onO
         {!allowed && permission?.canAskAgain === false ? <Pressable onPress={() => void Linking.openSettings()}><Text style={styles.inlineAction}>Aç</Text></Pressable> : null}
       </View> : null}
       <View style={styles.card}>
+        <InfoRow icon="notifications-circle-outline" title="Bildirim merkezi" subtitle={username ? `${unreadNotifications} okunmamış bildirim` : 'Bildirimleri görmek için giriş yap'} onPress={onOpenNotifications} />
         <SettingSwitch icon="chatbubbles-outline" title="Topluluk" subtitle="Yorum, yanıt ve etkileşimler" value={settings.communityNotifications} disabled={saving} onChange={value => void updateNotification('communityNotifications', value)} />
         <SettingSwitch icon="location-outline" title="Kayıp pati uyarıları" subtitle="Yakınındaki önemli ilanlar" value={settings.lostPetNotifications} disabled={saving} onChange={value => void updateNotification('lostPetNotifications', value)} />
         <SettingSwitch icon="heart-outline" title="PatiMatch" subtitle="Yeni eşleşme ve mesajlar" value={settings.matchNotifications} disabled={saving} onChange={value => void updateNotification('matchNotifications', value)} last />
@@ -179,7 +201,7 @@ function HelpPage({ onBack, onOpenQuestions }: { onBack: () => void; onOpenQuest
     ['Sağlık içerikleri tanı koyar mı?', 'Hayır. Hastalık içerikleri farkındalık içindir; acil veya ağır belirtilerde veteriner hekime başvurmalısın.'],
   ];
   return <ScrollView style={styles.screen} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
-    <StatusBar style="dark" /><DetailHeader title="Yardım" onBack={onBack} />
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} /><DetailHeader title="Yardım" onBack={onBack} />
     <View style={styles.urgentCard}><Ionicons name="medkit-outline" size={24} color="#9B463B" /><View style={styles.flexOne}><Text style={styles.urgentTitle}>Acil bir durum mu?</Text><Text style={styles.urgentText}>Burada yanıt bekleme; en yakın veteriner kliniğiyle doğrudan iletişim kur.</Text></View></View>
     <Text style={styles.detailLead}>Sık karşılaşılan konulara hızlıca göz at veya topluluktan destek al.</Text>
     <View style={styles.faqCard}>{faqs.map(([title, answer], index) => {
@@ -195,7 +217,7 @@ function HelpPage({ onBack, onOpenQuestions }: { onBack: () => void; onOpenQuest
 
 function LegalPage({ onBack }: { onBack: () => void }) {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
-    <StatusBar style="dark" /><DetailHeader title="Gizlilik ve koşullar" onBack={onBack} />
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} /><DetailHeader title="Gizlilik ve koşullar" onBack={onBack} />
     <Text style={styles.detailLead}>Pet’im’i kullanırken verilerin ve topluluk güvenliği için geçerli temel ilkeler.</Text>
     <View style={styles.legalCard}>
       <LegalSection icon="shield-checkmark-outline" title="Verilerin" text="Oturum ve uygulama tercihleri cihazında güvenli biçimde saklanır. Kesin ev adresin herkese açık paylaşılmaz. Kullanıcı verileri dış içerik veya çeviri servislerine gönderilmez." />
@@ -233,7 +255,7 @@ function InfoRow({ icon, title, subtitle, onPress, last = false }: { icon: keyof
 }
 
 const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingTop: Platform.OS === 'ios' ? 58 : 32, paddingHorizontal: 20, paddingBottom: 118 },
   detailContent: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingTop: Platform.OS === 'ios' ? 58 : 32, paddingHorizontal: 20, paddingBottom: 70 },
@@ -291,4 +313,4 @@ const styles = StyleSheet.create({
   legalTitle: { color: colors.text, fontSize: 13, fontWeight: '900' },
   legalText: { color: colors.muted, fontSize: 10, lineHeight: 16, marginTop: 5 },
   pressed: { opacity: 0.75, transform: [{ scale: 0.99 }] },
-});
+}));

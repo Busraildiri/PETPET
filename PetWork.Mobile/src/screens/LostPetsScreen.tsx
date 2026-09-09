@@ -10,7 +10,7 @@ import {
   createLostPet, createLostPetSighting, deleteLostPet, getLostPet, getLostPets, getMyLostPets,
   mediaUrl, updateLostPetStatus, type CreateLostPetRequest, type LostPetDetail, type LostPetSummary,
 } from '../api';
-import { colors, shadow } from '../theme';
+import { colors, createThemedStyles, shadow } from '../theme';
 
 type ViewKey = 'hub' | 'list' | 'map' | 'mine' | 'detail' | 'lost-form' | 'found-form' | 'sighting';
 type Props = { token: string | null; username: string | null; onLogin: () => void };
@@ -142,6 +142,10 @@ function Detail({ id, token, onBack, onSighting, onChanged }: { id: number; toke
   useEffect(() => { void load(); }, [load]);
   if (!item) return <Page title="İlan" subtitle="Detaylar yükleniyor" onBack={onBack}>{error ? <Text style={styles.errorText}>{error}</Text> : <ActivityIndicator color={colors.primary} />}</Page>;
   const share = () => void Share.share({ message: `${item.petName} ${item.kind === 'lost' ? 'aranıyor' : 'bulundu'}\n${item.district}, ${item.city}\n${item.distinguishingFeatures}\nPet'im by PetWork` });
+  const openSightingMap = async (latitude: number, longitude: number) => {
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`;
+    try { await Linking.openURL(url); } catch { Alert.alert('Harita açılamadı', 'Bu koordinatı açabilecek bir harita uygulaması bulunamadı.'); }
+  };
   const close = () => Alert.alert('İlanı kapat', 'Hayvan ailesine kavuştuysa ilanı çözüldü olarak kapatabilirsin.', [
     { text: 'Vazgeç', style: 'cancel' }, { text: 'Çözüldü', onPress: async () => { try { await updateLostPetStatus(token!, id, 'resolved'); onChanged(); } catch (e) { Alert.alert('Güncellenemedi', e instanceof Error ? e.message : 'Tekrar dene.'); } } },
   ]);
@@ -156,8 +160,8 @@ function Detail({ id, token, onBack, onSighting, onChanged }: { id: number; toke
       {item.notes ? <><Text style={styles.label}>Not</Text><Text style={styles.body}>{item.notes}</Text></> : null}
       {!item.isMine && item.status === 'active' ? <Primary label="Burada Gördüm" icon="eye-outline" onPress={onSighting} /> : null}
       <View style={styles.sectionRow}><Text style={styles.sectionTitle}>Görülme bildirimleri</Text><Text style={styles.muted}>{item.sightings.length}</Text></View>
-      {item.sightings.length ? item.sightings.map(s => <View key={s.id} style={styles.timeline}><Text style={styles.label}>{new Date(s.seenAt).toLocaleString('tr-TR')}</Text><Text style={styles.body}>{s.locationLabel}</Text>{s.note ? <Text style={styles.muted}>{s.note}</Text> : null}</View>) : <Text style={styles.muted}>Henüz görülme bildirimi yok.</Text>}
-      <Text style={styles.privacy}>Kesin konum ayrıntıları yalnızca ilan sahibine gösterilir.</Text>
+      {item.sightings.length ? item.sightings.map(s => <View key={s.id} style={styles.timeline}><Text style={styles.label}>{new Date(s.seenAt).toLocaleString('tr-TR')}</Text><Text style={styles.body}>{s.locationLabel}</Text>{s.note ? <Text style={styles.muted}>{s.note}</Text> : null}{item.isMine && s.latitude != null && s.longitude != null ? <Pressable onPress={() => void openSightingMap(s.latitude!, s.longitude!)}><Text style={styles.link}>Kesin konumu haritada aç →</Text></Pressable> : null}</View>) : <Text style={styles.muted}>Henüz görülme bildirimi yok.</Text>}
+      <Text style={styles.privacy}>{item.isMine ? 'Gözlemde koordinat paylaşıldıysa kesin konumu yalnızca sen haritada açabilirsin.' : 'Kesin konum ayrıntıları yalnızca ilan sahibine gösterilir.'}</Text>
       <Pressable onPress={share}><Text style={styles.link}>Güvenli paylaş</Text></Pressable>
       {item.isMine ? <View style={styles.ownerActions}><Pressable onPress={close}><Text style={styles.link}>Çözüldü olarak kapat</Text></Pressable><Pressable onPress={remove}><Text style={styles.danger}>İlanı sil</Text></Pressable></View> : null}
     </View>
@@ -226,7 +230,7 @@ function Primary({ label, icon, onPress }: { label: string; icon: keyof typeof I
 function Info({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) { return <View style={styles.info}><Ionicons name={icon} size={20} color={colors.primary} /><Text style={styles.body}>{text}</Text></View>; }
 function localDateTime() { const date = new Date(Date.now() - new Date().getTimezoneOffset() * 60000); return date.toISOString().slice(0, 16); }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   page: { flex: 1, backgroundColor: colors.background }, content: { padding: 20, paddingTop: 54, paddingBottom: 130 }, flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 25 }, logo: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, back: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 34, lineHeight: 39, fontFamily: 'Georgia', fontWeight: '800', color: '#2D2529' }, subtitle: { fontSize: 15, color: '#746A70', marginTop: 2 },
@@ -238,4 +242,4 @@ const styles = StyleSheet.create({
   hero: { height: 260, borderRadius: 26, backgroundColor: '#EEE7E7', marginBottom: 16 }, detail: { padding: 19, borderRadius: 25, backgroundColor: '#FFFCFA', borderWidth: 1, borderColor: '#E2DADC' }, detailTitle: { fontFamily: 'Georgia', fontWeight: '800', fontSize: 28, color: '#2D2529' }, label: { fontSize: 15, fontWeight: '800', color: '#41363C', marginTop: 12 }, body: { flexShrink: 1, fontSize: 15, lineHeight: 22, color: '#50464C' }, info: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10 }, timeline: { borderLeftWidth: 3, borderLeftColor: colors.lilacSoft, paddingLeft: 13, marginBottom: 10 }, privacy: { padding: 13, backgroundColor: colors.sageSoft, borderRadius: 14, color: '#4E6755', marginVertical: 15, lineHeight: 19 }, ownerActions: { marginTop: 12, borderTopWidth: 1, borderTopColor: '#E8E0E2', paddingTop: 10 }, danger: { color: '#AA413C', fontWeight: '800', paddingVertical: 10 },
   photo: { minHeight: 150, borderRadius: 23, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#CBB8D3', backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center', gap: 6, overflow: 'hidden', marginBottom: 14 }, photoPreview: { width: '100%', height: 230 }, input: { minHeight: 55, borderRadius: 17, borderWidth: 1, borderColor: '#DED6D8', backgroundColor: '#FFFCFA', paddingHorizontal: 16, marginBottom: 11, fontSize: 15, color: '#30272C' }, multiline: { minHeight: 105, textAlignVertical: 'top', paddingTop: 15 }, locationButton: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 15, borderRadius: 17, backgroundColor: colors.sageSoft, marginBottom: 11 }, locationText: { color: '#486352', fontWeight: '700' }, primary: { minHeight: 57, borderRadius: 17, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10 }, primaryText: { color: '#fff', fontWeight: '900', fontSize: 17 },
   keyboardBar: { minHeight: 46, backgroundColor: '#F6F1F3', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#D8CED2', alignItems: 'flex-end', justifyContent: 'center', paddingHorizontal: 18 }, keyboardDone: { color: colors.primary, fontSize: 16, fontWeight: '800', paddingVertical: 8 },
-});
+}));
