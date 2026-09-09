@@ -14,7 +14,6 @@ export type PetimSettings = {
   communityNotifications: boolean;
   lostPetNotifications: boolean;
   matchNotifications: boolean;
-  nearbyVisibility: boolean;
   approximateLocationOnly: true;
 };
 
@@ -29,7 +28,6 @@ export const defaultSettings: PetimSettings = {
   communityNotifications: false,
   lostPetNotifications: false,
   matchNotifications: false,
-  nearbyVisibility: false,
   approximateLocationOnly: true,
 };
 

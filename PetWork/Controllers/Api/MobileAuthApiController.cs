@@ -100,27 +100,46 @@ public sealed class MobileAuthApiController : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<MobileAuthResponse>> Login(MobileLoginRequest request, CancellationToken cancellationToken)
     {
-        var identifier = request.EmailOrUsername.Trim().ToLowerInvariant();
-        var user = await _context.Users.FirstOrDefaultAsync(
-            candidate => candidate.Email.ToLower() == identifier || candidate.Username.ToLower() == identifier,
-            cancellationToken);
-        if (user is null) return InvalidCredentials();
-
-        var hasher = new PasswordHasher<User>();
-        var verification = hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
-        if (verification == PasswordVerificationResult.Failed) return InvalidCredentials();
-        if (verification == PasswordVerificationResult.SuccessRehashNeeded)
-            user.PasswordHash = hasher.HashPassword(user, request.Password);
-
-        if (!user.IsEmailVerified)
+        try
         {
-            try { return Ok(await CreateEmailChallengeAsync(user, request.RememberMe, cancellationToken)); }
-            catch (EmailDeliveryException exception) { return StatusCode(StatusCodes.Status503ServiceUnavailable, new MobileAuthError(exception.Message)); }
-        }
+            var identifier = request.EmailOrUsername.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(
+                candidate => candidate.Email.ToLower() == identifier || candidate.Username.ToLower() == identifier,
+                cancellationToken);
+            if (user is null) return InvalidCredentials();
 
-        var response = await CreateSessionAsync(user, request.RememberMe, "Tekrar hoş geldin.", cancellationToken);
-        _logger.LogInformation("Mobil giriş tamamlandı. UserId: {UserId}", user.Id);
-        return Ok(response);
+            var hasher = new PasswordHasher<User>();
+            var verification = hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
+            if (verification == PasswordVerificationResult.Failed) return InvalidCredentials();
+            if (verification == PasswordVerificationResult.SuccessRehashNeeded)
+                user.PasswordHash = hasher.HashPassword(user, request.Password);
+
+            if (!user.IsEmailVerified)
+            {
+                try { return Ok(await CreateEmailChallengeAsync(user, request.RememberMe, cancellationToken)); }
+                catch (EmailDeliveryException exception) { return StatusCode(StatusCodes.Status503ServiceUnavailable, new MobileAuthError(exception.Message)); }
+            }
+
+            var response = await CreateSessionAsync(user, request.RememberMe, "Tekrar hoş geldin.", cancellationToken);
+            _logger.LogInformation("Mobil giriş tamamlandı. UserId: {UserId}", user.Id);
+            return Ok(response);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            var rootCause = exception.GetBaseException();
+            _logger.LogError(exception,
+                "Mobil giriş sırasında beklenmeyen hata. ExceptionType: {ExceptionType}",
+                rootCause.GetType().FullName);
+
+            var message = _environment.IsDevelopment()
+                ? $"Giriş sunucu hatası ({rootCause.GetType().Name}): {rootCause.Message}"
+                : "Giriş sırasında sunucu hatası oluştu.";
+            return StatusCode(StatusCodes.Status500InternalServerError, new MobileAuthError(message));
+        }
     }
 
     [HttpPost("verify-email")]

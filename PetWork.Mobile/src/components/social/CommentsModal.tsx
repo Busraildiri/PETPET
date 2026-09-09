@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { createSocialComment, getSocialComments, type SocialCommentPayload } from '../../api';
+import { createSocialComment, getSocialComments, setSocialCommentLike, type SocialCommentPayload } from '../../api';
 import { colors, shadow } from '../../theme';
 import type { SocialPost } from '../../types/social';
 
@@ -22,6 +22,7 @@ export function CommentsModal({ visible, post, token, username, onClose, onLogin
   const [body, setBody] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [likingId, setLikingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadComments = useCallback(async (signal?: AbortSignal) => {
@@ -29,13 +30,13 @@ export function CommentsModal({ visible, post, token, username, onClose, onLogin
     setLoading(true);
     setError(null);
     try {
-      setComments(await getSocialComments(post.serverId, signal));
+      setComments(await getSocialComments(post.serverId, token, signal));
     } catch (reason) {
       if (!signal?.aborted) setError(reason instanceof Error ? reason.message : 'Yorumlar yüklenemedi.');
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [post?.serverId]);
+  }, [post?.serverId, token]);
 
   useEffect(() => {
     if (!visible || !post?.serverId) return;
@@ -75,6 +76,27 @@ export function CommentsModal({ visible, post, token, username, onClose, onLogin
     }
   };
 
+  const toggleLike = async (comment: SocialCommentPayload) => {
+    if (!token || !username) {
+      onClose();
+      onLogin();
+      return;
+    }
+    if (likingId !== null) return;
+    setLikingId(comment.id);
+    setError(null);
+    try {
+      const result = await setSocialCommentLike(token, comment.id, !comment.isLikedByMe);
+      setComments(current => current.map(item => item.id === comment.id
+        ? { ...item, isLikedByMe: result.active, likeCount: result.count }
+        : item));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Yorum beğenisi kaydedilemedi.');
+    } finally {
+      setLikingId(null);
+    }
+  };
+
   return <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
     <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable style={styles.backdrop} onPress={submitting ? undefined : onClose} />
@@ -93,7 +115,13 @@ export function CommentsModal({ visible, post, token, username, onClose, onLogin
             <View style={styles.commentBody}>
               <View style={styles.nameRow}><Text style={styles.username}>@{comment.username}</Text>{comment.isAdmin ? <Text style={styles.adminBadge}>Yönetici</Text> : null}</View>
               <Text style={styles.commentText}>{comment.body}</Text>
-              <Text style={styles.date}>{new Date(comment.createdAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</Text>
+              <View style={styles.commentFooter}>
+                <Text style={styles.date}>{new Date(comment.createdAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</Text>
+                <Pressable disabled={likingId !== null} onPress={() => void toggleLike(comment)} accessibilityLabel={comment.isLikedByMe ? 'Yorum beğenisini kaldır' : 'Yorumu beğen'} style={styles.likeButton}>
+                  <Ionicons name={comment.isLikedByMe ? 'heart' : 'heart-outline'} size={16} color={comment.isLikedByMe ? colors.danger : colors.primary} />
+                  {comment.likeCount > 0 ? <Text style={[styles.likeCount, comment.isLikedByMe && styles.likeCountActive]}>{comment.likeCount}</Text> : null}
+                </Pressable>
+              </View>
             </View>
           </View>)}
         </ScrollView>
@@ -132,7 +160,10 @@ const styles = StyleSheet.create({
   empty: { flex: 1, minHeight: 180, alignItems: 'center', justifyContent: 'center' }, emptyTitle: { color: colors.text, fontSize: 15, fontWeight: '900', marginTop: 10 }, helper: { color: colors.muted, fontSize: 10, marginTop: 5 },
   comment: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 15 }, avatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lilacSoft }, avatarText: { color: colors.primary, fontSize: 14, fontWeight: '900' },
   commentBody: { flex: 1, backgroundColor: colors.card, borderRadius: 17, padding: 12, borderWidth: 1, borderColor: colors.border }, nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 }, username: { color: colors.text, fontSize: 11, fontWeight: '900' }, adminBadge: { color: '#4E7458', backgroundColor: colors.sageSoft, borderRadius: 9, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden', fontSize: 7, fontWeight: '900' },
-  commentText: { color: colors.text, fontSize: 12, lineHeight: 18, marginTop: 6 }, date: { color: colors.muted, fontSize: 8, marginTop: 7 },
+  commentText: { color: colors.text, fontSize: 12, lineHeight: 18, marginTop: 6 },
+  commentFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 7 },
+  date: { color: colors.muted, fontSize: 8 }, likeButton: { minWidth: 32, minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
+  likeCount: { color: colors.muted, fontSize: 9, fontWeight: '800' }, likeCountActive: { color: colors.danger },
   errorBox: { marginHorizontal: 20, marginBottom: 10, backgroundColor: colors.peachSoft, borderRadius: 14, padding: 11 }, errorText: { color: '#8D4339', fontSize: 10 }, retry: { color: colors.primary, fontSize: 10, fontWeight: '900', marginTop: 5 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 9, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }, input: { flex: 1, minHeight: 48, maxHeight: 110, color: colors.text, backgroundColor: colors.card, borderRadius: 17, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 12 },
   sendButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary }, disabled: { opacity: 0.45 }, xpNote: { color: colors.muted, textAlign: 'center', fontSize: 8, marginTop: 7 },

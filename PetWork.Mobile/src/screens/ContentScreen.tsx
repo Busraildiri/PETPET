@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, ImageBackground, Linking, Platform, Pressable, RefreshControl,
+  ActivityIndicator, Alert, BackHandler, ImageBackground, Linking, Platform, Pressable, RefreshControl,
   ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { ContentItem, ContentKind, getContent, mediaUrl } from '../api';
@@ -36,6 +36,14 @@ export function ContentScreen({ kind, onBack, onOpenLost }: { kind: ContentKind;
   }, [kind]);
 
   useEffect(() => { setSelected(null); setQuery(''); load(); }, [load]);
+  useEffect(() => {
+    if (!selected) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setSelected(null);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [selected]);
   const visibleItems = useMemo(() => {
     const term = query.trim().toLocaleLowerCase('tr-TR');
     if (!term) return items;
@@ -92,11 +100,22 @@ function ContentDetail({ item, onBack }: { item: ContentItem; onBack: () => void
     <View style={styles.detailCard}><Text style={styles.detailSummary}>{item.summary}</Text><Text style={styles.body}>{item.body}</Text></View>
     <View style={styles.sourceCard}><Ionicons name="shield-checkmark-outline" size={24} color="#4E7458" />
       <View style={styles.flex}><Text style={styles.sourceTitle}>Kaynak ve atıf</Text><Text style={styles.sourceCopy}>{item.attribution || item.sourceName || 'PetWork bilgi merkezi'}</Text></View></View>
-    {item.sourceUrl ? <Pressable onPress={() => Linking.openURL(item.sourceUrl!)} style={styles.sourceButton}>
+    {item.sourceUrl ? <Pressable onPress={() => void openSource(item.sourceUrl!)} style={styles.sourceButton}>
       <Ionicons name="open-outline" size={19} color={colors.white} /><Text style={styles.sourceButtonText}>Orijinal web kaynağını aç</Text>
     </Pressable> : null}
     {item.kind === 'diseases' ? <Text style={styles.disclaimer}>Bu içerik tanı veya tedavi yerine geçmez. Belirti varsa veteriner hekime danış.</Text> : null}
   </ScrollView>;
+}
+
+async function openSource(url: string) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('unsupported');
+    if (!await Linking.canOpenURL(url)) throw new Error('unsupported');
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert('Bağlantı açılamadı', 'Web kaynağı şu anda açılamıyor. Lütfen daha sonra tekrar dene.');
+  }
 }
 
 function Header({ title, subtitle, icon, onBack }: { title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap; onBack: () => void }) {

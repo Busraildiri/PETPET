@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
@@ -27,6 +28,7 @@ public sealed class MobileSocialApiController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<MobileSocialPostResponse>>> GetPosts(
         CancellationToken cancellationToken)
     {
+        var currentUserId = GetUserId();
         var posts = await _context.SocialPosts
             .AsNoTracking()
             .Where(post => !post.IsDeleted)
@@ -40,7 +42,10 @@ public sealed class MobileSocialApiController : ControllerBase
                 post.Tags,
                 post.ImagePath,
                 post.CreatedAt,
-                post.Comments.Count(comment => !comment.IsDeleted)))
+                post.Comments.Count(comment => !comment.IsDeleted),
+                post.Likes.Count,
+                currentUserId.HasValue && post.Likes.Any(like => like.UserId == currentUserId.Value),
+                currentUserId.HasValue && post.Saves.Any(save => save.UserId == currentUserId.Value)))
             .ToListAsync(cancellationToken);
 
         return Ok(posts);
@@ -64,6 +69,8 @@ public sealed class MobileSocialApiController : ControllerBase
             return Unauthorized(new { message = "Kullanıcı hesabı bulunamadı." });
 
         var body = request.Body.Trim();
+        if (body.Length < 2)
+            return BadRequest(new { message = "Paylaşım en az 2 görünür karakter içermelidir." });
         var tags = NormalizeTags(request.Tags);
         string? imagePath = null;
 
@@ -108,7 +115,10 @@ public sealed class MobileSocialApiController : ControllerBase
             post.Tags,
             post.ImagePath,
             post.CreatedAt,
-            0));
+            0,
+            0,
+            false,
+            false));
     }
 
     [HttpGet("{postId:int}/comments")]
@@ -117,6 +127,7 @@ public sealed class MobileSocialApiController : ControllerBase
         int postId,
         CancellationToken cancellationToken)
     {
+        var currentUserId = GetUserId();
         var postExists = await _context.SocialPosts
             .AsNoTracking()
             .AnyAsync(post => post.Id == postId && !post.IsDeleted, cancellationToken);
@@ -134,7 +145,9 @@ public sealed class MobileSocialApiController : ControllerBase
                 comment.User.Username,
                 comment.User.IsAdmin,
                 comment.Body,
-                comment.CreatedAt))
+                comment.CreatedAt,
+                comment.Likes.Count,
+                currentUserId.HasValue && comment.Likes.Any(like => like.UserId == currentUserId.Value)))
             .ToListAsync(cancellationToken);
 
         return Ok(comments);
@@ -162,11 +175,15 @@ public sealed class MobileSocialApiController : ControllerBase
         if (user is null)
             return Unauthorized(new { message = "Kullanıcı hesabı bulunamadı." });
 
+        var body = request.Body.Trim();
+        if (body.Length < 1)
+            return BadRequest(new { message = "Yorum boş bırakılamaz." });
+
         var comment = new SocialComment
         {
             SocialPostId = postId,
             UserId = user.Id,
-            Body = request.Body.Trim(),
+            Body = body,
             CreatedAt = DateTime.Now
         };
 
@@ -179,7 +196,89 @@ public sealed class MobileSocialApiController : ControllerBase
             user.Username,
             user.IsAdmin,
             comment.Body,
-            comment.CreatedAt));
+            comment.CreatedAt,
+            0,
+            false));
+    }
+
+    [HttpPut("{postId:int}/like")]
+    [Authorize]
+    [EnableRateLimiting("mobile-content")]
+    public async Task<ActionResult<MobileReactionResponse>> SetPostLike(
+        int postId,
+        MobileToggleReactionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized(new { message = "Oturum bilgisi doğrulanamadı." });
+        if (!await _context.SocialPosts.AnyAsync(post => post.Id == postId && !post.IsDeleted, cancellationToken))
+            return NotFound(new { message = "Gönderi bulunamadı." });
+
+        var like = await _context.SocialPostLikes.FirstOrDefaultAsync(
+            candidate => candidate.SocialPostId == postId && candidate.UserId == userId.Value,
+            cancellationToken);
+        if (request.Active && like is null)
+            _context.SocialPostLikes.Add(new SocialPostLike { SocialPostId = postId, UserId = userId.Value });
+        else if (!request.Active && like is not null)
+            _context.SocialPostLikes.Remove(like);
+
+        await _context.SaveChangesAsync(cancellationToken);
+        var count = await _context.SocialPostLikes.CountAsync(candidate => candidate.SocialPostId == postId, cancellationToken);
+        return Ok(new MobileReactionResponse(request.Active, count));
+    }
+
+    [HttpPut("{postId:int}/save")]
+    [Authorize]
+    [EnableRateLimiting("mobile-content")]
+    public async Task<ActionResult<MobileReactionResponse>> SetPostSave(
+        int postId,
+        MobileToggleReactionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized(new { message = "Oturum bilgisi doğrulanamadı." });
+        if (!await _context.SocialPosts.AnyAsync(post => post.Id == postId && !post.IsDeleted, cancellationToken))
+            return NotFound(new { message = "Gönderi bulunamadı." });
+
+        var save = await _context.SocialPostSaves.FirstOrDefaultAsync(
+            candidate => candidate.SocialPostId == postId && candidate.UserId == userId.Value,
+            cancellationToken);
+        if (request.Active && save is null)
+            _context.SocialPostSaves.Add(new SocialPostSave { SocialPostId = postId, UserId = userId.Value });
+        else if (!request.Active && save is not null)
+            _context.SocialPostSaves.Remove(save);
+
+        await _context.SaveChangesAsync(cancellationToken);
+        var count = await _context.SocialPostSaves.CountAsync(candidate => candidate.SocialPostId == postId, cancellationToken);
+        return Ok(new MobileReactionResponse(request.Active, count));
+    }
+
+    [HttpPut("comments/{commentId:int}/like")]
+    [Authorize]
+    [EnableRateLimiting("mobile-content")]
+    public async Task<ActionResult<MobileReactionResponse>> SetCommentLike(
+        int commentId,
+        MobileToggleReactionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized(new { message = "Oturum bilgisi doğrulanamadı." });
+        if (!await _context.SocialComments.AnyAsync(comment =>
+                comment.Id == commentId && !comment.IsDeleted && !comment.SocialPost.IsDeleted,
+                cancellationToken))
+            return NotFound(new { message = "Yorum bulunamadı." });
+
+        var like = await _context.SocialCommentLikes.FirstOrDefaultAsync(
+            candidate => candidate.SocialCommentId == commentId && candidate.UserId == userId.Value,
+            cancellationToken);
+        if (request.Active && like is null)
+            _context.SocialCommentLikes.Add(new SocialCommentLike { SocialCommentId = commentId, UserId = userId.Value });
+        else if (!request.Active && like is not null)
+            _context.SocialCommentLikes.Remove(like);
+
+        await _context.SaveChangesAsync(cancellationToken);
+        var count = await _context.SocialCommentLikes.CountAsync(candidate => candidate.SocialCommentId == commentId, cancellationToken);
+        return Ok(new MobileReactionResponse(request.Active, count));
     }
 
     [HttpDelete("{postId:int}")]
@@ -241,11 +340,15 @@ public sealed class MobileSocialApiController : ControllerBase
         if (alreadyReported)
             return Conflict(new { message = "Bu gönderiyi daha önce bildirdin." });
 
+        var reason = request.Reason.Trim();
+        if (reason.Length < 3)
+            return BadRequest(new { message = "Bildirim nedeni en az 3 görünür karakter içermelidir." });
+
         _context.SocialPostReports.Add(new SocialPostReport
         {
             SocialPostId = postId,
             UserId = userId,
-            Reason = request.Reason.Trim(),
+            Reason = reason,
             CreatedAt = DateTime.Now
         });
         await _context.SaveChangesAsync(cancellationToken);
@@ -334,6 +437,13 @@ public sealed class MobileSocialApiController : ControllerBase
 
         return normalized.Length == 0 ? null : string.Join(',', normalized);
     }
+
+    private int? GetUserId()
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return int.TryParse(value, out var userId) ? userId : null;
+    }
 }
 
 public sealed class MobileCreateSocialPostRequest
@@ -359,7 +469,10 @@ public sealed record MobileSocialPostResponse(
     string? Tags,
     string? ImagePath,
     DateTime CreatedAt,
-    int CommentCount);
+    int CommentCount,
+    int LikeCount,
+    bool IsLikedByMe,
+    bool IsSavedByMe);
 
 public sealed class MobileCreateSocialCommentRequest
 {
@@ -373,7 +486,16 @@ public sealed record MobileSocialCommentResponse(
     string Username,
     bool IsAdmin,
     string Body,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    int LikeCount,
+    bool IsLikedByMe);
+
+public sealed class MobileToggleReactionRequest
+{
+    public bool Active { get; init; }
+}
+
+public sealed record MobileReactionResponse(bool Active, int Count);
 
 public sealed class MobileReportSocialPostRequest
 {

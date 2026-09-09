@@ -121,6 +121,9 @@ export type SocialPostPayload = {
   imagePath?: string | null;
   createdAt: string;
   commentCount: number;
+  likeCount: number;
+  isLikedByMe: boolean;
+  isSavedByMe: boolean;
 };
 
 export type SocialCommentPayload = {
@@ -129,7 +132,11 @@ export type SocialCommentPayload = {
   isAdmin: boolean;
   body: string;
   createdAt: string;
+  likeCount: number;
+  isLikedByMe: boolean;
 };
+
+export type SocialReactionPayload = { active: boolean; count: number };
 
 export type QuestionSummary = {
   id: number;
@@ -193,6 +200,30 @@ function resolveApiUrl(value?: string) {
 }
 export const apiUrl = resolveApiUrl(process.env.EXPO_PUBLIC_API_URL);
 
+async function fetchApi(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 12_000) {
+  const controller = new AbortController();
+  const callerSignal = init.signal;
+  let timedOut = false;
+  const abortFromCaller = () => controller.abort();
+  if (callerSignal?.aborted) controller.abort();
+  else callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (reason) {
+    if (timedOut) {
+      const error = new Error('Sunucu yanıt vermedi. Bağlantını kontrol edip tekrar dene.');
+      error.name = 'AbortError';
+      throw error;
+    }
+    throw reason;
+  } finally {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', abortFromCaller);
+  }
+}
+
 export function mediaUrl(path?: string | null) {
   if (!path) return `${apiUrl}/img/petwork-community-hero-our-pets-v2.png`;
   if (/^https?:\/\//i.test(path)) return path;
@@ -200,85 +231,82 @@ export function mediaUrl(path?: string | null) {
 }
 
 export async function getHome(signal?: AbortSignal): Promise<HomePayload> {
-  const response = await fetch(`${apiUrl}/api/mobile/home`, { headers: { Accept: 'application/json' }, signal });
+  const response = await fetchApi(`${apiUrl}/api/mobile/home`, { headers: { Accept: 'application/json' }, signal });
   if (!response.ok) throw new Error(`PetWork API ${response.status} döndürdü.`);
   return response.json();
 }
 
 export async function getContent(kind: ContentKind, search = '', signal?: AbortSignal): Promise<ContentItem[]> {
   const query = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
-  const response = await fetch(`${apiUrl}/api/mobile/content/${kind}${query}`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/content/${kind}${query}`, {
     headers: { Accept: 'application/json' }, signal,
   });
   if (!response.ok) throw new Error(`İçerikler alınamadı (${response.status}).`);
   return response.json();
 }
 
-async function readAuthResponse<T extends AuthResponse | EmailVerificationChallengeResponse>(response: Response, fallbackMessage: string): Promise<T> {
-  const payload = await response.json().catch(() => null) as {
-    message?: string;
-    title?: string;
-    errors?: Record<string, string[]>;
-  } | null;
-
-  if (!response.ok) {
-    const validationMessage = payload?.errors ? Object.values(payload.errors).flat()[0] : undefined;
-    if (response.status === 429) throw new ApiError('Çok fazla deneme yapıldı. Lütfen bir dakika sonra tekrar dene.', response.status);
-    throw new ApiError(validationMessage || payload?.message || payload?.title || fallbackMessage, response.status);
-  }
-
-  return payload as T;
-}
-
 export async function registerUser(request: RegisterRequest): Promise<AuthResponse | EmailVerificationChallengeResponse> {
-  const response = await fetch(`${apiUrl}/api/mobile/auth/register`, {
+  const response = await authRequest('register', {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
-  });
-
-  return readAuthResponse(response, 'Kayıt işlemi tamamlanamadı.');
+  }, 'Kayıt işlemi tamamlanamadı.');
+  return response.json();
 }
 
 export async function loginUser(request: LoginRequest): Promise<AuthResponse | EmailVerificationChallengeResponse> {
-  const response = await fetch(`${apiUrl}/api/mobile/auth/login`, {
+  const response = await authRequest('login', {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
-  });
-
-  return readAuthResponse(response, 'Giriş işlemi tamamlanamadı.');
+  }, 'Giriş işlemi tamamlanamadı.');
+  return response.json();
 }
 
 export async function verifyEmail(challengeToken: string, code: string): Promise<AuthResponse> {
-  const response = await fetch(`${apiUrl}/api/mobile/auth/verify-email`, {
+  const response = await authRequest('verify-email', {
     method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ challengeToken, code }),
-  });
-  return readAuthResponse<AuthResponse>(response, 'Doğrulama kodu kabul edilmedi.');
+  }, 'Doğrulama kodu kabul edilmedi.');
+  return response.json();
 }
 
 export async function resendEmailCode(challengeToken: string): Promise<EmailVerificationChallengeResponse> {
-  const response = await fetch(`${apiUrl}/api/mobile/auth/resend-email-code`, {
+  const response = await authRequest('resend-email-code', {
     method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ challengeToken }),
-  });
-  return readAuthResponse<EmailVerificationChallengeResponse>(response, 'Doğrulama kodu yeniden gönderilemedi.');
+  }, 'Doğrulama kodu yeniden gönderilemedi.');
+  return response.json();
 }
 
 async function authRequest(path: string, init: RequestInit, fallback: string): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
-    const response = await fetch(`${apiUrl}/api/mobile/auth/${path}`, { ...init, signal: controller.signal });
+    const response = await fetchApi(`${apiUrl}/api/mobile/auth/${path}`, { ...init, signal: controller.signal });
     if (!response.ok) {
-      const payload = await response.json().catch(() => null) as { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+      const responseText = await response.text().catch(() => '');
+      let payload: { message?: string; title?: string; errors?: Record<string, string[]> } | null = null;
+      try { payload = responseText ? JSON.parse(responseText) : null; } catch { /* The development exception page may be plain text or HTML. */ }
       const validation = payload?.errors ? Object.values(payload.errors).flat()[0] : undefined;
-      throw new ApiError(validation || payload?.message || payload?.title || fallback, response.status);
+      if (__DEV__) {
+        console.error('[PetWork auth API]', {
+          path,
+          url: `${apiUrl}/api/mobile/auth/${path}`,
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get('content-type'),
+          response: responseText.slice(0, 2000),
+        });
+      }
+      if (response.status === 429) throw new ApiError('Çok fazla deneme yapıldı. Lütfen bir dakika sonra tekrar dene.', response.status);
+      const serverMessage = validation || payload?.message || payload?.title || fallback;
+      throw new ApiError(__DEV__ ? `${serverMessage} (HTTP ${response.status})` : serverMessage, response.status);
     }
     return response;
   } catch (reason) {
     if (reason instanceof ApiError) throw reason;
+    if (__DEV__) console.error('[PetWork auth transport]', { path, url: `${apiUrl}/api/mobile/auth/${path}`, reason });
     if (reason instanceof Error && reason.name === 'AbortError') throw new Error('Sunucu yanıt vermedi. Bağlantını kontrol edip tekrar dene.');
     throw new Error('Sunucuya bağlanılamadı. İnternet ve API adresini kontrol et.');
   } finally { clearTimeout(timer); }
@@ -290,19 +318,19 @@ export async function getCurrentUser(token: string): Promise<CurrentUser> {
 }
 
 export async function refreshAuthSession(refreshToken: string): Promise<AuthResponse> {
-  const response = await fetch(`${apiUrl}/api/mobile/auth/refresh`, {
+  const response = await authRequest('refresh', {
     method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
-  });
-  return readAuthResponse(response, 'Oturum yenilenemedi. Lütfen yeniden giriş yap.');
+  }, 'Oturum yenilenemedi. Lütfen yeniden giriş yap.');
+  return response.json();
 }
 
 export async function changePassword(token: string, currentPassword: string, newPassword: string): Promise<AuthResponse> {
-  const response = await fetch(`${apiUrl}/api/mobile/auth/change-password`, {
+  const response = await authRequest('change-password', {
     method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ currentPassword, newPassword }),
-  });
-  return readAuthResponse(response, 'Şifre değiştirilemedi.');
+  }, 'Şifre değiştirilemedi.');
+  return response.json();
 }
 
 export async function forgotPassword(email: string): Promise<string> {
@@ -341,7 +369,7 @@ async function readPetResponse(response: Response, fallback: string): Promise<Pe
 }
 
 export async function getPets(token: string, signal?: AbortSignal): Promise<PetProfile[]> {
-  const response = await fetch(`${apiUrl}/api/mobile/pets`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/pets`, {
     headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     signal,
   });
@@ -353,7 +381,7 @@ export async function getPets(token: string, signal?: AbortSignal): Promise<PetP
 }
 
 export async function savePet(token: string, request: PetProfileRequest, id?: number): Promise<PetProfile> {
-  const response = await fetch(`${apiUrl}/api/mobile/pets${id ? `/${id}` : ''}`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/pets${id ? `/${id}` : ''}`, {
     method: id ? 'PUT' : 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(request),
@@ -362,7 +390,7 @@ export async function savePet(token: string, request: PetProfileRequest, id?: nu
 }
 
 export async function deletePet(token: string, id: number): Promise<void> {
-  const response = await fetch(`${apiUrl}/api/mobile/pets/${id}`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/pets/${id}`, {
     method: 'DELETE',
     headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
   });
@@ -372,7 +400,7 @@ export async function deletePet(token: string, id: number): Promise<void> {
   }
 }
 
-async function fetchSocialPostsOnce(signal?: AbortSignal): Promise<SocialPostPayload[]> {
+async function fetchSocialPostsOnce(token?: string | null, signal?: AbortSignal): Promise<SocialPostPayload[]> {
   const timeoutController = new AbortController();
   const abortFromCaller = () => timeoutController.abort();
   if (signal?.aborted) timeoutController.abort();
@@ -380,8 +408,12 @@ async function fetchSocialPostsOnce(signal?: AbortSignal): Promise<SocialPostPay
 
   const timeoutId = setTimeout(() => timeoutController.abort(), 8000);
   try {
-    const response = await fetch(`${apiUrl}/api/mobile/social/posts`, {
-      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+    const response = await fetchApi(`${apiUrl}/api/mobile/social/posts`, {
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       signal: timeoutController.signal,
     });
 
@@ -399,18 +431,18 @@ async function fetchSocialPostsOnce(signal?: AbortSignal): Promise<SocialPostPay
   }
 }
 
-export async function getSocialPosts(signal?: AbortSignal): Promise<SocialPostPayload[]> {
+export async function getSocialPosts(token?: string | null, signal?: AbortSignal): Promise<SocialPostPayload[]> {
   try {
-    return await fetchSocialPostsOnce(signal);
+    return await fetchSocialPostsOnce(token, signal);
   } catch (firstError) {
     if (signal?.aborted) throw firstError;
     await new Promise(resolve => setTimeout(resolve, 500));
-    return fetchSocialPostsOnce(signal);
+    return fetchSocialPostsOnce(token, signal);
   }
 }
 
 export async function getQuestions(signal?: AbortSignal): Promise<QuestionsResponse> {
-  const response = await fetch(`${apiUrl}/api/mobile/questions?take=50`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/questions?take=50`, {
     headers: { Accept: 'application/json' }, signal,
   });
   if (!response.ok) throw new Error(`Sorular alınamadı (${response.status}).`);
@@ -422,7 +454,7 @@ export async function getNearbyVeterinarians(
   longitude: number,
   radiusMeters = 5000,
 ): Promise<NearbyVeterinarian[]> {
-  const response = await fetch(`${apiUrl}/api/mobile/nearby/veterinarians`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/nearby/veterinarians`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ latitude, longitude, radiusMeters }),
@@ -442,7 +474,7 @@ export async function searchVeterinariansByArea(
   const query = new URLSearchParams();
   if (city?.trim()) query.set('city', city.trim());
   if (district?.trim()) query.set('district', district.trim());
-  const response = await fetch(`${apiUrl}/api/mobile/nearby/veterinarians/search?${query}`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/nearby/veterinarians/search?${query}`, {
     headers: { Accept: 'application/json' },
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
@@ -458,7 +490,7 @@ export async function getNearbyGroomers(
   longitude: number,
   radiusMeters = 5000,
 ): Promise<NearbyVeterinarian[]> {
-  const response = await fetch(`${apiUrl}/api/mobile/nearby/groomers`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/nearby/groomers`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ latitude, longitude, radiusMeters }),
@@ -478,7 +510,7 @@ export async function searchGroomersByArea(
   const query = new URLSearchParams();
   if (city?.trim()) query.set('city', city.trim());
   if (district?.trim()) query.set('district', district.trim());
-  const response = await fetch(`${apiUrl}/api/mobile/nearby/groomers/search?${query}`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/nearby/groomers/search?${query}`, {
     headers: { Accept: 'application/json' },
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
@@ -494,7 +526,7 @@ export async function getNearbyPetHotels(
   longitude: number,
   radiusMeters = 5000,
 ): Promise<NearbyVeterinarian[]> {
-  const response = await fetch(`${apiUrl}/api/mobile/nearby/pet-hotels`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/nearby/pet-hotels`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ latitude, longitude, radiusMeters }),
@@ -514,7 +546,7 @@ export async function searchPetHotelsByArea(
   const query = new URLSearchParams();
   if (city?.trim()) query.set('city', city.trim());
   if (district?.trim()) query.set('district', district.trim());
-  const response = await fetch(`${apiUrl}/api/mobile/nearby/pet-hotels/search?${query}`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/nearby/pet-hotels/search?${query}`, {
     headers: { Accept: 'application/json' },
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
@@ -526,7 +558,7 @@ export async function searchPetHotelsByArea(
 }
 
 export async function getQuestionDetail(id: number, signal?: AbortSignal): Promise<QuestionDetail> {
-  const response = await fetch(`${apiUrl}/api/mobile/questions/${id}`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/questions/${id}`, {
     headers: { Accept: 'application/json' }, signal,
   });
   if (!response.ok) throw new Error(`Soru ayrıntısı alınamadı (${response.status}).`);
@@ -539,7 +571,7 @@ export async function createQuestion(
   content: string,
   category: string,
 ): Promise<QuestionSummary> {
-  const response = await fetch(`${apiUrl}/api/mobile/questions`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/questions`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -568,7 +600,7 @@ export async function createQuestion(
 }
 
 export async function postQuestionAnswer(token: string, questionId: number, content: string): Promise<QuestionAnswer> {
-  const response = await fetch(`${apiUrl}/api/mobile/questions/${questionId}/answers`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/questions/${questionId}/answers`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ content }),
@@ -596,7 +628,7 @@ export async function createSocialPost(
   const imageFile = image ? new File(image.uri) : null;
   const imageBase64 = imageFile ? await imageFile.base64() : null;
 
-  const response = await fetch(`${apiUrl}/api/mobile/social/posts`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/social/posts`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -629,9 +661,9 @@ export async function createSocialPost(
   return payload as SocialPostPayload;
 }
 
-export async function getSocialComments(postId: number, signal?: AbortSignal): Promise<SocialCommentPayload[]> {
-  const response = await fetch(`${apiUrl}/api/mobile/social/posts/${postId}/comments`, {
-    headers: { Accept: 'application/json' },
+export async function getSocialComments(postId: number, token?: string | null, signal?: AbortSignal): Promise<SocialCommentPayload[]> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/social/posts/${postId}/comments`, {
+    headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     signal,
   });
 
@@ -644,7 +676,7 @@ export async function createSocialComment(
   postId: number,
   body: string,
 ): Promise<SocialCommentPayload> {
-  const response = await fetch(`${apiUrl}/api/mobile/social/posts/${postId}/comments`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/social/posts/${postId}/comments`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -672,8 +704,38 @@ export async function createSocialComment(
   return payload as SocialCommentPayload;
 }
 
+async function setSocialReaction(path: string, token: string, active: boolean): Promise<SocialReactionPayload> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/social/posts/${path}`, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ active }),
+  });
+  const payload = await response.json().catch(() => null) as SocialReactionPayload | { message?: string } | null;
+  if (!response.ok) {
+    const message = payload && 'message' in payload ? payload.message : undefined;
+    throw new ApiError(message || `İşlem tamamlanamadı (${response.status}).`, response.status);
+  }
+  return payload as SocialReactionPayload;
+}
+
+export function setSocialPostLike(token: string, postId: number, active: boolean) {
+  return setSocialReaction(`${postId}/like`, token, active);
+}
+
+export function setSocialPostSave(token: string, postId: number, active: boolean) {
+  return setSocialReaction(`${postId}/save`, token, active);
+}
+
+export function setSocialCommentLike(token: string, commentId: number, active: boolean) {
+  return setSocialReaction(`comments/${commentId}/like`, token, active);
+}
+
 export async function deleteSocialPost(token: string, postId: number): Promise<void> {
-  const response = await fetch(`${apiUrl}/api/mobile/social/posts/${postId}`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/social/posts/${postId}`, {
     method: 'DELETE',
     headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
   });
@@ -685,7 +747,7 @@ export async function deleteSocialPost(token: string, postId: number): Promise<v
 }
 
 export async function reportSocialPost(token: string, postId: number, reason: string): Promise<string> {
-  const response = await fetch(`${apiUrl}/api/mobile/social/posts/${postId}/report`, {
+  const response = await fetchApi(`${apiUrl}/api/mobile/social/posts/${postId}/report`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',

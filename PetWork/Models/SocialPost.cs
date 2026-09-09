@@ -23,4 +23,6 @@ public sealed class SocialPost
     public bool IsDeleted { get; set; }
     public List<SocialComment> Comments { get; set; } = [];
     public List<SocialPostReport> Reports { get; set; } = [];
+    public List<SocialPostLike> Likes { get; set; } = [];
+    public List<SocialPostSave> Saves { get; set; } = [];
 }

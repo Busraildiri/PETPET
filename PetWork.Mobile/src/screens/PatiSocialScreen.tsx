@@ -1,19 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Platform, Pressable, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View, useWindowDimensions,
+  ActivityIndicator, Alert, BackHandler, Platform, Pressable, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View, useWindowDimensions,
 } from 'react-native';
 import {
   createQuestion, createSocialPost, deleteSocialPost, getQuestionDetail, getQuestions, getSocialPosts,
   mediaUrl, postQuestionAnswer, reportSocialPost, QuestionAnswer, QuestionDetail, QuestionsResponse,
-  QuestionSummary, type SocialPostPayload,
+  QuestionSummary, setSocialPostLike, setSocialPostSave, type SocialPostPayload,
 } from '../api';
 import { CommentsModal } from '../components/social/CommentsModal';
 import { CreatePostModal, type SelectedPostImage } from '../components/social/CreatePostModal';
 import { CreateQuestionModal } from '../components/social/CreateQuestionModal';
 import { CommunityShortcuts, NearbyShortcuts, type NearbyCategory } from '../components/social/SocialShortcuts';
 import { PostCard } from '../components/social/PostCard';
-import { mockSocialPosts } from '../data/mockSocialPosts';
 import { colors, shadow } from '../theme';
 import type { SocialPost, SocialTab } from '../types/social';
 
@@ -49,6 +48,9 @@ function toSocialPost(post: SocialPostPayload): SocialPost {
     tags: post.tags?.split(',').map(tag => tag.trim()).filter(Boolean) ?? [],
     isAdmin: post.isAdmin,
     commentCount: post.commentCount,
+    likeCount: post.likeCount,
+    isLikedByMe: post.isLikedByMe,
+    isSavedByMe: post.isSavedByMe,
   };
 }
 
@@ -72,41 +74,20 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
   const loadPosts = useCallback(async (signal?: AbortSignal) => {
     setPostsError(null);
     try {
-      setPosts((await getSocialPosts(signal)).map(toSocialPost));
+      setPosts((await getSocialPosts(authToken, signal)).map(toSocialPost));
     } catch (reason) {
       if (signal?.aborted) return;
       setPostsError(reason instanceof Error ? reason.message : 'Topluluk akışı yüklenemedi.');
     } finally {
       if (!signal?.aborted) setPostsLoading(false);
     }
-  }, []);
+  }, [authToken]);
 
   useEffect(() => {
     const controller = new AbortController();
     loadPosts(controller.signal);
     return () => controller.abort();
   }, [loadPosts]);
-
-  const openPendingFeature = (action: string) => {
-    if (!username) {
-      Alert.alert('Giriş yapmalısın', `${action} için Pet’im hesabına giriş yap.`, [
-        { text: 'Vazgeç', style: 'cancel' },
-        { text: 'Giriş Yap', onPress: onLogin },
-      ]);
-      return;
-    }
-
-    Alert.alert(
-      `${action} hazırlanıyor`,
-      `${username} hesabıyla devam ediyorsun. Bu işlem gönderi API’si bağlandığında kaydedilecek.`,
-      [{ text: 'Tamam', style: 'cancel' }],
-    );
-  };
-
-  const openComments = (post: SocialPost) => Alert.alert(
-    `${post.petName} · Yorumlar`,
-    'Yorum ekranı bir sonraki adımda gerçek gönderi servisiyle bağlanacak.',
-  );
 
   const requireLogin = (message: string) => Alert.alert('Giriş yapmalısın', message, [
     { text: 'Vazgeç', style: 'cancel' },
@@ -161,6 +142,32 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
   const commentAdded = (postId: number) => {
     setPosts(current => current.map(post => post.serverId === postId ? { ...post, commentCount: post.commentCount + 1 } : post));
     setCommentPost(current => current?.serverId === postId ? { ...current, commentCount: current.commentCount + 1 } : current);
+  };
+
+  const togglePostLike = async (post: SocialPost) => {
+    if (!authToken || !username) return requireLogin('Gönderileri beğenmek için Pet’im hesabına giriş yap.');
+    if (!post.serverId) return;
+    try {
+      const result = await setSocialPostLike(authToken, post.serverId, !post.isLikedByMe);
+      setPosts(current => current.map(item => item.serverId === post.serverId
+        ? { ...item, isLikedByMe: result.active, likeCount: result.count }
+        : item));
+    } catch (reason) {
+      Alert.alert('Beğeni kaydedilemedi', reason instanceof Error ? reason.message : 'Lütfen tekrar dene.');
+    }
+  };
+
+  const togglePostSave = async (post: SocialPost) => {
+    if (!authToken || !username) return requireLogin('Gönderileri kaydetmek için Pet’im hesabına giriş yap.');
+    if (!post.serverId) return;
+    try {
+      const result = await setSocialPostSave(authToken, post.serverId, !post.isSavedByMe);
+      setPosts(current => current.map(item => item.serverId === post.serverId
+        ? { ...item, isSavedByMe: result.active }
+        : item));
+    } catch (reason) {
+      Alert.alert('Gönderi kaydedilemedi', reason instanceof Error ? reason.message : 'Lütfen tekrar dene.');
+    }
   };
 
   const sendReport = async (post: SocialPost, reason: string) => {
@@ -229,7 +236,7 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
 
           {postsLoading ? <View style={styles.postsLoading}><ActivityIndicator color={colors.primary} /><Text style={styles.postsLoadingText}>Paylaşımlar yükleniyor…</Text></View> : null}
           {postsError ? <Pressable onPress={() => { setPostsLoading(true); loadPosts(); }} style={styles.postsError}><Text style={styles.postsErrorText}>{postsError}</Text><Text style={styles.retryText}>Yeniden dene</Text></Pressable> : null}
-          {[...posts, ...mockSocialPosts].map(post => <PostCard key={post.id} post={post} onComment={openRealComments} onReport={openPostOptions} />)}
+          {posts.map(post => <PostCard key={post.id} post={post} onComment={openRealComments} onReport={openPostOptions} onLike={togglePostLike} onSave={togglePostSave} />)}
         </>
       ) : null}
 
@@ -286,6 +293,16 @@ function QuestionsPanel({ username, authToken, onLogin, onAsk }: { username: str
       .catch(reason => setError(reason instanceof Error ? reason.message : 'Soru ayrıntısı alınamadı.'))
       .finally(() => setDetailLoading(false));
     return () => controller.abort();
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (selectedId === null) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setSelectedId(null);
+      setError(null);
+      return true;
+    });
+    return () => subscription.remove();
   }, [selectedId]);
 
   const questions = useMemo(() => {

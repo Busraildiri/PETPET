@@ -243,7 +243,7 @@ builder.Services.AddHttpClient<ITranslationService, ConfigurableTranslationServi
 builder.Services.AddScoped<IExternalContentImportService, ExternalContentImportService>();
 builder.Services.AddScoped<IExternalContentPublishingService, ExternalContentPublishingService>();
 builder.Services.AddHostedService<ExternalContentAutoPublisher>();
-if (builder.Configuration.GetValue("ExternalContent:BootstrapOnStartup", true))
+if (builder.Configuration.GetValue("ExternalContent:BootstrapOnStartup", false))
     builder.Services.AddHostedService<ExternalContentBootstrapService>();
 builder.Services.AddScoped<WebScrapingService>();
 builder.Services.AddScoped<ExperienceService>();
@@ -291,17 +291,17 @@ app.UseStaticFiles();
 // Güvenlik başlıkları ekle
 app.Use(async (context, next) =>
 {
-    context.Response.Headers.Add("X-Content-Type-Options", "nosniff");
-    context.Response.Headers.Add("X-Frame-Options", "SAMEORIGIN");
-    context.Response.Headers.Add("X-XSS-Protection", "1; mode=block");
-    context.Response.Headers.Add("Referrer-Policy", "strict-origin-when-cross-origin");
-    context.Response.Headers.Add("Content-Security-Policy", 
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+    context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    context.Response.Headers["Content-Security-Policy"] =
         "default-src 'self' https://* http://*; " +
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://* http://*; " +
         "style-src 'self' 'unsafe-inline' https://* http://*; " +
         "font-src 'self' https://* http://* data:; " +
         "img-src 'self' https://* http://* data:; " +
-        "connect-src 'self' https://* http://*;");
+        "connect-src 'self' https://* http://*;";
     await next();
 });
 

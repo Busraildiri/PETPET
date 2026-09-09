@@ -15,7 +15,7 @@ public sealed class ExternalContentAutoPublisher : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_configuration.GetValue("ExternalContent:AutoPublish", true)) return;
+        if (!_configuration.GetValue("ExternalContent:AutoPublish", false)) return;
         await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
         try
         {

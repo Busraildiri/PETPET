@@ -5,10 +5,10 @@ import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, ImageBackground, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Alert, BackHandler, Image, ImageBackground, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { apiUrl, getHome, getNearbyGroomers, getNearbyPetHotels, getNearbyVeterinarians, HomePayload, logoutSession, mediaUrl, Question, searchGroomersByArea, searchPetHotelsByArea, searchVeterinariansByArea, Story, type AuthResponse, type ContentKind, type NearbyVeterinarian } from './src/api';
+import { ApiError, apiUrl, getHome, getNearbyGroomers, getNearbyPetHotels, getNearbyVeterinarians, HomePayload, logoutSession, mediaUrl, Question, refreshAuthSession, searchGroomersByArea, searchPetHotelsByArea, searchVeterinariansByArea, Story, type AuthResponse, type ContentKind, type NearbyVeterinarian } from './src/api';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PatiSocialScreen } from './src/screens/PatiSocialScreen';
@@ -53,6 +53,8 @@ export default function App() {
   const [restoringSession, setRestoringSession] = useState(true);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authExpiresAt, setAuthExpiresAt] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [resetToken, setResetToken] = useState('');
   const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>('posts');
   const [nearbyCategory, setNearbyCategory] = useState<'veterinarian' | 'groomer' | 'hotel'>('veterinarian');
@@ -65,8 +67,45 @@ export default function App() {
   }, []);
 
   useEffect(() => { void restoreSession().then(result => {
-    if (result) { setCurrentUser(result.user.username); setAuthToken(result.session.token); }
+    if (result) {
+      setCurrentUser(result.user.username);
+      setAuthToken(result.session.token);
+      setAuthExpiresAt(result.session.expiresAt);
+      setRefreshToken(result.session.refreshToken);
+    }
   }).finally(() => setRestoringSession(false)); }, []);
+
+  useEffect(() => {
+    if (!refreshToken || !authExpiresAt) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const renew = async () => {
+      try {
+        const session = await refreshAuthSession(refreshToken);
+        if (cancelled) return;
+        await saveSession(session);
+        setCurrentUser(session.username);
+        setAuthToken(session.token);
+        setAuthExpiresAt(session.expiresAt);
+        setRefreshToken(session.refreshToken);
+      } catch (reason) {
+        if (cancelled) return;
+        if (reason instanceof ApiError && reason.status === 401) {
+          await clearSession();
+          setCurrentUser(null);
+          setAuthToken(null);
+          setAuthExpiresAt(null);
+          setRefreshToken(null);
+          return;
+        }
+        timer = setTimeout(() => void renew(), 30_000);
+      }
+    };
+    const expires = new Date(authExpiresAt).getTime();
+    const delay = Number.isFinite(expires) ? Math.max(0, expires - Date.now() - 60_000) : 0;
+    timer = setTimeout(() => void renew(), delay);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [authExpiresAt, refreshToken]);
 
   useEffect(() => {
     const handleUrl = (url: string | null) => {
@@ -84,6 +123,18 @@ export default function App() {
     return () => subscription.remove();
   }, []);
 
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (page === 'pets') { setPage('account'); return true; }
+      if (page === 'sighting') { setPage('lost-detail'); return true; }
+      if (page === 'reset') { setPage('login'); return true; }
+      if (page !== 'root') { setPage('root'); return true; }
+      if (tab !== 'home') { setTab('home'); return true; }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [page, tab]);
+
   if (showSplash || restoringSession) {
     return <View style={styles.splashView}>
       <StatusBar style="dark" />
@@ -94,13 +145,21 @@ export default function App() {
   const changeTab = (next: TabKey) => { if (next === 'social') setSocialInitialTab('posts'); setMatchChatOpen(false); setTab(next); setPage('root'); };
   const openLost = () => { setTab('lost'); setPage('root'); };
   const openQuestions = () => { setSocialInitialTab('questions'); setTab('social'); setPage('root'); };
-  const sessionChanged = (session: AuthResponse) => { void saveSession(session); setCurrentUser(session.username); setAuthToken(session.token); };
+  const sessionChanged = (session: AuthResponse) => {
+    void saveSession(session);
+    setCurrentUser(session.username);
+    setAuthToken(session.token);
+    setAuthExpiresAt(session.expiresAt);
+    setRefreshToken(session.refreshToken);
+  };
   const authenticated = (session: AuthResponse) => { sessionChanged(session); setTab('home'); setPage('root'); };
   const logout = async () => {
     if (authToken) { try { await logoutSession(authToken); } catch { /* Local logout must still complete. */ } }
     await clearSession();
     setCurrentUser(null);
     setAuthToken(null);
+    setAuthExpiresAt(null);
+    setRefreshToken(null);
     setTab('home');
     setPage('root');
   };
@@ -136,7 +195,7 @@ export default function App() {
   />;
   else if (tab === 'lost') screen = <LostHub onNavigate={setPage} />;
   else if (tab === 'match') screen = <PatiMatchScreen token={authToken} username={currentUser} onLogin={() => setPage('login')} onOpenPets={() => setPage('pets')} onSessionExpired={() => { void logout(); setPage('login'); }} onChatStateChange={setMatchChatOpen} />;
-  else if (tab === 'settings') screen = <SettingsScreen username={currentUser} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} />;
+  else if (tab === 'settings') screen = <SettingsScreen username={currentUser} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} onOpenPatiMatch={() => setTab('match')} />;
   else screen = <ComingSoon tab={tab} onHome={() => changeTab('home')} />;
 
   return (
@@ -510,7 +569,7 @@ function PlaceCard({ place, kind }: { place: NearbyVeterinarian; kind: string })
   const rating = place.rating ? ` · ★ ${place.rating.toFixed(1).replace('.', ',')}${place.userRatingCount ? ` (${place.userRatingCount})` : ''}` : '';
   const openMaps = () => {
     const url = place.googleMapsUri || `https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`;
-    void Linking.openURL(url);
+    void openExternalUrl(url, 'Harita bağlantısı şu anda açılamıyor.');
   };
   return <View style={styles.placeCard}><View style={styles.placePin}><Ionicons name="location" size={22} color={colors.primary} /></View><View style={styles.flexOne}>
     <Text style={styles.placeTitle}>{place.name}</Text><Text style={styles.placeMeta}>{kind} · {distance}{rating}</Text>
@@ -527,8 +586,8 @@ function AdoptionScreen({ onBack }: { onBack: () => void }) {
       <View style={styles.petProfileBody}><View style={styles.rowBetween}><Text style={styles.petName}>Luna</Text><Text style={styles.cityBadge}>İstanbul</Text></View>
         <Text style={styles.petMeta}>2 yaş · Tekir · Dişi</Text><InfoLine icon="medkit-outline" text="Aşıları tam, kısırlaştırılmış" />
         <Text style={styles.storyHeading}>Luna'nın hikâyesi</Text><Text style={styles.bodyText}>İnsanlarla iletişimi güçlü, sakin ve oyun seven Luna için güvenli bir yuva aranıyor.</Text>
-        <ActionButton label="Sahiplenme başvurusu yap" icon="heart-outline" onPress={() => Alert.alert('Başvurun alındı', 'Bu prototipte başvuru güvenli iletişim akışına yönlendirilecek.')} />
-        <View style={styles.safetyActions}><Text style={styles.textAction}>Güvenlik önerileri</Text><Text style={styles.reportAction}>İlanı bildir</Text></View>
+        <ActionButton label="Sahiplenme başvurusu yap" icon="heart-outline" onPress={() => showUnavailable('Sahiplenme başvurusu')} />
+        <View style={styles.safetyActions}><Pressable onPress={() => showUnavailable('Güvenlik önerileri')}><Text style={styles.textAction}>Güvenlik önerileri</Text></Pressable><Pressable onPress={() => showUnavailable('İlan bildirimi')}><Text style={styles.reportAction}>İlanı bildir</Text></Pressable></View>
       </View>
     </View>
     <View style={styles.noticeCard}><Ionicons name="shield-checkmark-outline" size={25} color="#4E7458" /><Text style={styles.noticeText}>Hayvan satışı ve fiyat bilgisi bu alanda yer almaz. Görüşmelerde kişisel bilgilerini koru.</Text></View>
@@ -543,7 +602,7 @@ function ReviewsScreen({ onBack }: { onBack: () => void }) {
       <View style={styles.labelRow}><Text style={styles.verifiedBadge}>Doğrulanmış Deneyim</Text><Text style={styles.sponsoredBadge}>Sponsorlu</Text></View>
       <Text style={styles.productTitle}>Somonlu Yetişkin Kedi Maması</Text><Text style={styles.productMeta}>PatiPlus · Kedi</Text><Text style={styles.ratingBig}>4,4 ★</Text></View></View>
     <View style={styles.scoreGrid}>{[['Lezzet','4,7'], ['İçerik','4,3'], ['Sindirim','4,5'], ['Fiyat/Değer','4,0']].map(([label, score]) => <View key={label} style={styles.scoreItem}><Text style={styles.score}>{score}</Text><Text style={styles.scoreLabel}>{label}</Text></View>)}</View>
-    <View style={styles.safetyActions}><Pressable onPress={() => setAdding(!adding)}><Text style={styles.textAction}>{adding ? 'Formu kapat' : '+ Mama deneyimi ekle'}</Text></Pressable><Text style={styles.reportAction}>İçeriği bildir</Text></View>
+    <View style={styles.safetyActions}><Pressable onPress={() => setAdding(!adding)}><Text style={styles.textAction}>{adding ? 'Formu kapat' : '+ Mama deneyimi ekle'}</Text></Pressable><Pressable onPress={() => showUnavailable('İçerik bildirimi')}><Text style={styles.reportAction}>İçeriği bildir</Text></Pressable></View>
     {adding ? <ReviewForm /> : null}
   </ScreenShell>;
 }
@@ -553,7 +612,7 @@ function ReviewForm() {
   return <View style={styles.formCard}><Text style={styles.formTitle}>Yeni deneyim</Text><View style={styles.photoPicker}><Ionicons name="camera-outline" size={24} color={colors.primary} /><Text style={styles.photoPickerText}>Paket fotoğrafı ekle</Text></View>
     <FormInput value={brand} onChangeText={setBrand} placeholder="Marka" /><FormInput value={product} onChangeText={setProduct} placeholder="Ürün adı" /><FormInput value={petType} onChangeText={setPetType} placeholder="Evcil hayvan türü" />
     <Text style={styles.formHint}>Lezzet · İçerik · Sindirim · Fiyat/Değer puanları gönderim adımında seçilecek.</Text>
-    <ActionButton label="Deneyimi kaydet" icon="checkmark-circle-outline" onPress={() => Alert.alert('Taslak kaydedildi', 'Backend bağlantısı eklendiğinde incelemeye gönderilecek.')} />
+    <ActionButton label="Deneyimi kaydet" icon="checkmark-circle-outline" onPress={() => showUnavailable('Mama deneyimi')} />
   </View>;
 }
 
@@ -565,13 +624,13 @@ function LostHub({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
   return <ScreenShell title="Kayıp Patiler" subtitle="Birlikte arıyor, umutla buluşturuyoruz">
     <View style={styles.urgentPanel}><View style={styles.urgentIcon}><Ionicons name="search" size={26} color={colors.white} /></View><View style={styles.flexOne}><Text style={styles.urgentTitle}>Yakınındaki patilere göz kulak ol</Text><Text style={styles.urgentText}>Küçük bir bilgi, bir ailenin yeniden kavuşmasını sağlayabilir.</Text></View></View>
     <View style={styles.lostActions}>
-      <SmallAction icon="list-outline" label="Yakınımdaki İlanlar" onPress={() => {}} />
-      <SmallAction icon="map-outline" label="Haritada Gör" onPress={() => Alert.alert('Harita', 'Yaklaşık konumlar harita zaman çizelgesinde gösterilecek.')} />
+      <SmallAction icon="list-outline" label="Yakınımdaki İlanlar" onPress={() => showUnavailable('Yakındaki kayıp ilanları')} />
+      <SmallAction icon="map-outline" label="Haritada Gör" onPress={() => showUnavailable('Kayıp ilanları haritası')} />
       <SmallAction icon="add-circle-outline" label="Kayıp İlanı Ver" onPress={() => onNavigate('lost-form')} />
       <SmallAction icon="flag-outline" label="Bulunan Hayvan Bildir" onPress={() => onNavigate('found-form')} />
-      <SmallAction icon="folder-outline" label="İlanlarım" onPress={() => Alert.alert('İlanlarım', 'Giriş yaptıktan sonra kendi ilanların burada görünecek.')} />
+      <SmallAction icon="folder-outline" label="İlanlarım" onPress={() => showUnavailable('İlanlarım')} />
     </View>
-    <SectionTitle title="Yakınımdaki ilanlar" action="Tümü" />
+    <SectionTitle title="Yakınımdaki ilanlar" action="Tümü" onAction={() => showUnavailable('Yakındaki kayıp ilanları')} />
     <SampleBadge />
     {lostPets.map((pet, index) => <LostPetCard key={pet.name} pet={pet} urgent={index === 0} onPress={() => onNavigate('lost-detail')} />)}
   </ScreenShell>;
@@ -603,7 +662,7 @@ function LostDetailScreen({ onBack, onSighting }: { onBack: () => void; onSighti
       <Text style={styles.bodyText}>Ürkek olabilir; lütfen kovalamadan, güvenli mesafeden gözlemleyin.</Text>
       <ActionButton label="Burada Gördüm" icon="eye-outline" onPress={onSighting} />
       <View style={styles.timeline}><Text style={styles.timelineTitle}>Görülme zaman çizelgesi</Text><Text style={styles.timelineItem}>● 10:20 · Kadıköy çevresi · İlan sahibi</Text><Text style={styles.timelinePrivate}>Kesin konum ve iletişim bilgileri yalnızca ilan sahibine gösterilir.</Text></View>
-      <View style={styles.safetyActions}><Text style={styles.textAction}>Güvenli paylaş</Text><Text style={styles.reportAction}>İlanı bildir</Text></View>
+      <View style={styles.safetyActions}><Pressable onPress={() => showUnavailable('Güvenli paylaşım')}><Text style={styles.textAction}>Güvenli paylaş</Text></Pressable><Pressable onPress={() => showUnavailable('İlan bildirimi')}><Text style={styles.reportAction}>İlanı bildir</Text></Pressable></View>
     </View>
   </ScreenShell>;
 }
@@ -618,7 +677,7 @@ function LostPetForm({ mode, onBack }: { mode: 'lost' | 'found'; onBack: () => v
       <FormInput value={location} onChangeText={setLocation} placeholder="Yaklaşık konum (mahalle/ilçe)" /><FormInput value={collar} onChangeText={setCollar} placeholder="Tasma / mikroçip bilgisi" />
       <FormInput value={notes} onChangeText={setNotes} placeholder="Önemli notlar" multiline />
       <View style={styles.noticeCard}><Ionicons name="lock-closed-outline" size={22} color="#4E7458" /><Text style={styles.noticeText}>Telefon numaranı veya açık ev adresini paylaşman gerekmez.</Text></View>
-      <ActionButton label={lost ? 'İlanı incelemeye gönder' : 'Bildirimi gönder'} icon="paper-plane-outline" onPress={() => Alert.alert('Taslak hazır', 'Hesap ve backend bağlantısı tamamlandığında güvenle gönderilecek.')} />
+      <ActionButton label={lost ? 'İlanı incelemeye gönder' : 'Bildirimi gönder'} icon="paper-plane-outline" onPress={() => showUnavailable(lost ? 'Kayıp ilanı' : 'Bulunan hayvan bildirimi')} />
     </View>
   </ScreenShell>;
 }
@@ -629,7 +688,7 @@ function SightingForm({ onBack }: { onBack: () => void }) {
     <View style={styles.formCard}><View style={styles.photoPicker}><Ionicons name="camera-outline" size={26} color={colors.primary} /><Text style={styles.photoPickerText}>Gözlem fotoğrafı ekle</Text></View>
       <FormInput value={location} onChangeText={setLocation} placeholder="Yaklaşık konum" /><FormInput value={time} onChangeText={setTime} placeholder="Gördüğün saat" /><FormInput value={note} onChangeText={setNote} placeholder="Kısa not" multiline />
       <Text style={styles.formHint}>Kesin detaylar yalnızca ilan sahibine iletilir ve haritada yaklaşık olarak gösterilir.</Text>
-      <ActionButton label="Gözlemi güvenle gönder" icon="notifications-outline" onPress={() => Alert.alert('Teşekkür ederiz', 'İlan sahibine bildirim gönderilecek ve gözlem zaman çizelgesine eklenecek.')} />
+      <ActionButton label="Gözlemi güvenle gönder" icon="notifications-outline" onPress={() => showUnavailable('Gözlem bildirimi')} />
     </View>
   </ScreenShell>;
 }
@@ -640,6 +699,21 @@ function FormInput({ value, onChangeText, placeholder, multiline = false }: { va
 
 function ActionButton({ label, icon, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
   return <Pressable onPress={onPress} style={({ pressed }) => [styles.fullButton, pressed && styles.pressed]}><Ionicons name={icon} size={19} color={colors.white} /><Text style={styles.fullButtonText}>{label}</Text></Pressable>;
+}
+
+function showUnavailable(feature: string) {
+  Alert.alert('Henüz kullanıma açık değil', `${feature} sunucuya bağlı olmadığı için hiçbir veri gönderilmedi veya kaydedilmedi.`);
+}
+
+async function openExternalUrl(url: string, message: string) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('unsupported');
+    if (!await Linking.canOpenURL(url)) throw new Error('unsupported');
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert('Bağlantı açılamadı', message);
+  }
 }
 
 function SmallAction({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
