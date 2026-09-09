@@ -190,6 +190,30 @@ export type NearbyVeterinarian = {
   longitude: number;
 };
 
+export type LostPetSummary = {
+  id: number; kind: 'lost' | 'found'; petName: string; species: string; breed?: string | null;
+  city: string; district: string; neighborhood?: string | null; latitude?: number | null; longitude?: number | null;
+  eventAt: string; imagePath: string; status: 'active' | 'resolved' | 'closed'; createdAt: string;
+  sightingCount: number; distanceKm?: number | null;
+};
+
+export type LostPetSighting = {
+  id: number; locationLabel: string; seenAt: string; note?: string | null;
+  latitude?: number | null; longitude?: number | null; createdAt: string;
+};
+
+export type LostPetDetail = Omit<LostPetSummary, 'sightingCount' | 'distanceKm'> & {
+  distinguishingFeatures: string; collarOrMicrochip?: string | null; notes?: string | null;
+  sourceName: string; expiresAt: string; ownerUsername: string; isMine: boolean; sightings: LostPetSighting[];
+};
+
+export type CreateLostPetRequest = {
+  kind: 'lost' | 'found'; petName: string; species: string; breed?: string; distinguishingFeatures: string;
+  eventAt: string; city: string; district: string; neighborhood?: string; latitude?: number; longitude?: number;
+  collarOrMicrochip?: string; notes?: string;
+  image: { uri: string; mimeType?: string | null };
+};
+
 function resolveApiUrl(value?: string) {
   const normalized = value?.trim().replace(/\/+$/, '') || (__DEV__ ? 'http://localhost:5147' : '');
   if (!normalized) throw new Error('Production API adresi tanımlanmamış.');
@@ -702,6 +726,79 @@ export async function createSocialComment(
   }
 
   return payload as SocialCommentPayload;
+}
+
+async function readLostPetResponse<T>(response: Response, fallback: string): Promise<T> {
+  const payload = await response.json().catch(() => null) as T | { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+  if (!response.ok) {
+    const error = payload as { message?: string; title?: string; errors?: Record<string, string[]> } | null;
+    const validation = error?.errors ? Object.values(error.errors).flat()[0] : undefined;
+    throw new ApiError(validation || error?.message || error?.title || fallback, response.status);
+  }
+  return payload as T;
+}
+
+export async function getLostPets(options: {
+  kind?: 'lost' | 'found'; city?: string; district?: string; latitude?: number; longitude?: number; radiusKm?: number;
+} = {}, signal?: AbortSignal): Promise<LostPetSummary[]> {
+  const query = new URLSearchParams();
+  Object.entries(options).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); });
+  const response = await fetchApi(`${apiUrl}/api/mobile/lost-pets${query.size ? `?${query}` : ''}`, { headers: { Accept: 'application/json' }, signal });
+  return readLostPetResponse(response, `İlanlar yüklenemedi (${response.status}).`);
+}
+
+export async function getMyLostPets(token: string, signal?: AbortSignal): Promise<LostPetSummary[]> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/lost-pets/mine`, { headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal });
+  return readLostPetResponse(response, `İlanların yüklenemedi (${response.status}).`);
+}
+
+export async function getLostPet(id: number, token?: string | null, signal?: AbortSignal): Promise<LostPetDetail> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/lost-pets/${id}`, {
+    headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, signal,
+  });
+  return readLostPetResponse(response, `İlan yüklenemedi (${response.status}).`);
+}
+
+export async function createLostPet(token: string, request: CreateLostPetRequest): Promise<LostPetDetail> {
+  const imageFile = new File(request.image.uri);
+  const response = await fetchApi(`${apiUrl}/api/mobile/lost-pets`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      ...request,
+      image: undefined,
+      imageBase64: await imageFile.base64(),
+      imageContentType: request.image.mimeType || imageFile.type || 'image/jpeg',
+    }),
+  }, 30_000);
+  return readLostPetResponse(response, `İlan oluşturulamadı (${response.status}).`);
+}
+
+export async function createLostPetSighting(token: string, id: number, request: {
+  locationLabel: string; seenAt: string; note?: string; latitude?: number; longitude?: number;
+}): Promise<LostPetSighting> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/lost-pets/${id}/sightings`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(request),
+  });
+  return readLostPetResponse(response, `Görülme bildirimi gönderilemedi (${response.status}).`);
+}
+
+export async function updateLostPetStatus(token: string, id: number, status: 'active' | 'resolved' | 'closed'): Promise<void> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/lost-pets/${id}/status`, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) await readLostPetResponse(response, 'İlan durumu güncellenemedi.');
+}
+
+export async function deleteLostPet(token: string, id: number): Promise<void> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/lost-pets/${id}`, {
+    method: 'DELETE', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) await readLostPetResponse(response, 'İlan silinemedi.');
 }
 
 async function setSocialReaction(path: string, token: string, active: boolean): Promise<SocialReactionPayload> {

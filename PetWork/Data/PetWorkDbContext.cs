@@ -37,6 +37,8 @@ namespace PetWork.Data
         public DbSet<PatiMatchProfile> PatiMatchProfiles { get; set; }
         public DbSet<PatiMatchDecision> PatiMatchDecisions { get; set; }
         public DbSet<PatiMatchMessage> PatiMatchMessages { get; set; }
+        public DbSet<LostPetListing> LostPetListings { get; set; }
+        public DbSet<LostPetSighting> LostPetSightings { get; set; }
         
         public override int SaveChanges()
         {
@@ -243,6 +245,33 @@ namespace PetWork.Data
             modelBuilder.Entity<SocialCommentLike>()
                 .HasIndex(like => new { like.SocialCommentId, like.UserId })
                 .IsUnique();
+
+            modelBuilder.Entity<LostPetListing>()
+                .HasOne(listing => listing.User)
+                .WithMany()
+                .HasForeignKey(listing => listing.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LostPetListing>()
+                .HasIndex(listing => new { listing.IsDeleted, listing.Status, listing.ExpiresAt });
+
+            modelBuilder.Entity<LostPetListing>()
+                .HasIndex(listing => new { listing.City, listing.District, listing.CreatedAt });
+
+            modelBuilder.Entity<LostPetSighting>()
+                .HasOne(sighting => sighting.LostPetListing)
+                .WithMany(listing => listing.Sightings)
+                .HasForeignKey(sighting => sighting.LostPetListingId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LostPetSighting>()
+                .HasOne(sighting => sighting.User)
+                .WithMany()
+                .HasForeignKey(sighting => sighting.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<LostPetSighting>()
+                .HasIndex(sighting => new { sighting.LostPetListingId, sighting.IsDeleted, sighting.SeenAt });
 
             modelBuilder.Entity<PatiMatchProfile>()
                 .HasOne(profile => profile.Pet)

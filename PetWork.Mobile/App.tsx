@@ -16,13 +16,14 @@ import { PatiMatchScreen } from './src/screens/PatiMatchScreen';
 import { PetsScreen } from './src/screens/PetsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ContentScreen } from './src/screens/ContentScreen';
+import { LostPetsScreen } from './src/screens/LostPetsScreen';
 import { configureNotifications } from './src/notifications';
 import { colors, shadow } from './src/theme';
 import type { SocialTab } from './src/types/social';
 import { clearSession, restoreSession, saveSession } from './src/session';
 
 type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
-type PageKey = 'root' | 'login' | 'register' | 'reset' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'lost-form' | 'found-form' | 'lost-detail' | 'sighting' | 'content';
+type PageKey = 'root' | 'login' | 'register' | 'reset' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'content';
 
 const communityDemoImage = require('./assets/community-demo.png');
 const locationConsentKey = 'petwork_location_consent_v1';
@@ -126,7 +127,6 @@ export default function App() {
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (page === 'pets') { setPage('account'); return true; }
-      if (page === 'sighting') { setPage('lost-detail'); return true; }
       if (page === 'reset') { setPage('login'); return true; }
       if (page !== 'root') { setPage('root'); return true; }
       if (tab !== 'home') { setTab('home'); return true; }
@@ -173,10 +173,6 @@ export default function App() {
   else if (page === 'nearby') screen = <NearbyScreen category={nearbyCategory} onBack={() => setPage('root')} />;
   else if (page === 'adoption') screen = <AdoptionScreen onBack={() => setPage('root')} />;
   else if (page === 'reviews') screen = <ReviewsScreen onBack={() => setPage('root')} />;
-  else if (page === 'lost-form') screen = <LostPetForm mode="lost" onBack={() => setPage('root')} />;
-  else if (page === 'found-form') screen = <LostPetForm mode="found" onBack={() => setPage('root')} />;
-  else if (page === 'lost-detail') screen = <LostDetailScreen onBack={() => setPage('root')} onSighting={() => setPage('sighting')} />;
-  else if (page === 'sighting') screen = <SightingForm onBack={() => setPage('lost-detail')} />;
   else if (page === 'content') screen = <ContentScreen kind={contentKind} onBack={() => setPage('root')} onOpenLost={openLost} />;
   else if (tab === 'home') screen = <HomeScreen currentUser={currentUser} onOpenAccount={() => setPage('account')} onOpenLost={openLost} onOpenQuestions={openQuestions} onOpenContent={kind => { setContentKind(kind); setPage('content'); }} onLogin={() => setPage('login')} onRegister={() => setPage('register')} />;
   else if (tab === 'social') screen = <PatiSocialScreen
@@ -193,7 +189,7 @@ export default function App() {
     onOpenReviews={() => setPage('reviews')}
     onOpenLost={openLost}
   />;
-  else if (tab === 'lost') screen = <LostHub onNavigate={setPage} />;
+  else if (tab === 'lost') screen = <LostPetsScreen token={authToken} username={currentUser} onLogin={() => setPage('login')} />;
   else if (tab === 'match') screen = <PatiMatchScreen token={authToken} username={currentUser} onLogin={() => setPage('login')} onOpenPets={() => setPage('pets')} onSessionExpired={() => { void logout(); setPage('login'); }} onChatStateChange={setMatchChatOpen} />;
   else if (tab === 'settings') screen = <SettingsScreen username={currentUser} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} onOpenPatiMatch={() => setTab('match')} />;
   else screen = <ComingSoon tab={tab} onHome={() => changeTab('home')} />;
@@ -614,83 +610,6 @@ function ReviewForm() {
     <Text style={styles.formHint}>Lezzet · İçerik · Sindirim · Fiyat/Değer puanları gönderim adımında seçilecek.</Text>
     <ActionButton label="Deneyimi kaydet" icon="checkmark-circle-outline" onPress={() => showUnavailable('Mama deneyimi')} />
   </View>;
-}
-
-const lostPets = [
-  { name: 'Tarçın', species: 'Kedi', district: 'Kadıköy', date: 'Bugün 10:20', status: 'Kayıp', image: communityDemoImage },
-];
-
-function LostHub({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
-  return <ScreenShell title="Kayıp Patiler" subtitle="Birlikte arıyor, umutla buluşturuyoruz">
-    <View style={styles.urgentPanel}><View style={styles.urgentIcon}><Ionicons name="search" size={26} color={colors.white} /></View><View style={styles.flexOne}><Text style={styles.urgentTitle}>Yakınındaki patilere göz kulak ol</Text><Text style={styles.urgentText}>Küçük bir bilgi, bir ailenin yeniden kavuşmasını sağlayabilir.</Text></View></View>
-    <View style={styles.lostActions}>
-      <SmallAction icon="list-outline" label="Yakınımdaki İlanlar" onPress={() => showUnavailable('Yakındaki kayıp ilanları')} />
-      <SmallAction icon="map-outline" label="Haritada Gör" onPress={() => showUnavailable('Kayıp ilanları haritası')} />
-      <SmallAction icon="add-circle-outline" label="Kayıp İlanı Ver" onPress={() => onNavigate('lost-form')} />
-      <SmallAction icon="flag-outline" label="Bulunan Hayvan Bildir" onPress={() => onNavigate('found-form')} />
-      <SmallAction icon="folder-outline" label="İlanlarım" onPress={() => showUnavailable('İlanlarım')} />
-    </View>
-    <SectionTitle title="Yakınımdaki ilanlar" action="Tümü" onAction={() => showUnavailable('Yakındaki kayıp ilanları')} />
-    <SampleBadge />
-    {lostPets.map((pet, index) => <LostPetCard key={pet.name} pet={pet} urgent={index === 0} onPress={() => onNavigate('lost-detail')} />)}
-  </ScreenShell>;
-}
-
-function LostPetCard({ pet, urgent, onPress }: { pet: typeof lostPets[number]; urgent?: boolean; onPress: () => void }) {
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.lostPetCard, urgent && styles.lostPetUrgent, pressed && styles.cardPressed]}>
-    <ImageBackground source={pet.image} style={styles.lostPetImage} imageStyle={styles.lostPetImageRadius} />
-    <View style={styles.lostPetBody}><View style={styles.rowBetween}><Text style={styles.lostPetName}>{pet.name}</Text><Text style={[styles.statusBadge, statusStyle(pet.status)]}>{pet.status}</Text></View>
-      <Text style={styles.lostPetMeta}>{pet.species} · Son görülme: {pet.district}</Text><Text style={styles.lostPetDate}>{pet.date}</Text>
-      {urgent ? <Text style={styles.urgentNote}>Yeni ilan · Yakın çevrede dikkatli olalım</Text> : null}
-    </View><Ionicons name="chevron-forward" size={20} color={colors.primary} />
-  </Pressable>;
-}
-
-function statusStyle(status: string) {
-  if (status === 'Kayıp') return { backgroundColor: colors.peachSoft, color: '#9B463B' };
-  if (status === 'Görüldü') return { backgroundColor: colors.yellowSoft, color: '#72530D' };
-  if (status === 'Güvenli Alanda') return { backgroundColor: colors.sageSoft, color: '#41604A' };
-  return { backgroundColor: '#E7E1EB', color: colors.primary };
-}
-
-function LostDetailScreen({ onBack, onSighting }: { onBack: () => void; onSighting: () => void }) {
-  return <ScreenShell title="Tarçın aranıyor" subtitle="Son görülme: Kadıköy" onBack={onBack}>
-    <SampleBadge />
-    <ImageBackground source={communityDemoImage} style={styles.detailHero} imageStyle={styles.detailHeroRadius}><Text style={[styles.statusBadge, statusStyle('Kayıp')]}>Kayıp · Yeni ilan</Text></ImageBackground>
-    <View style={styles.detailCard}><Text style={styles.detailTitle}>Tarçın</Text><Text style={styles.petMeta}>Tekir kedi · 3 yaş · Kadıköy</Text>
-      <InfoLine icon="calendar-outline" text="Bugün yaklaşık 10:20'de görüldü" /><InfoLine icon="finger-print-outline" text="Sol kulağında küçük çentik, mor tasma" />
-      <Text style={styles.bodyText}>Ürkek olabilir; lütfen kovalamadan, güvenli mesafeden gözlemleyin.</Text>
-      <ActionButton label="Burada Gördüm" icon="eye-outline" onPress={onSighting} />
-      <View style={styles.timeline}><Text style={styles.timelineTitle}>Görülme zaman çizelgesi</Text><Text style={styles.timelineItem}>● 10:20 · Kadıköy çevresi · İlan sahibi</Text><Text style={styles.timelinePrivate}>Kesin konum ve iletişim bilgileri yalnızca ilan sahibine gösterilir.</Text></View>
-      <View style={styles.safetyActions}><Pressable onPress={() => showUnavailable('Güvenli paylaşım')}><Text style={styles.textAction}>Güvenli paylaş</Text></Pressable><Pressable onPress={() => showUnavailable('İlan bildirimi')}><Text style={styles.reportAction}>İlanı bildir</Text></Pressable></View>
-    </View>
-  </ScreenShell>;
-}
-
-function LostPetForm({ mode, onBack }: { mode: 'lost' | 'found'; onBack: () => void }) {
-  const [name, setName] = useState(''); const [breed, setBreed] = useState(''); const [features, setFeatures] = useState(''); const [date, setDate] = useState(''); const [location, setLocation] = useState(''); const [collar, setCollar] = useState(''); const [notes, setNotes] = useState('');
-  const lost = mode === 'lost';
-  return <ScreenShell title={lost ? 'Kayıp ilanı ver' : 'Bulunan hayvan bildir'} subtitle="Paylaştığın bilgiler güvenle korunur" onBack={onBack}>
-    <View style={styles.formCard}><View style={styles.photoPicker}><Ionicons name="images-outline" size={26} color={colors.primary} /><Text style={styles.photoPickerText}>Fotoğraf ekle</Text><Text style={styles.formHint}>Birden fazla fotoğraf ekleyebilirsin</Text></View>
-      <FormInput value={name} onChangeText={setName} placeholder={lost ? 'Adı' : 'Varsa bilinen adı'} /><FormInput value={breed} onChangeText={setBreed} placeholder="Türü ve cinsi" />
-      <FormInput value={features} onChangeText={setFeatures} placeholder="Ayırt edici özellikleri" multiline /><FormInput value={date} onChangeText={setDate} placeholder={lost ? 'Kaybolma tarihi ve yaklaşık saat' : 'Bulunma tarihi ve yaklaşık saat'} />
-      <FormInput value={location} onChangeText={setLocation} placeholder="Yaklaşık konum (mahalle/ilçe)" /><FormInput value={collar} onChangeText={setCollar} placeholder="Tasma / mikroçip bilgisi" />
-      <FormInput value={notes} onChangeText={setNotes} placeholder="Önemli notlar" multiline />
-      <View style={styles.noticeCard}><Ionicons name="lock-closed-outline" size={22} color="#4E7458" /><Text style={styles.noticeText}>Telefon numaranı veya açık ev adresini paylaşman gerekmez.</Text></View>
-      <ActionButton label={lost ? 'İlanı incelemeye gönder' : 'Bildirimi gönder'} icon="paper-plane-outline" onPress={() => showUnavailable(lost ? 'Kayıp ilanı' : 'Bulunan hayvan bildirimi')} />
-    </View>
-  </ScreenShell>;
-}
-
-function SightingForm({ onBack }: { onBack: () => void }) {
-  const [location, setLocation] = useState(''); const [time, setTime] = useState(''); const [note, setNote] = useState('');
-  return <ScreenShell title="Burada gördüm" subtitle="Gözlemin Tarçın'ın sahibine umut olabilir" onBack={onBack}>
-    <View style={styles.formCard}><View style={styles.photoPicker}><Ionicons name="camera-outline" size={26} color={colors.primary} /><Text style={styles.photoPickerText}>Gözlem fotoğrafı ekle</Text></View>
-      <FormInput value={location} onChangeText={setLocation} placeholder="Yaklaşık konum" /><FormInput value={time} onChangeText={setTime} placeholder="Gördüğün saat" /><FormInput value={note} onChangeText={setNote} placeholder="Kısa not" multiline />
-      <Text style={styles.formHint}>Kesin detaylar yalnızca ilan sahibine iletilir ve haritada yaklaşık olarak gösterilir.</Text>
-      <ActionButton label="Gözlemi güvenle gönder" icon="notifications-outline" onPress={() => showUnavailable('Gözlem bildirimi')} />
-    </View>
-  </ScreenShell>;
 }
 
 function FormInput({ value, onChangeText, placeholder, multiline = false }: { value: string; onChangeText: (text: string) => void; placeholder: string; multiline?: boolean }) {
