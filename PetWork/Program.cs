@@ -322,11 +322,12 @@ app.Use(async (context, next) =>
     var isMobileNearbyRequest = context.Request.Path.StartsWithSegments("/api/mobile/nearby");
     var isMobilePetRequest = context.Request.Path.StartsWithSegments("/api/mobile/pets");
     var isMobilePatiMatchRequest = context.Request.Path.StartsWithSegments("/api/mobile/pati-match");
+    var isMobileLostPetsRequest = context.Request.Path.StartsWithSegments("/api/mobile/lost-pets");
     var isReadOnlyMethod = HttpMethods.IsGet(context.Request.Method) ||
                            HttpMethods.IsHead(context.Request.Method) ||
                            HttpMethods.IsOptions(context.Request.Method);
 
-    if (isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest && !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest && !isMobilePetRequest && !isMobilePatiMatchRequest)
+    if (isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest && !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest && !isMobilePetRequest && !isMobilePatiMatchRequest && !isMobileLostPetsRequest)
     {
         var userId = context.Session.GetInt32("UserId");
         if (userId is null)
