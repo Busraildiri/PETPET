@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Services;
 
 namespace PetWork.Controllers.Api;
 
@@ -16,7 +17,8 @@ public sealed class MobileProductReviewsApiController : ControllerBase
 {
     private readonly PetWorkDbContext _context;
     private readonly IWebHostEnvironment _environment;
-    public MobileProductReviewsApiController(PetWorkDbContext context, IWebHostEnvironment environment) { _context = context; _environment = environment; }
+    private readonly MobileMediaStorageService _mediaStorage;
+    public MobileProductReviewsApiController(PetWorkDbContext context, IWebHostEnvironment environment, MobileMediaStorageService mediaStorage) { _context = context; _environment = environment; _mediaStorage = mediaStorage; }
 
     [HttpGet]
     [AllowAnonymous]
@@ -35,7 +37,7 @@ public sealed class MobileProductReviewsApiController : ControllerBase
         if (!TryGetUserId(out var userId)) return Unauthorized();
         if (!ValidScore(request.TasteScore) || !ValidScore(request.IngredientScore) || !ValidScore(request.DigestionScore) || !ValidScore(request.ValueScore))
             return BadRequest(new { message = "Bütün puanlar 1 ile 5 arasında olmalıdır." });
-        var image = await SaveOptionalImageAsync(request.ImageBase64, request.ImageContentType, cancellationToken);
+        var image = SaveOptionalImage(request.ImageBase64, request.ImageContentType);
         if (image.Error is not null) return BadRequest(new { message = image.Error });
         var review = new ProductReview
         {
@@ -45,7 +47,7 @@ public sealed class MobileProductReviewsApiController : ControllerBase
         };
         _context.ProductReviews.Add(review);
         try { await _context.SaveChangesAsync(cancellationToken); }
-        catch { DeleteUploadedImage(review.ImagePath); throw; }
+        catch { _mediaStorage.DiscardPending(review.ImagePath); DeleteUploadedImage(review.ImagePath); throw; }
         review.User = await _context.Users.AsNoTracking().FirstAsync(user => user.Id == userId, cancellationToken);
         return Ok(ToResponse(review));
     }
@@ -72,7 +74,7 @@ public sealed class MobileProductReviewsApiController : ControllerBase
             item.DigestionScore, item.ValueScore, average, item.ImagePath, item.User.Username, item.CreatedAt);
     }
 
-    private async Task<(string? Path, string? Error)> SaveOptionalImageAsync(string? imageBase64, string? contentType, CancellationToken cancellationToken)
+    private (string? Path, string? Error) SaveOptionalImage(string? imageBase64, string? contentType)
     {
         if (string.IsNullOrWhiteSpace(imageBase64)) return (null, null);
         if (imageBase64.Length > 11_500_000) return (null, "Fotoğraf en fazla 8 MB olabilir.");
@@ -81,10 +83,7 @@ public sealed class MobileProductReviewsApiController : ControllerBase
         if (bytes.Length is <= 0 or > 8 * 1024 * 1024) return (null, "Fotoğraf en fazla 8 MB olabilir.");
         var extension = contentType?.ToLowerInvariant() switch { "image/jpeg" => ".jpg", "image/png" => ".png", "image/webp" => ".webp", _ => null };
         if (extension is null || !ValidImage(bytes, extension)) return (null, "Yalnızca geçerli JPG, PNG veya WebP fotoğrafları yükleyebilirsin.");
-        var directory = Path.Combine(_environment.WebRootPath, "uploads", "product-reviews"); Directory.CreateDirectory(directory);
-        var fileName = $"{Guid.NewGuid():N}{extension}";
-        await System.IO.File.WriteAllBytesAsync(Path.Combine(directory, fileName), bytes, cancellationToken);
-        return ($"uploads/product-reviews/{fileName}", null);
+        return (_mediaStorage.StageUpload("product-reviews", extension, contentType!.ToLowerInvariant(), bytes), null);
     }
 
     private void DeleteUploadedImage(string? path)

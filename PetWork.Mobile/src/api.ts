@@ -218,6 +218,7 @@ export type AdoptionListing = {
   id: number; petName: string; species: string; breed?: string | null; ageYears?: number | null; gender?: string | null;
   city: string; district?: string | null; healthInfo: string; story: string; imagePath: string;
   status: 'active' | 'adopted' | 'closed'; ownerUsername: string; createdAt: string; isMine: boolean; hasApplied: boolean;
+  applicationStatus?: 'pending' | 'accepted' | 'rejected' | null;
 };
 
 export type AdoptionApplication = { id: number; username: string; message: string; status: 'pending' | 'accepted' | 'rejected'; createdAt: string };
@@ -229,6 +230,9 @@ export type MobileNotification = {
 };
 
 export type MobileNotificationsResponse = { items: MobileNotification[]; unreadCount: number };
+export type MobileNotificationPreferences = {
+  communityNotifications: boolean; lostPetNotifications: boolean; matchNotifications: boolean; isConfigured: boolean;
+};
 
 export type CreateAdoptionListingRequest = {
   petName: string; species: string; breed?: string; ageYears?: number; gender?: string; city: string; district?: string;
@@ -969,6 +973,29 @@ export async function markAllMobileNotificationsRead(token: string): Promise<voi
     method: 'PUT', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
   });
   if (!response.ok) await readCommunityResponse(response, 'Bildirimler güncellenemedi.');
+}
+
+export async function getMobileNotificationPreferences(token: string): Promise<MobileNotificationPreferences> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/notifications/preferences`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  return readCommunityResponse(response, 'Bildirim tercihleri yüklenemedi.');
+}
+
+export async function updateMobileNotificationPreferences(token: string, preferences: Omit<MobileNotificationPreferences, 'isConfigured'>): Promise<MobileNotificationPreferences> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/notifications/preferences`, {
+    method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(preferences),
+  });
+  return readCommunityResponse(response, 'Bildirim tercihleri kaydedilemedi.');
+}
+
+export async function registerMobilePushToken(token: string, pushToken: string, platform: string): Promise<void> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/notifications/push-token`, {
+    method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ token: pushToken, platform }),
+  });
+  if (!response.ok) await readCommunityResponse(response, 'Cihaz bildirimi kaydedilemedi.');
 }
 
 export async function reportAdoptionListing(token: string, id: number, reason: string): Promise<string> {

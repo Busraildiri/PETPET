@@ -11,10 +11,10 @@ import {
 } from '../api';
 import { colors, createThemedStyles, shadow } from '../theme';
 
-type Props = { token: string | null; onLogin: () => void; onBack: () => void };
+type Props = { token: string | null; onLogin: () => void; onBack: () => void; initialListingId?: number | null };
 type Action = { kind: 'apply' | 'report'; listing: AdoptionListing } | null;
 
-export function AdoptionScreen({ token, onLogin, onBack }: Props) {
+export function AdoptionScreen({ token, onLogin, onBack, initialListingId }: Props) {
   const [items, setItems] = useState<AdoptionListing[]>([]);
   const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null); const [creating, setCreating] = useState(false);
@@ -39,7 +39,7 @@ export function AdoptionScreen({ token, onLogin, onBack }: Props) {
     try {
       if (action.kind === 'apply') {
         await applyToAdoptionListing(token, action.listing.id, actionText.trim());
-        setItems(current => current.map(item => item.id === action.listing.id ? { ...item, hasApplied: true } : item));
+        setItems(current => current.map(item => item.id === action.listing.id ? { ...item, hasApplied: true, applicationStatus: 'pending' } : item));
         Alert.alert('Başvuru gönderildi', 'İlan sahibi başvurunu uygulama içinden değerlendirebilir.');
       } else Alert.alert('Teşekkürler', await reportAdoptionListing(token, action.listing.id, actionText.trim()));
       setAction(null);
@@ -53,7 +53,14 @@ export function AdoptionScreen({ token, onLogin, onBack }: Props) {
   };
   const decide = async (applicationId: number, status: 'accepted' | 'rejected') => {
     if (!token) return;
-    try { await updateAdoptionApplication(token, applicationId, status); setApplications(current => current.map(item => item.id === applicationId ? { ...item, status } : item)); }
+    try {
+      await updateAdoptionApplication(token, applicationId, status);
+      setApplications(current => current.map(item => item.id === applicationId ? { ...item, status }
+        : status === 'accepted' && item.status === 'pending' ? { ...item, status: 'rejected' } : item));
+      if (status === 'accepted' && applicationsFor) {
+        setItems(current => current.map(item => item.id === applicationsFor ? { ...item, status: 'adopted' } : item));
+      }
+    }
     catch (reason) { Alert.alert('İşlem tamamlanamadı', reason instanceof Error ? reason.message : 'Lütfen yeniden dene.'); }
   };
   const closeListing = (listing: AdoptionListing) => {
@@ -74,15 +81,15 @@ export function AdoptionScreen({ token, onLogin, onBack }: Props) {
       {loading ? <State icon="hourglass-outline" text="İlanlar yükleniyor…" loading /> : null}
       {!loading && error ? <Pressable onPress={() => void load()}><State icon="cloud-offline-outline" text={`${error}\nTekrar denemek için dokun.`} /></Pressable> : null}
       {!loading && !error && items.length === 0 ? <State icon="home-outline" text="Henüz aktif sahiplendirme ilanı yok." /> : null}
-      {items.map(item => <View key={item.id} style={styles.card}>
+      {items.filter(item => !initialListingId || item.id === initialListingId).map(item => <View key={item.id} style={styles.card}>
         <Image source={{ uri: mediaUrl(item.imagePath) }} style={styles.hero} />
         <View style={styles.cardBody}><View style={styles.row}><Text style={styles.petName}>{item.petName}</Text><Text style={styles.city}>{item.city}</Text></View>
           <Text style={styles.meta}>{[item.ageYears !== null && item.ageYears !== undefined ? `${item.ageYears} yaş` : null, item.breed || item.species, item.gender].filter(Boolean).join(' · ')}</Text>
           <Text style={styles.owner}>@{item.ownerUsername} · {new Date(item.createdAt).toLocaleDateString('tr-TR')}</Text>
           <Text style={styles.label}>Sağlık ve bakım bilgisi</Text><Text style={styles.body}>{item.healthInfo}</Text>
           <Text style={styles.label}>{item.petName}'ın hikâyesi</Text><Text style={styles.body}>{item.story}</Text>
-          {item.isMine ? <><Pressable style={styles.outlineButton} onPress={() => void openApplications(item)}><Text style={styles.outlineText}>Başvuruları gör</Text></Pressable><Pressable onPress={() => closeListing(item)}><Text style={styles.dangerText}>Sahiplendirildi olarak kapat</Text></Pressable></>
-            : <Pressable disabled={item.hasApplied} style={[styles.primaryButton, item.hasApplied && styles.disabled]} onPress={() => openAction('apply', item)}><Ionicons name="heart-outline" size={19} color="#fff" /><Text style={styles.primaryText}>{item.hasApplied ? 'Başvuru gönderildi' : 'Sahiplenme başvurusu yap'}</Text></Pressable>}
+          {item.isMine ? <><Pressable style={styles.outlineButton} onPress={() => void openApplications(item)}><Text style={styles.outlineText}>Başvuruları gör</Text></Pressable>{item.status === 'active' ? <Pressable onPress={() => closeListing(item)}><Text style={styles.dangerText}>Sahiplendirildi olarak kapat</Text></Pressable> : <Text style={styles.owner}>İlan durumu: Sahiplendirildi</Text>}</>
+            : <Pressable disabled={item.hasApplied || item.status !== 'active'} style={[styles.primaryButton, (item.hasApplied || item.status !== 'active') && styles.disabled]} onPress={() => openAction('apply', item)}><Ionicons name="heart-outline" size={19} color="#fff" /><Text style={styles.primaryText}>{item.applicationStatus === 'accepted' ? 'Başvurun kabul edildi' : item.applicationStatus === 'rejected' ? 'Başvurun reddedildi' : item.hasApplied ? 'Başvurun bekliyor' : item.status === 'adopted' ? 'Sahiplendirildi' : 'Sahiplenme başvurusu yap'}</Text></Pressable>}
           <View style={styles.actions}><Pressable onPress={() => Alert.alert('Güvenli sahiplendirme', 'Hayvanı ve yaşam alanını yüz yüze gör. Kimlik, adres veya ödeme bilgilerini aceleyle paylaşma. Ücret isteyen ya da şüpheli davranan ilanları bildir.')}><Text style={styles.link}>Güvenlik önerileri</Text></Pressable>{!item.isMine ? <Pressable onPress={() => openAction('report', item)}><Text style={styles.report}>İlanı bildir</Text></Pressable> : null}</View>
         </View>
       </View>)}

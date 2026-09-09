@@ -13,9 +13,9 @@ import {
 import { colors, createThemedStyles, shadow } from '../theme';
 
 type ViewKey = 'hub' | 'list' | 'map' | 'mine' | 'detail' | 'lost-form' | 'found-form' | 'sighting';
-type Props = { token: string | null; username: string | null; onLogin: () => void };
+type Props = { token: string | null; username: string | null; onLogin: () => void; initialListingId?: number | null };
 
-export function LostPetsScreen({ token, username, onLogin }: Props) {
+export function LostPetsScreen({ token, username, onLogin, initialListingId }: Props) {
   const [view, setView] = useState<ViewKey>('hub');
   const [items, setItems] = useState<LostPetSummary[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -47,6 +47,11 @@ export function LostPetsScreen({ token, username, onLogin }: Props) {
   }, [nearby, token, view]);
 
   useEffect(() => { if (view === 'hub' || view === 'list' || view === 'map' || view === 'mine') void load(); }, [view, load]);
+  useEffect(() => {
+    if (!initialListingId) return;
+    setSelectedId(initialListingId);
+    setView('detail');
+  }, [initialListingId]);
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (view === 'hub') return false;

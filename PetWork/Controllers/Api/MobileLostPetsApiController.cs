@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Services;
 
 namespace PetWork.Controllers.Api;
 
@@ -18,11 +19,16 @@ public sealed class MobileLostPetsApiController : ControllerBase
     private static readonly string[] AllowedStatuses = ["active", "resolved", "closed"];
     private readonly PetWorkDbContext _context;
     private readonly IWebHostEnvironment _environment;
+    private readonly MobilePushNotificationService _pushNotifications;
+    private readonly MobileMediaStorageService _mediaStorage;
 
-    public MobileLostPetsApiController(PetWorkDbContext context, IWebHostEnvironment environment)
+    public MobileLostPetsApiController(PetWorkDbContext context, IWebHostEnvironment environment,
+        MobilePushNotificationService pushNotifications, MobileMediaStorageService mediaStorage)
     {
         _context = context;
         _environment = environment;
+        _pushNotifications = pushNotifications;
+        _mediaStorage = mediaStorage;
     }
 
     [HttpGet]
@@ -106,7 +112,7 @@ public sealed class MobileLostPetsApiController : ControllerBase
 
         var user = await _context.Users.FirstOrDefaultAsync(item => item.Id == userId, cancellationToken);
         if (user is null) return Unauthorized(new { message = "Kullanıcı hesabı bulunamadı." });
-        var imageResult = await SaveImageAsync(request.ImageBase64, request.ImageContentType, cancellationToken);
+        var imageResult = SaveImage(request.ImageBase64, request.ImageContentType);
         if (imageResult.Error is not null) return BadRequest(new { message = imageResult.Error });
 
         var listing = new LostPetListing
@@ -134,7 +140,7 @@ public sealed class MobileLostPetsApiController : ControllerBase
         _context.LostPetListings.Add(listing);
         user.ExperiencePoints += 15;
         try { await _context.SaveChangesAsync(cancellationToken); }
-        catch { DeleteUploadedImage(listing.ImagePath); throw; }
+        catch { _mediaStorage.DiscardPending(listing.ImagePath); DeleteUploadedImage(listing.ImagePath); throw; }
 
         listing.User = user;
         return CreatedAtAction(nameof(GetListing), new { id = listing.Id }, ToDetail(listing, true));
@@ -168,7 +174,7 @@ public sealed class MobileLostPetsApiController : ControllerBase
             CreatedAt = DateTime.Now
         };
         _context.LostPetSightings.Add(sighting);
-        _context.MobileNotifications.Add(new MobileNotification
+        var notification = new MobileNotification
         {
             UserId = listing.UserId,
             Type = "lost_sighting",
@@ -177,8 +183,10 @@ public sealed class MobileLostPetsApiController : ControllerBase
             EntityType = "lost_pet",
             EntityId = listing.Id,
             CreatedAt = DateTime.Now
-        });
+        };
+        _context.MobileNotifications.Add(notification);
         await _context.SaveChangesAsync(cancellationToken);
+        await _pushNotifications.SendAsync(notification, cancellationToken);
         return CreatedAtAction(nameof(GetListing), new { id }, new MobileLostPetSightingResponse(
             sighting.Id, sighting.LocationLabel, sighting.SeenAt, sighting.Note,
             RoundCoordinate(sighting.Latitude), RoundCoordinate(sighting.Longitude), sighting.CreatedAt));
@@ -208,6 +216,7 @@ public sealed class MobileLostPetsApiController : ControllerBase
         if (listing is null) return NotFound(new { message = "İlan bulunamadı." });
         if (listing.UserId != userId && !User.IsInRole("Admin")) return Forbid();
         listing.IsDeleted = true;
+        await _mediaStorage.StageDeleteAsync(listing.ImagePath, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
         DeleteUploadedImage(listing.ImagePath);
         return NoContent();
@@ -228,7 +237,7 @@ public sealed class MobileLostPetsApiController : ControllerBase
             owner ? sighting.Latitude : RoundCoordinate(sighting.Latitude), owner ? sighting.Longitude : RoundCoordinate(sighting.Longitude),
             sighting.CreatedAt)).ToList());
 
-    private async Task<(string? Path, string? Error)> SaveImageAsync(string imageBase64, string? contentType, CancellationToken cancellationToken)
+    private (string? Path, string? Error) SaveImage(string imageBase64, string? contentType)
     {
         const int maximumImageSize = 8 * 1024 * 1024;
         if (string.IsNullOrWhiteSpace(imageBase64)) return (null, "İlan fotoğrafı gereklidir.");
@@ -240,11 +249,8 @@ public sealed class MobileLostPetsApiController : ControllerBase
         var extension = contentType?.ToLowerInvariant() switch { "image/jpeg" => ".jpg", "image/png" => ".png", "image/webp" => ".webp", _ => null };
         if (extension is null) return (null, "Yalnızca JPG, PNG veya WebP fotoğrafları yükleyebilirsin.");
         if (!HasValidImageSignature(bytes, extension)) return (null, "Seçilen dosya geçerli bir fotoğraf değil.");
-        var directory = Path.Combine(_environment.WebRootPath, "uploads", "lost-pets");
-        Directory.CreateDirectory(directory);
-        var fileName = $"{Guid.NewGuid():N}{extension}";
-        await System.IO.File.WriteAllBytesAsync(Path.Combine(directory, fileName), bytes, cancellationToken);
-        return ($"uploads/lost-pets/{fileName}", null);
+        var normalizedContentType = contentType!.ToLowerInvariant();
+        return (_mediaStorage.StageUpload("lost-pets", extension, normalizedContentType, bytes), null);
     }
 
     private static bool HasValidImageSignature(byte[] bytes, string extension) => extension switch

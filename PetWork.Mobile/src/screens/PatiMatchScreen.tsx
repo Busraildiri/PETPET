@@ -6,11 +6,11 @@ import { deactivatePatiMatch, decidePatiMatch, enrollPatiMatch, getLocationSugge
 import { colors, createThemedStyles, shadow } from '../theme';
 import { PatiMatchChatScreen } from './PatiMatchChatScreen';
 
-type Props = { token: string | null; username: string | null; onLogin: () => void; onOpenPets: () => void; onSessionExpired: () => void; onChatStateChange: (open: boolean) => void };
+type Props = { token: string | null; username: string | null; onLogin: () => void; onOpenPets: () => void; onSessionExpired: () => void; onChatStateChange: (open: boolean) => void; initialTargetPetId?: number | null };
 const purposeLabels = { friendship: 'Oyun arkadaşı', mate: 'Eş arıyor' } as const;
 const petTypes = ['Kedi', 'Köpek', 'Kuş', 'Tavşan', 'Balık', 'Diğer'];
 
-export function PatiMatchScreen({ token, username, onLogin, onOpenPets, onSessionExpired, onChatStateChange }: Props) {
+export function PatiMatchScreen({ token, username, onLogin, onOpenPets, onSessionExpired, onChatStateChange, initialTargetPetId }: Props) {
   const [overview, setOverview] = useState<PatiMatchOverview | null>(null);
   const [selectedPetId, setSelectedPetId] = useState<number | null>(null);
   const [candidates, setCandidates] = useState<PatiMatchCandidate[]>([]);
@@ -28,6 +28,7 @@ export function PatiMatchScreen({ token, username, onLogin, onOpenPets, onSessio
   const [accepted, setAccepted] = useState(false);
   const [editingPetId, setEditingPetId] = useState<number | null>(null);
   const [chatMatch, setChatMatch] = useState<PatiMatchCandidate | null>(null);
+  const [openedInitialTargetId, setOpenedInitialTargetId] = useState<number | null>(null);
 
   const activePets = useMemo(() => overview?.pets.filter(pet => pet.isActive) ?? [], [overview]);
   const selectedPet = overview?.pets.find(pet => pet.id === selectedPetId) ?? null;
@@ -50,6 +51,26 @@ export function PatiMatchScreen({ token, username, onLogin, onOpenPets, onSessio
   }, [token]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!token || !initialTargetPetId || !overview || openedInitialTargetId === initialTargetPetId) return;
+    let active = true;
+    void (async () => {
+      for (const pet of overview.pets.filter(item => item.isActive)) {
+        const petMatches = await getPatiMatches(token, pet.id).catch(() => []);
+        const target = petMatches.find(item => item.petId === initialTargetPetId);
+        if (active && target) {
+          setSelectedPetId(pet.id);
+          setMatches(petMatches);
+          setChatMatch(target);
+          setOpenedInitialTargetId(initialTargetPetId);
+          onChatStateChange(true);
+          break;
+        }
+      }
+    })();
+    return () => { active = false; };
+  }, [initialTargetPetId, onChatStateChange, openedInitialTargetId, overview, token]);
 
   useEffect(() => {
     if (!selectedPet || (selectedPet.isActive && editingPetId !== selectedPet.id)) return;

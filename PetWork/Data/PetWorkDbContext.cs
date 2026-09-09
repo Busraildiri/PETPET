@@ -45,6 +45,9 @@ namespace PetWork.Data
         public DbSet<ProductReview> ProductReviews { get; set; }
         public DbSet<ProductReviewReport> ProductReviewReports { get; set; }
         public DbSet<MobileNotification> MobileNotifications { get; set; }
+        public DbSet<MobileNotificationPreference> MobileNotificationPreferences { get; set; }
+        public DbSet<MobilePushToken> MobilePushTokens { get; set; }
+        public DbSet<MobileMediaAsset> MobileMediaAssets { get; set; }
         
         public override int SaveChanges()
         {
@@ -286,6 +289,25 @@ namespace PetWork.Data
                 .OnDelete(DeleteBehavior.Cascade);
             modelBuilder.Entity<MobileNotification>()
                 .HasIndex(notification => new { notification.UserId, notification.IsRead, notification.CreatedAt });
+
+            modelBuilder.Entity<MobileNotificationPreference>()
+                .HasOne(preference => preference.User)
+                .WithOne()
+                .HasForeignKey<MobileNotificationPreference>(preference => preference.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<MobilePushToken>()
+                .HasOne(pushToken => pushToken.User)
+                .WithMany()
+                .HasForeignKey(pushToken => pushToken.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<MobilePushToken>()
+                .HasIndex(pushToken => pushToken.Token)
+                .IsUnique();
+
+            modelBuilder.Entity<MobileMediaAsset>()
+                .HasIndex(asset => asset.StorageKey)
+                .IsUnique();
 
             modelBuilder.Entity<AdoptionListing>()
                 .HasOne(listing => listing.User)

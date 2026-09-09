@@ -20,8 +20,8 @@ import { LostPetsScreen } from './src/screens/LostPetsScreen';
 import { AdoptionScreen } from './src/screens/AdoptionScreen';
 import { ReviewsScreen } from './src/screens/ReviewsScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
-import { configureNotifications } from './src/notifications';
-import { readSettings } from './src/settings';
+import { configureNotifications, registerForPushNotifications } from './src/notifications';
+import { isExpoGo, readSettings } from './src/settings';
 import { colors, createThemedStyles, getThemeMode, setThemeMode, shadow } from './src/theme';
 import type { SocialTab } from './src/types/social';
 import { clearSession, restoreSession, saveSession } from './src/session';
@@ -77,6 +77,11 @@ export default function App() {
   const [matchChatOpen, setMatchChatOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [darkTheme, setDarkTheme] = useState(false);
+  const [lostInitialListingId, setLostInitialListingId] = useState<number | null>(null);
+  const [adoptionInitialListingId, setAdoptionInitialListingId] = useState<number | null>(null);
+  const [socialInitialPostId, setSocialInitialPostId] = useState<number | null>(null);
+  const [matchInitialTargetPetId, setMatchInitialTargetPetId] = useState<number | null>(null);
+  const [questionInitialId, setQuestionInitialId] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -149,6 +154,30 @@ export default function App() {
   }, [authToken, refreshUnreadNotifications]);
 
   useEffect(() => {
+    if (!authToken) return;
+    void registerForPushNotifications(authToken).catch(() => undefined);
+  }, [authToken]);
+
+  useEffect(() => {
+    if (isExpoGo || Platform.OS === 'web') return;
+    let active = true;
+    let subscription: { remove: () => void } | undefined;
+    void import('expo-notifications').then(Notifications => {
+      if (!active) return;
+      subscription = Notifications.addNotificationResponseReceivedListener(response => {
+        const data = response.notification.request.content.data ?? {};
+        const entityId = typeof data.entityId === 'number' ? data.entityId : Number(data.entityId) || undefined;
+        if (data.entityType === 'lost_pet') { setLostInitialListingId(entityId ?? null); setTab('lost'); setPage('root'); }
+        else if (data.entityType === 'adoption') { setAdoptionInitialListingId(entityId ?? null); setTab('social'); setPage('adoption'); }
+        else if (data.entityType === 'social_post') { setSocialInitialPostId(entityId ?? null); setSocialInitialTab('posts'); setTab('social'); setPage('root'); }
+        else if (data.entityType === 'pati_match') { setMatchInitialTargetPetId(entityId ?? null); setTab('match'); setPage('root'); }
+        else if (data.entityType === 'question') { setQuestionInitialId(entityId ?? null); setSocialInitialTab('questions'); setTab('social'); setPage('root'); }
+      });
+    });
+    return () => { active = false; subscription?.remove(); };
+  }, []);
+
+  useEffect(() => {
     const handleUrl = (url: string | null) => {
       if (!url) return;
       try {
@@ -182,9 +211,9 @@ export default function App() {
     </View>;
   }
 
-  const changeTab = (next: TabKey) => { if (next === 'social') setSocialInitialTab('posts'); setMatchChatOpen(false); setTab(next); setPage('root'); };
-  const openLost = () => { setTab('lost'); setPage('root'); };
-  const openQuestions = () => { setSocialInitialTab('questions'); setTab('social'); setPage('root'); };
+  const changeTab = (next: TabKey) => { if (next === 'social') setSocialInitialTab('posts'); setLostInitialListingId(null); setAdoptionInitialListingId(null); setSocialInitialPostId(null); setMatchInitialTargetPetId(null); setQuestionInitialId(null); setMatchChatOpen(false); setTab(next); setPage('root'); };
+  const openLost = (id?: number) => { setLostInitialListingId(id ?? null); setTab('lost'); setPage('root'); };
+  const openQuestions = () => { setQuestionInitialId(null); setSocialInitialTab('questions'); setTab('social'); setPage('root'); };
   const sessionChanged = (session: AuthResponse) => {
     void saveSession(session);
     setCurrentUser(session.username);
@@ -212,13 +241,15 @@ export default function App() {
   else if (page === 'account' && currentUser && authToken) screen = <AccountScreen username={currentUser} token={authToken} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} onSessionChanged={sessionChanged} onDeleted={logout} />;
   else if (page === 'pets' && authToken) screen = <PetsScreen token={authToken} onBack={() => setPage('account')} />;
   else if (page === 'nearby') screen = <NearbyScreen category={nearbyCategory} onBack={() => setPage('root')} />;
-  else if (page === 'adoption') screen = <AdoptionScreen token={authToken} onLogin={() => setPage('login')} onBack={() => setPage('root')} />;
+  else if (page === 'adoption') screen = <AdoptionScreen token={authToken} initialListingId={adoptionInitialListingId} onLogin={() => setPage('login')} onBack={() => { setAdoptionInitialListingId(null); setPage('root'); }} />;
   else if (page === 'reviews') screen = <ReviewsScreen token={authToken} onLogin={() => setPage('login')} onBack={() => setPage('root')} />;
   else if (page === 'content') screen = <ContentScreen kind={contentKind} onBack={() => setPage('root')} onOpenLost={openLost} />;
-  else if (page === 'notifications' && authToken) screen = <NotificationsScreen token={authToken} onBack={() => setPage('root')} onUnreadChanged={setUnreadNotifications} onOpenLost={openLost} onOpenAdoption={() => { setTab('social'); setPage('adoption'); }} />;
+  else if (page === 'notifications' && authToken) screen = <NotificationsScreen token={authToken} onBack={() => setPage('root')} onUnreadChanged={setUnreadNotifications} onOpenLost={openLost} onOpenAdoption={id => { setAdoptionInitialListingId(id ?? null); setTab('social'); setPage('adoption'); }} onOpenSocial={id => { setSocialInitialPostId(id ?? null); setSocialInitialTab('posts'); setTab('social'); setPage('root'); }} onOpenMatch={id => { setMatchInitialTargetPetId(id ?? null); setTab('match'); setPage('root'); }} onOpenQuestion={id => { setQuestionInitialId(id ?? null); setSocialInitialTab('questions'); setTab('social'); setPage('root'); }} />;
   else if (tab === 'home') screen = <HomeScreen currentUser={currentUser} unreadNotifications={unreadNotifications} onOpenNotifications={() => setPage(currentUser ? 'notifications' : 'login')} onOpenAccount={() => setPage('account')} onOpenLost={openLost} onOpenQuestions={openQuestions} onOpenContent={kind => { setContentKind(kind); setPage('content'); }} onLogin={() => setPage('login')} onRegister={() => setPage('register')} />;
   else if (tab === 'social') screen = <PatiSocialScreen
     initialTab={socialInitialTab}
+    initialPostId={socialInitialPostId}
+    initialQuestionId={questionInitialId}
     username={currentUser}
     authToken={authToken}
     onOpenAccount={() => setPage('account')}
@@ -227,13 +258,13 @@ export default function App() {
       setNearbyCategory(category);
       setPage('nearby');
     }}
-    onOpenAdoption={() => setPage('adoption')}
+    onOpenAdoption={() => { setAdoptionInitialListingId(null); setPage('adoption'); }}
     onOpenReviews={() => setPage('reviews')}
     onOpenLost={openLost}
   />;
-  else if (tab === 'lost') screen = <LostPetsScreen token={authToken} username={currentUser} onLogin={() => setPage('login')} />;
-  else if (tab === 'match') screen = <PatiMatchScreen token={authToken} username={currentUser} onLogin={() => setPage('login')} onOpenPets={() => setPage('pets')} onSessionExpired={() => { void logout(); setPage('login'); }} onChatStateChange={setMatchChatOpen} />;
-  else if (tab === 'settings') screen = <SettingsScreen darkTheme={darkTheme} onThemeChange={value => { setThemeMode(value ? 'dark' : 'light'); setDarkTheme(value); }} username={currentUser} unreadNotifications={unreadNotifications} onOpenNotifications={() => setPage(currentUser ? 'notifications' : 'login')} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} onOpenPatiMatch={() => setTab('match')} />;
+  else if (tab === 'lost') screen = <LostPetsScreen token={authToken} username={currentUser} initialListingId={lostInitialListingId} onLogin={() => setPage('login')} />;
+  else if (tab === 'match') screen = <PatiMatchScreen token={authToken} username={currentUser} initialTargetPetId={matchInitialTargetPetId} onLogin={() => setPage('login')} onOpenPets={() => setPage('pets')} onSessionExpired={() => { void logout(); setPage('login'); }} onChatStateChange={setMatchChatOpen} />;
+  else if (tab === 'settings') screen = <SettingsScreen darkTheme={darkTheme} onThemeChange={value => { setThemeMode(value ? 'dark' : 'light'); setDarkTheme(value); }} username={currentUser} token={authToken} unreadNotifications={unreadNotifications} onOpenNotifications={() => setPage(currentUser ? 'notifications' : 'login')} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} onOpenPatiMatch={() => setTab('match')} />;
   else screen = <ComingSoon tab={tab} onHome={() => changeTab('home')} />;
 
   return (
