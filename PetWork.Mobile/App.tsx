@@ -25,6 +25,7 @@ import { isExpoGo, readSettings } from './src/settings';
 import { colors, createThemedStyles, getThemeMode, setThemeMode, shadow } from './src/theme';
 import type { SocialTab } from './src/types/social';
 import { clearSession, restoreSession, saveSession } from './src/session';
+import { BrandMark } from './src/components/BrandMark';
 
 type TabKey = 'home' | 'social' | 'lost' | 'match' | 'settings';
 type PageKey = 'root' | 'login' | 'register' | 'reset' | 'account' | 'pets' | 'nearby' | 'adoption' | 'reviews' | 'content' | 'notifications';
@@ -367,7 +368,7 @@ function Hero({ currentUser, unreadNotifications, query, setQuery, onOpenNotific
     <LinearGradient colors={getThemeMode() === 'dark' ? ['#493044', '#352532', '#251C25'] : [colors.primaryDark, colors.primary, '#845B7C']} style={styles.hero}>
       <View style={styles.headerRow}>
         <View>
-          <View style={styles.brandRow}><Ionicons name="paw" size={19} color={colors.peach} /><Text style={styles.brand}>Pet'im</Text></View>
+          <View style={styles.brandRow}><BrandMark size={30} /><Text style={styles.brand}>Pet'im</Text></View>
           <Text style={styles.byline}>by PetWork</Text>
         </View>
         {currentUser ? <View style={styles.authRow}><Pressable onPress={onOpenNotifications} accessibilityRole="button" accessibilityLabel={`${unreadNotifications} okunmamış bildirim`} style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}><Ionicons name="notifications-outline" size={21} color={colors.primary} />{unreadNotifications > 0 ? <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{Math.min(unreadNotifications, 99)}</Text></View> : null}</Pressable><Pressable onPress={onOpenAccount} accessibilityRole="button" accessibilityLabel={`${currentUser} hesap menüsünü aç`} style={({ pressed }) => [styles.userChip, pressed && styles.pressed]}><Ionicons name="person-circle-outline" size={21} color={colors.primary} /><Text style={styles.userChipText} numberOfLines={1}>{currentUser}</Text></Pressable></View> : <View style={styles.authRow}>
@@ -477,7 +478,7 @@ function LostHomeBanner({ onPress }: { onPress: () => void }) {
 function ScreenShell({ title, subtitle, onBack, children }: { title: string; subtitle?: string; onBack?: () => void; children: React.ReactNode }) {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.subScreenContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
     <View style={styles.subHeader}>
-      {onBack ? <Pressable onPress={onBack} style={styles.backButton} accessibilityLabel="Geri dön"><Ionicons name="arrow-back" size={22} color={colors.primary} /></Pressable> : <View style={styles.headerMark}><Ionicons name="paw" size={20} color={colors.peach} /></View>}
+      {onBack ? <Pressable onPress={onBack} style={styles.backButton} accessibilityLabel="Geri dön"><Ionicons name="arrow-back" size={22} color={colors.primary} /></Pressable> : <View style={styles.headerMark}><BrandMark size={42} /></View>}
       <View style={styles.flexOne}><Text style={styles.subTitle}>{title}</Text>{subtitle ? <Text style={styles.subSubtitle}>{subtitle}</Text> : null}</View>
     </View>
     {children}
@@ -752,7 +753,7 @@ const styles = createThemedStyles(() => ({
   lostHomeIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: getThemeMode() === 'dark' ? '#6D4A65' : colors.primary, alignItems: 'center', justifyContent: 'center' }, lostEyebrow: { color: getThemeMode() === 'dark' ? '#F0A18F' : '#9B463B', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   lostHomeTitle: { color: colors.text, fontFamily: serif, fontSize: 18, fontWeight: '700', marginTop: 3 }, lostHomeText: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
   subScreenContent: { paddingTop: statusInset + 8, paddingHorizontal: 20, paddingBottom: 116, width: '100%', maxWidth: 760, alignSelf: 'center' }, subHeader: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' }, headerMark: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  backButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' }, headerMark: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   subTitle: { color: colors.text, fontFamily: serif, fontSize: 27, fontWeight: '700' }, subSubtitle: { color: colors.muted, fontSize: 11, marginTop: 2 },
   segmented: { flexDirection: 'row', marginTop: 17, padding: 4, backgroundColor: '#EFE8E9', borderRadius: 18 }, segmentButton: { flex: 1, minHeight: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   segmentActive: { backgroundColor: colors.card, ...shadow }, segmentText: { color: colors.muted, fontSize: 11, fontWeight: '700' }, segmentTextActive: { color: colors.primary },

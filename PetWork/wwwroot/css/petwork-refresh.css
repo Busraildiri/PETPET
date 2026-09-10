@@ -409,7 +409,7 @@ img { max-width: 100%; }
     font-weight: 800 !important;
 }
 
-.petim-nav-link i { color: #e06f85; font-size: .8rem; }
+.petim-nav-mark { flex: 0 0 auto; object-fit: contain; }
 
 .petim-page main { overflow: hidden; }
 

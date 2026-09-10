@@ -13,6 +13,7 @@ import { CreatePostModal, type SelectedPostImage } from '../components/social/Cr
 import { CreateQuestionModal } from '../components/social/CreateQuestionModal';
 import { CommunityShortcuts, NearbyShortcuts, type NearbyCategory } from '../components/social/SocialShortcuts';
 import { PostCard } from '../components/social/PostCard';
+import { BrandMark } from '../components/BrandMark';
 import { colors, createThemedStyles, shadow } from '../theme';
 import type { SocialPost, SocialTab } from '../types/social';
 
@@ -221,7 +222,7 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
     <View style={styles.screen}>
     <ScrollView style={styles.screen} contentContainerStyle={[styles.content, activeTab === 'questions' && styles.contentWithFloatingAction]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
-        <View style={styles.headerIcon}><Ionicons name="paw" size={25} color={colors.peach} /></View>
+        <View style={styles.headerIcon}><BrandMark size={54} /></View>
         <View style={styles.headerCopy}>
           <Text style={styles.title}>PatiSosyal</Text>
           <Text style={styles.subtitle}>Bilgi, deneyim ve güvenli dayanışma</Text>
@@ -464,7 +465,7 @@ function formatDate(value: string) { return new Intl.DateTimeFormat('tr-TR', { d
 const statusInset = Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 24 : 50;
 const styles = createThemedStyles(() => ({
   screen: { flex: 1, backgroundColor: colors.background }, content: { paddingTop: statusInset + 12, paddingHorizontal: 19, paddingBottom: 116, width: '100%', maxWidth: 760, alignSelf: 'center' }, contentWithFloatingAction: { paddingBottom: 180 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12 }, headerIcon: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12 }, headerIcon: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center' },
   headerCopy: { flex: 1 }, title: { color: colors.text, fontFamily: 'serif', fontSize: 30, fontWeight: '700', letterSpacing: -0.5 }, subtitle: { color: colors.muted, fontSize: 12, marginTop: 2 },
   accountButton: { maxWidth: 125, minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.lilacSoft, borderRadius: 21, paddingLeft: 5, paddingRight: 10 },
   accountAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary }, accountAvatarText: { color: colors.white, fontSize: 13, fontWeight: '900' }, accountText: { flexShrink: 1, color: colors.primary, fontSize: 11, fontWeight: '900' },

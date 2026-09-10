@@ -10,6 +10,7 @@ import {
   createLostPet, createLostPetSighting, deleteLostPet, getLostPet, getLostPets, getMyLostPets,
   mediaUrl, updateLostPetStatus, type CreateLostPetRequest, type LostPetDetail, type LostPetSummary,
 } from '../api';
+import { BrandMark } from '../components/BrandMark';
 import { colors, createThemedStyles, shadow } from '../theme';
 
 type ViewKey = 'hub' | 'list' | 'map' | 'mine' | 'detail' | 'lost-form' | 'found-form' | 'sighting';
@@ -108,7 +109,7 @@ function Page({ title, subtitle, onBack, refreshing, onRefresh, children }: { ti
     <ScrollView style={styles.page} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
       keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} onScrollBeginDrag={Keyboard.dismiss}
       refreshControl={onRefresh ? <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={colors.primary} /> : undefined}>
-      <View style={styles.header}>{onBack ? <Pressable onPress={onBack} style={styles.back}><Ionicons name="arrow-back" size={26} color={colors.primary} /></Pressable> : <View style={styles.logo}><Ionicons name="paw" size={25} color="#F0A28F" /></View>}
+      <View style={styles.header}>{onBack ? <Pressable onPress={onBack} style={styles.back}><Ionicons name="arrow-back" size={26} color={colors.primary} /></Pressable> : <View style={styles.logo}><BrandMark size={54} /></View>}
         <View style={styles.flex}><Text style={styles.title}>{title}</Text><Text style={styles.subtitle}>{subtitle}</Text></View></View>
       {children}
     </ScrollView>
@@ -237,7 +238,7 @@ function localDateTime() { const date = new Date(Date.now() - new Date().getTime
 
 const styles = createThemedStyles(() => ({
   page: { flex: 1, backgroundColor: colors.background }, content: { padding: 20, paddingTop: 54, paddingBottom: 130 }, flex: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 25 }, logo: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, back: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 25 }, logo: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center' }, back: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 34, lineHeight: 39, fontFamily: 'Georgia', fontWeight: '800', color: '#2D2529' }, subtitle: { fontSize: 15, color: '#746A70', marginTop: 2 },
   urgent: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 18, borderRadius: 25, borderWidth: 1.5, borderColor: '#EAA08D', backgroundColor: colors.peachSoft, marginBottom: 18 }, roundCoral: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#B45446', alignItems: 'center', justifyContent: 'center' }, urgentTitle: { fontSize: 18, fontWeight: '800', color: '#2D2529', marginBottom: 4 }, muted: { color: '#7D7278', fontSize: 14, lineHeight: 20 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, action: { width: '48%', minHeight: 112, padding: 16, borderRadius: 22, borderWidth: 1, borderColor: '#E2DADC', backgroundColor: '#FFFCFA', justifyContent: 'space-between', ...shadow }, actionText: { fontSize: 16, fontWeight: '800', color: '#332B2F' }, pressed: { opacity: 0.7, transform: [{ scale: 0.99 }] },
