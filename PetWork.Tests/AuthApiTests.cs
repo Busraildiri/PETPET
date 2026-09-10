@@ -76,6 +76,34 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task Username_can_be_changed_when_available_and_conflicts_are_rejected()
+    {
+        var id = Guid.NewGuid().ToString("N")[..10];
+        var password = "Valid1!x";
+        var owner = await ReadAuth(await Register($"owner_{id}", $"owner-{id}@example.com", password));
+        var other = await ReadAuth(await Register($"taken_{id}", $"taken-{id}@example.com", password));
+        var nextUsername = $"new_{id}";
+
+        var changed = await Authorized(HttpMethod.Patch, "api/mobile/auth/username", owner.Token, new { username = nextUsername });
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        var current = await changed.Content.ReadFromJsonAsync<MeDto>();
+        Assert.Equal(nextUsername, current!.Username);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PetWorkDbContext>();
+            Assert.Equal(nextUsername, (await db.Users.SingleAsync(user => user.Id == owner.UserId)).Username);
+        }
+
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await Authorized(HttpMethod.Patch, "api/mobile/auth/username", owner.Token, new { username = other.Username.ToUpperInvariant() })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await Authorized(HttpMethod.Patch, "api/mobile/auth/username", owner.Token, new { username = "uygunsuz ad" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await _client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, "api/mobile/auth/username") { Content = JsonContent.Create(new { username = $"noauth_{id}" }) })).StatusCode);
+    }
+
+    [Fact]
     public async Task Full_auth_lifecycle_revokes_tokens_and_deletes_account()
     {
         var id = Guid.NewGuid().ToString("N")[..10];
@@ -184,6 +212,7 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
         await db.SaveChangesAsync();
     }
     private sealed record AuthDto(int UserId, string Username, string Token, DateTime ExpiresAt, string RefreshToken, DateTime RefreshExpiresAt, string Message);
+    private sealed record MeDto(int UserId, string Username, string Email);
     private sealed record EmailChallengeDto(bool RequiresEmailVerification, string ChallengeToken, DateTime ExpiresAt, string MaskedEmail, string Message);
     private sealed record PetDto(int Id, string Name);
 }

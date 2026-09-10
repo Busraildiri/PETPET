@@ -247,7 +247,7 @@ export default function App() {
   if (page === 'login') screen = <AuthScreen key="login" initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
   else if (page === 'register') screen = <AuthScreen key="register" initialMode="register" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
   else if (page === 'reset') screen = <AuthScreen key={`reset-${resetToken}`} initialMode="reset" resetToken={resetToken} onBack={() => setPage('login')} onAuthenticated={authenticated} />;
-  else if (page === 'account' && currentUser && authToken) screen = <AccountScreen username={currentUser} token={authToken} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} onSessionChanged={sessionChanged} onDeleted={logout} />;
+  else if (page === 'account' && currentUser && authToken) screen = <AccountScreen username={currentUser} token={authToken} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} onSessionChanged={sessionChanged} onUsernameChanged={setCurrentUser} onDeleted={logout} />;
   else if (page === 'pets' && authToken) screen = <PetsScreen token={authToken} onBack={() => setPage('account')} />;
   else if (page === 'nearby' && authToken) screen = <NearbyScreen token={authToken} category={nearbyCategory} onBack={() => setPage('root')} />;
   else if (page === 'nearby') screen = <AuthScreen key="nearby-login" initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;

@@ -375,6 +375,14 @@ export async function getCurrentUser(token: string): Promise<CurrentUser> {
   return response.json();
 }
 
+export async function updateUsername(token: string, username: string): Promise<CurrentUser> {
+  const response = await authRequest('username', {
+    method: 'PATCH', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ username }),
+  }, 'Kullanıcı adı güncellenemedi.');
+  return response.json();
+}
+
 export async function refreshAuthSession(refreshToken: string): Promise<AuthResponse> {
   const response = await authRequest('refresh', {
     method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },

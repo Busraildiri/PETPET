@@ -14,6 +14,17 @@ export async function saveSession(session: AuthResponse | StoredAuthSession) {
 
 export async function clearSession() { await SecureStore.deleteItemAsync(sessionKey); }
 
+export async function updateStoredUsername(username: string) {
+  const stored = await SecureStore.getItemAsync(sessionKey);
+  if (!stored) return;
+  try {
+    const session = JSON.parse(stored) as StoredAuthSession;
+    await saveSession({ ...session, username });
+  } catch {
+    await clearSession();
+  }
+}
+
 export async function restoreSession(): Promise<{ session: StoredAuthSession; user: CurrentUser } | null> {
   const stored = await SecureStore.getItemAsync(sessionKey);
   if (!stored) return null;
