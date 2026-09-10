@@ -65,7 +65,6 @@ export default function App() {
   const [tab, setTab] = useState<TabKey>('home');
   const [page, setPage] = useState<PageKey>('root');
   const [showSplash, setShowSplash] = useState(true);
-  const [restoringSession, setRestoringSession] = useState(true);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authExpiresAt, setAuthExpiresAt] = useState<string | null>(null);
@@ -105,7 +104,7 @@ export default function App() {
       setAuthExpiresAt(result.session.expiresAt);
       setRefreshToken(result.session.refreshToken);
     }
-  }).finally(() => setRestoringSession(false)); }, []);
+  }).catch(() => undefined); }, []);
 
   useEffect(() => {
     if (!refreshToken || !authExpiresAt) return;
@@ -213,7 +212,7 @@ export default function App() {
     return () => subscription.remove();
   }, [page, tab]);
 
-  if (showSplash || restoringSession) {
+  if (showSplash) {
     return <View style={styles.splashView}>
       <StatusBar style={darkTheme ? 'light' : 'dark'} />
       <Image source={require('./assets/splash-petim.png')} style={styles.splashArtwork} resizeMode="contain" accessibilityLabel="Pet'im by PetWork" />

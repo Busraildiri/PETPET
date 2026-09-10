@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Services;
 
 namespace PetWork.Controllers.Api;
 
@@ -21,8 +22,13 @@ public sealed class MobilePetsApiController : ControllerBase
     };
 
     private readonly PetWorkDbContext _context;
+    private readonly MobileMediaStorageService _mediaStorage;
 
-    public MobilePetsApiController(PetWorkDbContext context) => _context = context;
+    public MobilePetsApiController(PetWorkDbContext context, MobileMediaStorageService mediaStorage)
+    {
+        _context = context;
+        _mediaStorage = mediaStorage;
+    }
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<MobilePetResponse>>> Get(CancellationToken cancellationToken)
@@ -39,6 +45,7 @@ public sealed class MobilePetsApiController : ControllerBase
     }
 
     [HttpPost]
+    [RequestSizeLimit(12 * 1024 * 1024)]
     [EnableRateLimiting("mobile-content")]
     public async Task<ActionResult<MobilePetResponse>> Create(
         MobilePetRequest request,
@@ -51,6 +58,8 @@ public sealed class MobilePetsApiController : ControllerBase
         if (type is null) return BadRequest(new { message = "Lütfen geçerli bir hayvan türü seç." });
         var name = request.Name.Trim();
         if (name.Length < 2) return BadRequest(new { message = "Pati adı en az 2 görünür karakter içermelidir." });
+        var imageResult = SaveImage(request.ImageBase64, request.ImageContentType);
+        if (imageResult.Error is not null) return BadRequest(new { message = imageResult.Error });
 
         var pet = new Pet
         {
@@ -61,7 +70,7 @@ public sealed class MobilePetsApiController : ControllerBase
             Breed = Clean(request.Breed),
             Gender = Clean(request.Gender),
             Description = Clean(request.Description),
-            ProfileImage = "img/pet-default.jpg"
+            ProfileImage = imageResult.Path ?? "img/pet-default.jpg"
         };
 
         SetAge(pet, request.Age);
@@ -72,6 +81,7 @@ public sealed class MobilePetsApiController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
     [EnableRateLimiting("mobile-content")]
     public async Task<ActionResult<MobilePetResponse>> Update(
         int id,
@@ -89,6 +99,8 @@ public sealed class MobilePetsApiController : ControllerBase
         if (type is null) return BadRequest(new { message = "Lütfen geçerli bir hayvan türü seç." });
         var name = request.Name.Trim();
         if (name.Length < 2) return BadRequest(new { message = "Pati adı en az 2 görünür karakter içermelidir." });
+        var imageResult = SaveImage(request.ImageBase64, request.ImageContentType);
+        if (imageResult.Error is not null) return BadRequest(new { message = imageResult.Error });
 
         pet.Name = name;
         pet.Type = type;
@@ -97,6 +109,12 @@ public sealed class MobilePetsApiController : ControllerBase
         SetAge(pet, request.Age);
         pet.Gender = Clean(request.Gender);
         pet.Description = Clean(request.Description);
+        if (imageResult.Path is not null)
+        {
+            var previousImage = pet.ProfileImage;
+            pet.ProfileImage = imageResult.Path;
+            await _mediaStorage.StageDeleteAsync(previousImage, cancellationToken);
+        }
 
         await _context.SaveChangesAsync(cancellationToken);
         return Ok(ToResponse(pet));
@@ -125,6 +143,7 @@ public sealed class MobilePetsApiController : ControllerBase
         _context.PatiMatchMessages.RemoveRange(matchMessages);
         _context.PatiMatchDecisions.RemoveRange(matchDecisions);
         if (matchProfile is not null) _context.PatiMatchProfiles.Remove(matchProfile);
+        await _mediaStorage.StageDeleteAsync(pet.ProfileImage, cancellationToken);
         _context.Pets.Remove(pet);
         await _context.SaveChangesAsync(cancellationToken);
         return NoContent();
@@ -141,6 +160,21 @@ public sealed class MobilePetsApiController : ControllerBase
         AllowedTypes.FirstOrDefault(type => type.Equals(value.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private (string? Path, string? Error) SaveImage(string? imageBase64, string? contentType)
+    {
+        const int maximumImageSize = 8 * 1024 * 1024;
+        if (string.IsNullOrWhiteSpace(imageBase64)) return (null, null);
+        if (imageBase64.Length > 11_500_000) return (null, "Fotoğraf en fazla 8 MB olabilir.");
+
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(imageBase64); }
+        catch (FormatException) { return (null, "Fotoğraf verisi okunamadı."); }
+        if (bytes.Length is <= 0 or > maximumImageSize) return (null, "Fotoğraf en fazla 8 MB olabilir.");
+
+        try { return (_mediaStorage.StageUpload("pets", contentType ?? string.Empty, bytes), null); }
+        catch (MediaValidationException exception) { return (null, exception.Message); }
+    }
 
     private static void SetAge(Pet pet, decimal? age)
     {
@@ -192,6 +226,12 @@ public sealed class MobilePetRequest
 
     [StringLength(500)]
     public string? Description { get; init; }
+
+    [StringLength(11_500_000, ErrorMessage = "Fotoğraf verisi çok büyük.")]
+    public string? ImageBase64 { get; init; }
+
+    [StringLength(100, ErrorMessage = "Fotoğraf türü geçersiz.")]
+    public string? ImageContentType { get; init; }
 }
 
 public sealed record MobilePetResponse(
