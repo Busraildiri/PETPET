@@ -302,6 +302,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<MobilePushNotificationService>();
 builder.Services.AddScoped<SecureMediaStorageService>();
 builder.Services.AddScoped<MobileMediaStorageService>();
+builder.Services.AddHostedService<MobileMediaBackfillService>();
 builder.Services.AddScoped<ResourceAuthorizationService>();
 builder.Services.AddScoped<AdminAccessService>();
 builder.Services.AddHttpClient<GooglePlacesService>(client =>

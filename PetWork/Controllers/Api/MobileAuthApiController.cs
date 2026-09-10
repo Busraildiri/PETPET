@@ -201,6 +201,43 @@ public sealed class MobileAuthApiController : ControllerBase
         return user is null ? Unauthorized(new MobileAuthError("Oturumun geçersiz veya süresi dolmuş.")) : Ok(user);
     }
 
+    [HttpPatch("username")]
+    [Authorize]
+    [SensitiveRateLimit("Expensive")]
+    public async Task<ActionResult<MobileMeResponse>> UpdateUsername(
+        MobileUpdateUsernameRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized(new MobileAuthError("Oturumun geçersiz veya süresi dolmuş."));
+
+        var username = request.Username.Trim();
+        var normalizedUsername = username.ToLowerInvariant();
+        var user = await _context.Users.FirstOrDefaultAsync(candidate => candidate.Id == userId.Value, cancellationToken);
+        if (user is null) return Unauthorized(new MobileAuthError("Oturumun geçersiz veya süresi dolmuş."));
+
+        if (string.Equals(user.Username, username, StringComparison.Ordinal))
+            return Ok(new MobileMeResponse(user.Id, user.Username, user.Email));
+
+        var exists = await _context.Users.AsNoTracking().AnyAsync(candidate =>
+            candidate.Id != user.Id && candidate.Username.ToLower() == normalizedUsername, cancellationToken);
+        if (exists) return Conflict(new MobileAuthError("Bu kullanıcı adı zaten kullanılıyor."));
+
+        user.Username = username;
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+        {
+            _logger.LogWarning(exception, "Mobil kullanıcı adı güncellenirken benzersiz alan çakışması oluştu. UserId: {UserId}", user.Id);
+            return Conflict(new MobileAuthError("Bu kullanıcı adı zaten kullanılıyor."));
+        }
+
+        _logger.LogInformation("Mobil kullanıcı adı güncellendi. UserId: {UserId}", user.Id);
+        return Ok(new MobileMeResponse(user.Id, user.Username, user.Email));
+    }
+
     [HttpPost("refresh")]
     [AllowAnonymous]
     [SensitiveRateLimit("PasswordReset", nameof(MobileRefreshRequest.RefreshToken))]
@@ -507,6 +544,14 @@ public sealed class MobileRefreshRequest
 {
     [Required, StringLength(200)]
     public string RefreshToken { get; init; } = string.Empty;
+}
+
+public sealed class MobileUpdateUsernameRequest
+{
+    [Required(ErrorMessage = "Kullanıcı adı gereklidir.")]
+    [StringLength(50, MinimumLength = 3, ErrorMessage = "Kullanıcı adı 3-50 karakter arasında olmalıdır.")]
+    [RegularExpression(@"^[\p{L}\p{N}._-]+$", ErrorMessage = "Kullanıcı adı yalnızca harf, rakam, nokta, tire ve alt çizgi içerebilir.")]
+    public string Username { get; init; } = string.Empty;
 }
 
 public sealed class MobileChangePasswordRequest

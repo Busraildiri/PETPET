@@ -2,22 +2,39 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { changePassword, deleteAccount, type AuthResponse } from '../api';
-import { saveSession } from '../session';
+import { changePassword, deleteAccount, updateUsername, type AuthResponse } from '../api';
+import { saveSession, updateStoredUsername } from '../session';
 import { colors, createThemedStyles, getThemeMode, shadow } from '../theme';
 
-type Props = { username: string; token: string; onBack: () => void; onOpenPets: () => void; onLogout: () => void; onSessionChanged: (session: AuthResponse) => void; onDeleted: () => void };
+type Props = { username: string; token: string; onBack: () => void; onOpenPets: () => void; onLogout: () => void; onSessionChanged: (session: AuthResponse) => void; onUsernameChanged: (username: string) => void; onDeleted: () => void };
 
-export function AccountScreen({ username, token, onBack, onOpenPets, onLogout, onSessionChanged, onDeleted }: Props) {
-  const [dialog, setDialog] = useState<'password' | 'delete' | null>(null);
+export function AccountScreen({ username, token, onBack, onOpenPets, onLogout, onSessionChanged, onUsernameChanged, onDeleted }: Props) {
+  const [dialog, setDialog] = useState<'username' | 'password' | 'delete' | null>(null);
+  const [usernameInput, setUsernameInput] = useState(username);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [deletePhrase, setDeletePhrase] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const clearForm = () => { setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setDeletePhrase(''); setError(null); };
+  const clearForm = () => { setUsernameInput(username); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setDeletePhrase(''); setError(null); };
   const closeDialog = () => { if (!busy) { setDialog(null); clearForm(); } };
+
+  const submitUsername = async () => {
+    setError(null);
+    const nextUsername = usernameInput.trim();
+    if (nextUsername.length < 3 || nextUsername.length > 50) return setError('Kullanıcı adı 3-50 karakter arasında olmalıdır.');
+    if (!/^[\p{L}\p{N}._-]+$/u.test(nextUsername)) return setError('Kullanıcı adı yalnızca harf, rakam, nokta, tire ve alt çizgi içerebilir.');
+    setBusy(true);
+    try {
+      const user = await updateUsername(token, nextUsername);
+      await updateStoredUsername(user.username);
+      onUsernameChanged(user.username);
+      setDialog(null);
+      Alert.alert('Kullanıcı adı güncellendi', `Yeni kullanıcı adın: ${user.username}`);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Kullanıcı adı güncellenemedi.'); }
+    finally { setBusy(false); }
+  };
 
   const submitPassword = async () => {
     setError(null);
@@ -47,17 +64,17 @@ export function AccountScreen({ username, token, onBack, onOpenPets, onLogout, o
     <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} />
     <View style={styles.header}><Pressable onPress={onBack} style={styles.roundButton}><Ionicons name="arrow-back" size={22} color={colors.primary} /></Pressable><Text style={styles.headerTitle}>Hesabım</Text><View style={styles.roundButton}><Ionicons name="paw" size={19} color={colors.peach} /></View></View>
     <View style={styles.profileCard}><View style={styles.avatar}><Text style={styles.avatarText}>{username.charAt(0).toLocaleUpperCase('tr-TR')}</Text></View><Text style={styles.username}>{username}</Text><Text style={styles.memberText}>PetWork topluluk üyesi</Text><View style={styles.activeBadge}><Ionicons name="shield-checkmark" size={15} color="#41604A" /><Text style={styles.activeText}>Oturum güvenli</Text></View></View>
-    <View style={styles.menuCard}><MenuRow icon="paw-outline" title="Patilerim" subtitle="Evcil hayvan profillerini yönet" onPress={onOpenPets} /><MenuRow icon="key-outline" title="Şifreyi değiştir" subtitle="Mevcut şifrenle yeni şifre oluştur" onPress={() => setDialog('password')} last /></View>
+    <View style={styles.menuCard}><MenuRow icon="paw-outline" title="Patilerim" subtitle="Evcil hayvan profillerini yönet" onPress={onOpenPets} /><MenuRow icon="person-outline" title="Kullanıcı adını değiştir" subtitle="Toplulukta görünen kullanıcı adını güncelle" onPress={() => { setUsernameInput(username); setDialog('username'); }} /><MenuRow icon="key-outline" title="Şifreyi değiştir" subtitle="Mevcut şifrenle yeni şifre oluştur" onPress={() => setDialog('password')} last /></View>
     <Pressable onPress={confirmLogout} style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed]}><Ionicons name="log-out-outline" size={21} color="#9B463B" /><Text style={styles.logoutText}>Çıkış Yap</Text></Pressable>
     <Pressable onPress={confirmDelete} style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}><Text style={styles.deleteText}>Hesabımı Kalıcı Olarak Sil</Text></Pressable>
   </ScrollView>
   <Modal visible={dialog !== null} transparent animationType="fade" onRequestClose={closeDialog}><KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={styles.dialog}>
-    <View style={styles.dialogTitleRow}><Text style={styles.dialogTitle}>{dialog === 'password' ? 'Şifreyi değiştir' : 'Hesabı kalıcı olarak sil'}</Text><Pressable disabled={busy} onPress={closeDialog}><Ionicons name="close" size={24} color={colors.muted} /></Pressable></View>
-    {dialog === 'delete' ? <Text style={styles.warning}>Bu işlem geri alınamaz. Onaylamak için şifreni ve SİL ifadesini gir.</Text> : <Text style={styles.helper}>{passwordHelp}</Text>}
-    <Field value={currentPassword} onChangeText={setCurrentPassword} placeholder="Mevcut şifre" secureTextEntry />
-    {dialog === 'password' ? <><Field value={newPassword} onChangeText={setNewPassword} placeholder="Yeni şifre" secureTextEntry /><Field value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Yeni şifre tekrar" secureTextEntry /></> : <Field value={deletePhrase} onChangeText={setDeletePhrase} placeholder="SİL yaz" autoCapitalize="characters" />}
+    <View style={styles.dialogTitleRow}><Text style={styles.dialogTitle}>{dialog === 'username' ? 'Kullanıcı adını değiştir' : dialog === 'password' ? 'Şifreyi değiştir' : 'Hesabı kalıcı olarak sil'}</Text><Pressable disabled={busy} onPress={closeDialog}><Ionicons name="close" size={24} color={colors.muted} /></Pressable></View>
+    {dialog === 'delete' ? <Text style={styles.warning}>Bu işlem geri alınamaz. Onaylamak için şifreni ve SİL ifadesini gir.</Text> : dialog === 'username' ? <Text style={styles.helper}>3-50 karakter kullan. Harf, rakam, nokta, tire ve alt çizgi kabul edilir.</Text> : <Text style={styles.helper}>{passwordHelp}</Text>}
+    {dialog === 'username' ? <Field value={usernameInput} onChangeText={setUsernameInput} placeholder="Yeni kullanıcı adı" autoCapitalize="none" maxLength={50} /> : <Field value={currentPassword} onChangeText={setCurrentPassword} placeholder="Mevcut şifre" secureTextEntry />}
+    {dialog === 'password' ? <><Field value={newPassword} onChangeText={setNewPassword} placeholder="Yeni şifre" secureTextEntry /><Field value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Yeni şifre tekrar" secureTextEntry /></> : dialog === 'delete' ? <Field value={deletePhrase} onChangeText={setDeletePhrase} placeholder="SİL yaz" autoCapitalize="characters" /> : null}
     {error ? <Text style={styles.error}>{error}</Text> : null}
-    <Pressable disabled={busy || (dialog === 'delete' && deletePhrase.trim().toLocaleUpperCase('tr-TR') !== 'SİL')} onPress={dialog === 'password' ? submitPassword : submitDelete} style={[styles.primary, dialog === 'delete' && styles.danger, busy && styles.disabled]}>{busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryText}>{dialog === 'password' ? 'Şifreyi Değiştir' : 'Hesabımı Sil'}</Text>}</Pressable>
+    <Pressable disabled={busy || (dialog === 'delete' && deletePhrase.trim().toLocaleUpperCase('tr-TR') !== 'SİL')} onPress={dialog === 'username' ? submitUsername : dialog === 'password' ? submitPassword : submitDelete} style={[styles.primary, dialog === 'delete' && styles.danger, busy && styles.disabled]}>{busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryText}>{dialog === 'username' ? 'Kullanıcı Adını Kaydet' : dialog === 'password' ? 'Şifreyi Değiştir' : 'Hesabımı Sil'}</Text>}</Pressable>
   </View></KeyboardAvoidingView></Modal></>;
 }
 
