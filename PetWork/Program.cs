@@ -187,8 +187,17 @@ else
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
     foreach (var value in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [])
         if (IPAddress.TryParse(value, out var address)) options.KnownProxies.Add(address);
+
+    // Render terminates TLS at its edge and uses a dynamic proxy network. The
+    // container itself is not exposed directly, so trust exactly one proxy hop.
+    if (builder.Configuration.GetValue<bool>("RENDER"))
+    {
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    }
 });
 
 // Session servisi ekle
@@ -486,6 +495,7 @@ app.MapControllerRoute(
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.MapControllers(); // API controller'ları için
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.Run();
 
