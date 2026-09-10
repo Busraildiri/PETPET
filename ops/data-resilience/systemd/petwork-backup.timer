@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the PetWork backup every day
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+Unit=petwork-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers.Api;
 
@@ -60,6 +61,8 @@ public sealed class MobileSocialApiController : ControllerBase
     [HttpPost]
     [Authorize]
     [Consumes("application/json")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    [SensitiveRateLimit("Expensive")]
     public async Task<ActionResult<MobileSocialPostResponse>> CreatePost(
         MobileCreateSocialPostRequest request,
         CancellationToken cancellationToken)
@@ -102,16 +105,7 @@ public sealed class MobileSocialApiController : ControllerBase
 
         _context.SocialPosts.Add(post);
         user.ExperiencePoints += 10;
-        try
-        {
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-        catch
-        {
-            _mediaStorage.DiscardPending(imagePath);
-            DeleteUploadedImage(imagePath);
-            throw;
-        }
+        await _context.SaveChangesAsync(cancellationToken);
 
         return CreatedAtAction(nameof(GetPosts), new MobileSocialPostResponse(
             post.Id,
@@ -161,6 +155,7 @@ public sealed class MobileSocialApiController : ControllerBase
 
     [HttpPost("{postId:int}/comments")]
     [Authorize]
+    [SensitiveRateLimit("Expensive")]
     public async Task<ActionResult<MobileSocialCommentResponse>> CreateComment(
         int postId,
         MobileCreateSocialCommentRequest request,
@@ -371,12 +366,12 @@ public sealed class MobileSocialApiController : ControllerBase
         post.IsDeleted = true;
         await _mediaStorage.StageDeleteAsync(post.ImagePath, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
-        DeleteUploadedImage(post.ImagePath);
         return NoContent();
     }
 
     [HttpPost("{postId:int}/report")]
     [Authorize]
+    [SensitiveRateLimit("Expensive")]
     public async Task<IActionResult> ReportPost(
         int postId,
         MobileReportSocialPostRequest request,
@@ -454,7 +449,7 @@ public sealed class MobileSocialApiController : ControllerBase
         if (!HasValidImageSignature(imageBytes, imageBytes.Length, extension))
             return (null, "Seçilen dosya geçerli bir fotoğraf değil.");
 
-        return (_mediaStorage.StageUpload("social", extension, contentType!.ToLowerInvariant(), imageBytes), null);
+        return (_mediaStorage.StageUpload("social", contentType!.ToLowerInvariant(), imageBytes), null);
     }
 
     private static bool HasValidImageSignature(byte[] bytes, int length, string extension)
@@ -468,16 +463,6 @@ public sealed class MobileSocialApiController : ControllerBase
                        bytes[8..12].SequenceEqual("WEBP"u8.ToArray()),
             _ => false
         };
-    }
-
-    private void DeleteUploadedImage(string? imagePath)
-    {
-        if (string.IsNullOrWhiteSpace(imagePath)) return;
-        var fullPath = Path.GetFullPath(Path.Combine(_environment.WebRootPath, imagePath));
-        var uploadRoot = Path.GetFullPath(Path.Combine(_environment.WebRootPath, "uploads", "social"));
-        if (fullPath.StartsWith(uploadRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
-            System.IO.File.Exists(fullPath))
-            System.IO.File.Delete(fullPath);
     }
 
     private static string? NormalizeTags(string? tagText)

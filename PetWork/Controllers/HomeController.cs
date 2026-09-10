@@ -1,8 +1,9 @@
-using System.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Security;
 
 namespace PetWork.Controllers;
 
@@ -54,6 +55,21 @@ public class HomeController : Controller
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Error()
     {
-        return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        var exceptionFeature = HttpContext.Features.Get<IExceptionHandlerPathFeature>();
+        var referenceCode = ErrorReferenceCode.Create(HttpContext);
+        _logger.LogError(exceptionFeature?.Error,
+            "İşlenmeyen istek hatası. ReferenceCode: {ReferenceCode}, Path: {Path}, TraceIdentifier: {TraceIdentifier}",
+            referenceCode, exceptionFeature?.Path ?? HttpContext.Request.Path, HttpContext.TraceIdentifier);
+
+        if (exceptionFeature?.Path.StartsWith("/api", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                message = "İşlem sırasında beklenmeyen bir sunucu hatası oluştu. Lütfen tekrar deneyin.",
+                referenceCode
+            });
+        }
+
+        return View(new ErrorViewModel { ReferenceCode = referenceCode });
     }
 }

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Validation;
 
 namespace PetWork.Controllers.Api
 {
@@ -90,15 +91,20 @@ namespace PetWork.Controllers.Api
 
         // POST: api/RecipesApi
         [HttpPost]
-        public async Task<ActionResult<Recipe>> PostRecipe(Recipe recipe)
+        public async Task<ActionResult<Recipe>> PostRecipe(LegacyRecipeCreateRequest request)
         {
-            if (!ModelState.IsValid)
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (!userId.HasValue) return Unauthorized();
+            var recipe = new Recipe
             {
-                return BadRequest(ModelState);
-            }
-
-            recipe.PublishDate = DateTime.Now;
-            recipe.ViewCount = 0;
+                Title = request.Title.Trim(), Description = request.Description.Trim(), Ingredients = request.Ingredients.Trim(),
+                Instructions = request.Instructions.Trim(), Content = request.Content?.Trim() ?? string.Empty,
+                PetType = request.PetType?.Trim(), AnimalType = request.AnimalType?.Trim(), DietType = request.DietType?.Trim(),
+                PreparationTime = request.PreparationTime, FeaturedImage = request.FeaturedImage?.Trim() ?? "img/hero-recipes-v2.png",
+                ImageUrl = request.ImageUrl?.Trim() ?? "img/hero-recipes-v2.png", Difficulty = request.Difficulty?.Trim() ?? "Orta",
+                PrepTime = request.PrepTime?.Trim() ?? $"{request.PreparationTime} dakika", CreatedDate = DateTime.Now,
+                PublishDate = DateTime.Now, ViewCount = 0, UserId = userId.Value
+            };
 
             _context.Recipes.Add(recipe);
             await _context.SaveChangesAsync();

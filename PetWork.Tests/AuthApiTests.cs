@@ -116,7 +116,8 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
         var deleteSession = await ReadAuth(await Login(email, resetPassword));
         Assert.Equal(HttpStatusCode.BadRequest, (await Authorized(HttpMethod.Delete, "api/mobile/auth/account", deleteSession.Token, new { password = "Wrong1!x", userId = protectedUser.UserId })).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Authorized(HttpMethod.Delete, "api/mobile/auth/account", deleteSession.Token, new { password = resetPassword, confirmation = "yanlış", userId = protectedUser.UserId })).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await Authorized(HttpMethod.Delete, "api/mobile/auth/account", deleteSession.Token, new { password = resetPassword, confirmation = "SİL", userId = protectedUser.UserId })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Authorized(HttpMethod.Delete, "api/mobile/auth/account", deleteSession.Token, new { password = resetPassword, confirmation = "SİL", userId = protectedUser.UserId })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Authorized(HttpMethod.Delete, "api/mobile/auth/account", deleteSession.Token, new { password = resetPassword, confirmation = "SİL" })).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await Login(email, resetPassword)).StatusCode);
 
         using var scope = _factory.Services.CreateScope();
@@ -148,7 +149,7 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
 
         var listA = await Authorized(HttpMethod.Get, "api/mobile/pets", userA.Token);
         Assert.DoesNotContain((await listA.Content.ReadFromJsonAsync<List<PetDto>>())!, item => item.Id == pet!.Id);
-        Assert.Equal(HttpStatusCode.NotFound, (await Authorized(HttpMethod.Put, $"api/mobile/pets/{pet!.Id}", userA.Token, new { name = "Çalındı", type = "Kedi", age = 3, userId = userB.UserId })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Authorized(HttpMethod.Put, $"api/mobile/pets/{pet!.Id}", userA.Token, new { name = "Çalındı", type = "Kedi", age = 3, userId = userB.UserId })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await Authorized(HttpMethod.Delete, $"api/mobile/pets/{pet.Id}", userA.Token)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Authorized(HttpMethod.Put, $"api/mobile/pets/{pet.Id}", userB.Token, new { name = "Misket 2", type = "Kedi", age = 3 })).StatusCode);
     }
@@ -203,7 +204,8 @@ public sealed class AuthApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("ExternalContent:BootstrapOnStartup", "false");
         builder.UseSetting("ExternalContent:AutoPublish", "false");
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?> {
-            ["DatabaseProvider"] = "SqlServer", ["ConnectionStrings:DefaultConnection"] = "Server=(localdb)\\mssqllocaldb;Database=unused", ["MobileAuth:JwtKey"] = "test-only-jwt-key-with-at-least-thirty-two-bytes", ["GooglePlaces:ApiKey"] = "", ["RateLimiting:MobileAuthPermitLimit"] = "1000", ["RateLimiting:MobileContentPermitLimit"] = "1000", ["ExternalContent:BootstrapOnStartup"] = "false", ["ExternalContent:AutoPublish"] = "false", ["DatabaseMigrations:ApplyOnStartup"] = "false"
+            ["DatabaseProvider"] = "SqlServer", ["ConnectionStrings:DefaultConnection"] = "Server=(localdb)\\mssqllocaldb;Database=unused", ["MobileAuth:JwtKey"] = "test-only-jwt-key-with-at-least-thirty-two-bytes", ["GooglePlaces:ApiKey"] = "", ["RateLimiting:MobileAuthPermitLimit"] = "1000", ["RateLimiting:MobileContentPermitLimit"] = "1000", ["ExternalContent:BootstrapOnStartup"] = "false", ["ExternalContent:AutoPublish"] = "false", ["DatabaseMigrations:ApplyOnStartup"] = "false",
+            ["RateLimits:Policies:Login:PermitLimit"] = "1000", ["RateLimits:Policies:Registration:PermitLimit"] = "1000", ["RateLimits:Policies:CodeSend:PermitLimit"] = "1000", ["RateLimits:Policies:CodeVerify:PermitLimit"] = "1000", ["RateLimits:Policies:PasswordReset:PermitLimit"] = "1000", ["RateLimits:Policies:Expensive:PermitLimit"] = "1000"
         }));
         builder.ConfigureServices(services => {
             services.RemoveAll<IDbContextOptionsConfiguration<PetWorkDbContext>>();

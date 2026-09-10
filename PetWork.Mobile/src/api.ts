@@ -252,7 +252,7 @@ export type CreateProductReviewRequest = {
 };
 
 function resolveApiUrl(value?: string) {
-  const normalized = value?.trim().replace(/\/+$/, '') || (__DEV__ ? 'http://localhost:5147' : '');
+  const normalized = value?.trim().replace(/\/+$/, '') || (__DEV__ ? 'https://localhost:7218' : '');
   if (!normalized) throw new Error('Production API adresi tanımlanmamış.');
   let parsed: URL;
   try { parsed = new URL(normalized); } catch { throw new Error('API adresi geçerli bir URL değil.'); }
@@ -350,16 +350,7 @@ async function authRequest(path: string, init: RequestInit, fallback: string): P
       let payload: { message?: string; title?: string; errors?: Record<string, string[]> } | null = null;
       try { payload = responseText ? JSON.parse(responseText) : null; } catch { /* The development exception page may be plain text or HTML. */ }
       const validation = payload?.errors ? Object.values(payload.errors).flat()[0] : undefined;
-      if (__DEV__) {
-        console.log('[PetWork auth API]', {
-          path,
-          url: `${apiUrl}/api/mobile/auth/${path}`,
-          status: response.status,
-          statusText: response.statusText,
-          contentType: response.headers.get('content-type'),
-          response: responseText.slice(0, 2000),
-        });
-      }
+      if (__DEV__) console.log('[PetWork auth API]', { path, status: response.status });
       if (response.status === 429) throw new ApiError('Çok fazla deneme yapıldı. Lütfen bir dakika sonra tekrar dene.', response.status);
       const serverMessage = validation || payload?.message || payload?.title || fallback;
       throw new ApiError(__DEV__ ? `${serverMessage} (HTTP ${response.status})` : serverMessage, response.status);
@@ -367,7 +358,10 @@ async function authRequest(path: string, init: RequestInit, fallback: string): P
     return response;
   } catch (reason) {
     if (reason instanceof ApiError) throw reason;
-    if (__DEV__) console.log('[PetWork auth transport]', { path, url: `${apiUrl}/api/mobile/auth/${path}`, reason });
+    if (__DEV__) console.log('[PetWork auth transport]', {
+      path,
+      errorType: reason instanceof Error ? reason.name : 'UnknownError',
+    });
     if (reason instanceof Error && reason.name === 'AbortError') throw new Error('Sunucu yanıt vermedi. Bağlantını kontrol edip tekrar dene.');
     throw new Error('Sunucuya bağlanılamadı. İnternet ve API adresini kontrol et.');
   } finally { clearTimeout(timer); }
@@ -511,13 +505,14 @@ export async function getQuestions(signal?: AbortSignal): Promise<QuestionsRespo
 }
 
 export async function getNearbyVeterinarians(
+  token: string,
   latitude: number,
   longitude: number,
   radiusMeters = 5000,
 ): Promise<NearbyVeterinarian[]> {
   const response = await fetchApi(`${apiUrl}/api/mobile/nearby/veterinarians`, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ latitude, longitude, radiusMeters }),
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
@@ -529,6 +524,7 @@ export async function getNearbyVeterinarians(
 }
 
 export async function searchVeterinariansByArea(
+  token: string,
   city?: string,
   district?: string,
 ): Promise<NearbyVeterinarian[]> {
@@ -536,7 +532,7 @@ export async function searchVeterinariansByArea(
   if (city?.trim()) query.set('city', city.trim());
   if (district?.trim()) query.set('district', district.trim());
   const response = await fetchApi(`${apiUrl}/api/mobile/nearby/veterinarians/search?${query}`, {
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
   if (!response.ok) {
@@ -547,13 +543,14 @@ export async function searchVeterinariansByArea(
 }
 
 export async function getNearbyGroomers(
+  token: string,
   latitude: number,
   longitude: number,
   radiusMeters = 5000,
 ): Promise<NearbyVeterinarian[]> {
   const response = await fetchApi(`${apiUrl}/api/mobile/nearby/groomers`, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ latitude, longitude, radiusMeters }),
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
@@ -565,6 +562,7 @@ export async function getNearbyGroomers(
 }
 
 export async function searchGroomersByArea(
+  token: string,
   city?: string,
   district?: string,
 ): Promise<NearbyVeterinarian[]> {
@@ -572,7 +570,7 @@ export async function searchGroomersByArea(
   if (city?.trim()) query.set('city', city.trim());
   if (district?.trim()) query.set('district', district.trim());
   const response = await fetchApi(`${apiUrl}/api/mobile/nearby/groomers/search?${query}`, {
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
   if (!response.ok) {
@@ -583,13 +581,14 @@ export async function searchGroomersByArea(
 }
 
 export async function getNearbyPetHotels(
+  token: string,
   latitude: number,
   longitude: number,
   radiusMeters = 5000,
 ): Promise<NearbyVeterinarian[]> {
   const response = await fetchApi(`${apiUrl}/api/mobile/nearby/pet-hotels`, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ latitude, longitude, radiusMeters }),
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
@@ -601,6 +600,7 @@ export async function getNearbyPetHotels(
 }
 
 export async function searchPetHotelsByArea(
+  token: string,
   city?: string,
   district?: string,
 ): Promise<NearbyVeterinarian[]> {
@@ -608,7 +608,7 @@ export async function searchPetHotelsByArea(
   if (city?.trim()) query.set('city', city.trim());
   if (district?.trim()) query.set('district', district.trim());
   const response = await fetchApi(`${apiUrl}/api/mobile/nearby/pet-hotels/search?${query}`, {
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
   });
   const payload = await response.json().catch(() => null) as NearbyVeterinarian[] | { message?: string } | null;
   if (!response.ok) {
@@ -1046,10 +1046,10 @@ export async function getPatiMatchOverview(token: string, signal?: AbortSignal):
   return readPatiMatchResponse<PatiMatchOverview>(response, `PatiMatch bilgileri alınamadı (${response.status}).`);
 }
 
-export async function getLocationSuggestions(input: string, kind: 'city' | 'district', city?: string, signal?: AbortSignal): Promise<LocationSuggestion[]> {
+export async function getLocationSuggestions(token: string, input: string, kind: 'city' | 'district', city?: string, signal?: AbortSignal): Promise<LocationSuggestion[]> {
   const query = new URLSearchParams({ input: input.trim(), kind });
   if (city?.trim()) query.set('city', city.trim());
-  const response = await fetch(`${apiUrl}/api/mobile/nearby/locations/autocomplete?${query}`, { headers: { Accept: 'application/json' }, signal });
+  const response = await fetch(`${apiUrl}/api/mobile/nearby/locations/autocomplete?${query}`, { headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal });
   return readPatiMatchResponse<LocationSuggestion[]>(response, `Konum önerileri alınamadı (${response.status}).`);
 }
 

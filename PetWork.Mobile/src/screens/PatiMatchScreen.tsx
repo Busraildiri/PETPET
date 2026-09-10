@@ -157,7 +157,7 @@ export function PatiMatchScreen({ token, username, onLogin, onOpenPets, onSessio
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.petPicker}>
         {overview.pets.map(pet => <PetChip key={pet.id} pet={pet} selected={pet.id === selectedPetId} onPress={() => { setSelectedPetId(pet.id); setPurpose(pet.purpose ?? 'friendship'); setPreferredTypes(pet.preferredTypes?.length ? pet.preferredTypes : [pet.type]); }} />)}
       </ScrollView>
-      {selectedPet && (!selectedPet.isActive || editingPetId === selectedPet.id) ? <JoinCard pet={selectedPet} city={city} district={district} selectedCityId={selectedCityId} selectedDistrictId={selectedDistrictId} purpose={purpose} preferredTypes={preferredTypes} accepted={accepted} busy={busy} onCity={value => { setCity(value); setSelectedCityId(null); setDistrict(''); setSelectedDistrictId(null); }} onCitySelect={suggestion => { setCity(suggestion.name); setSelectedCityId(suggestion.id); setDistrict(''); setSelectedDistrictId(null); }} onDistrict={value => { setDistrict(value); setSelectedDistrictId(null); }} onDistrictSelect={suggestion => { setDistrict(suggestion.name); setSelectedDistrictId(suggestion.id); }} onPurpose={value => { setPurpose(value); if (value === 'mate') setPreferredTypes([selectedPet.type]); }} onToggleType={value => setPreferredTypes(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value])} onAccepted={() => setAccepted(value => !value)} onEnroll={() => void enroll()} onOpenPets={onOpenPets} /> : null}
+      {selectedPet && (!selectedPet.isActive || editingPetId === selectedPet.id) ? <JoinCard token={token} pet={selectedPet} city={city} district={district} selectedCityId={selectedCityId} selectedDistrictId={selectedDistrictId} purpose={purpose} preferredTypes={preferredTypes} accepted={accepted} busy={busy} onCity={value => { setCity(value); setSelectedCityId(null); setDistrict(''); setSelectedDistrictId(null); }} onCitySelect={suggestion => { setCity(suggestion.name); setSelectedCityId(suggestion.id); setDistrict(''); setSelectedDistrictId(null); }} onDistrict={value => { setDistrict(value); setSelectedDistrictId(null); }} onDistrictSelect={suggestion => { setDistrict(suggestion.name); setSelectedDistrictId(suggestion.id); }} onPurpose={value => { setPurpose(value); if (value === 'mate') setPreferredTypes([selectedPet.type]); }} onToggleType={value => setPreferredTypes(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value])} onAccepted={() => setAccepted(value => !value)} onEnroll={() => void enroll()} onOpenPets={onOpenPets} /> : null}
       {selectedPet?.isActive && editingPetId !== selectedPet.id ? <>
         <View style={styles.activeBar}><View style={styles.flex}><Text style={styles.activeTitle}>{selectedPet.name} ile keşfet</Text><Text style={styles.activeMeta}>{purposeLabels[selectedPet.purpose ?? 'friendship']} · {(selectedPet.preferredTypes?.length ? selectedPet.preferredTypes : [selectedPet.type]).join(', ')} · {[selectedPet.city, selectedPet.district].filter(Boolean).join(', ')}</Text></View><View style={styles.activeActions}><Pressable onPress={() => { setEditingPetId(selectedPet.id); setAccepted(false); }}><Text style={styles.editProfile}>Düzenle</Text></Pressable><Pressable onPress={deactivate}><Text style={styles.closeProfile}>Kapat</Text></Pressable></View></View>
         {candidates[0] ? <><Text style={styles.swipeHint}>Sola kaydır: geç · Sağa kaydır: beğen</Text><SwipeCard key={candidates[0].petId} candidate={candidates[0]} busy={busy} onDecision={isLike => decide(candidates[0], isLike)} /><View style={styles.actions}><Pressable disabled={busy} onPress={() => void decide(candidates[0], false)} style={[styles.actionButton, styles.passButton]}><Ionicons name="close" size={31} color="#A65345" /></Pressable><Pressable disabled={busy} onPress={() => void decide(candidates[0], true)} style={[styles.actionButton, styles.likeButton]}><Ionicons name="heart" size={29} color={colors.white} /></Pressable></View></> : <NoCandidates onRefresh={() => void load(true)} />}
@@ -176,27 +176,28 @@ function EmptyPets({ onOpenPets }: { onOpenPets: () => void }) { return <View st
 
 function PetChip({ pet, selected, onPress }: { pet: PatiMatchMyPet; selected: boolean; onPress: () => void }) { return <Pressable onPress={onPress} style={[styles.petChip, selected && styles.petChipSelected]}><Image source={{ uri: mediaUrl(pet.profileImage) }} style={styles.petChipImage} /><View><Text style={[styles.petChipName, selected && styles.petChipNameSelected]}>{pet.name}</Text><Text style={[styles.petChipState, selected && styles.petChipNameSelected]}>{pet.isActive ? 'Aktif' : 'Katılmadı'}</Text></View></Pressable>; }
 
-type JoinProps = { pet: PatiMatchMyPet; city: string; district: string; selectedCityId: string | null; selectedDistrictId: string | null; purpose: 'friendship' | 'mate'; preferredTypes: string[]; accepted: boolean; busy: boolean; onCity: (v: string) => void; onCitySelect: (v: LocationSuggestion) => void; onDistrict: (v: string) => void; onDistrictSelect: (v: LocationSuggestion) => void; onPurpose: (v: 'friendship' | 'mate') => void; onToggleType: (v: string) => void; onAccepted: () => void; onEnroll: () => void; onOpenPets: () => void };
-function JoinCard({ pet, city, district, selectedCityId, selectedDistrictId, purpose, preferredTypes, accepted, busy, onCity, onCitySelect, onDistrict, onDistrictSelect, onPurpose, onToggleType, onAccepted, onEnroll, onOpenPets }: JoinProps) {
+type JoinProps = { token: string; pet: PatiMatchMyPet; city: string; district: string; selectedCityId: string | null; selectedDistrictId: string | null; purpose: 'friendship' | 'mate'; preferredTypes: string[]; accepted: boolean; busy: boolean; onCity: (v: string) => void; onCitySelect: (v: LocationSuggestion) => void; onDistrict: (v: string) => void; onDistrictSelect: (v: LocationSuggestion) => void; onPurpose: (v: 'friendship' | 'mate') => void; onToggleType: (v: string) => void; onAccepted: () => void; onEnroll: () => void; onOpenPets: () => void };
+function JoinCard({ token, pet, city, district, selectedCityId, selectedDistrictId, purpose, preferredTypes, accepted, busy, onCity, onCitySelect, onDistrict, onDistrictSelect, onPurpose, onToggleType, onAccepted, onEnroll, onOpenPets }: JoinProps) {
   const hasPhoto = Boolean(pet.profileImage && pet.profileImage !== 'img/pet-default.jpg');
   return <View style={styles.joinCard}><Text style={styles.cardTitle}>{pet.name} için PatiMatch {pet.isActive ? 'tercihlerini düzenle' : 'oluştur'}</Text><Text style={styles.cardText}>Yalnızca yaklaşık konum gösterilir. Açık adresin ve iletişim bilgin paylaşılmaz.</Text>
     {!hasPhoto ? <Pressable onPress={onOpenPets} style={styles.photoWarning}><Ionicons name="camera-outline" size={22} color="#A65345" /><View style={styles.flex}><Text style={styles.warningTitle}>Gerçek bir fotoğraf gerekli</Text><Text style={styles.warningText}>Patilerim ekranından fotoğraf ekle.</Text></View><Ionicons name="chevron-forward" size={19} color="#A65345" /></Pressable> : null}
     <Text style={styles.fieldLabel}>Aradığınız</Text><View style={styles.purposeRow}>{(['friendship', 'mate'] as const).map(value => <Pressable key={value} onPress={() => onPurpose(value)} style={[styles.purposeChip, purpose === value && styles.purposeActive]}><Text style={[styles.purposeText, purpose === value && styles.purposeTextActive]}>{purposeLabels[value]}</Text></Pressable>)}</View>
     <Text style={styles.fieldLabel}>Karşına hangi patiler çıksın?</Text>
     {purpose === 'mate' ? <View style={styles.mateTypeNote}><Ionicons name="information-circle-outline" size={18} color="#4E7458" /><Text style={styles.mateTypeText}>Eş aramada hayvan refahı için yalnızca aynı tür ({pet.type}) gösterilir.</Text></View> : <View style={styles.typeChoices}>{petTypes.map(type => { const active = preferredTypes.includes(type); return <Pressable key={type} onPress={() => onToggleType(type)} style={[styles.typeChoice, active && styles.typeChoiceActive]}><Ionicons name={active ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={active ? colors.white : colors.primary} /><Text style={[styles.typeChoiceText, active && styles.typeChoiceTextActive]}>{type}</Text></Pressable>; })}</View>}
-    <LocationAutocomplete label="Şehir *" value={city} selectedId={selectedCityId} kind="city" placeholder="Yaz ve listeden seç" onChange={onCity} onSelect={onCitySelect} />
-    <LocationAutocomplete label="İlçe (isteğe bağlı)" value={district} selectedId={selectedDistrictId} kind="district" city={city} placeholder={selectedCityId ? 'Yaz ve listeden seç' : 'Önce şehir seç'} enabled={Boolean(selectedCityId)} onChange={onDistrict} onSelect={onDistrictSelect} />
+    <LocationAutocomplete token={token} label="Şehir *" value={city} selectedId={selectedCityId} kind="city" placeholder="Yaz ve listeden seç" onChange={onCity} onSelect={onCitySelect} />
+    <LocationAutocomplete token={token} label="İlçe (isteğe bağlı)" value={district} selectedId={selectedDistrictId} kind="district" city={city} placeholder={selectedCityId ? 'Yaz ve listeden seç' : 'Önce şehir seç'} enabled={Boolean(selectedCityId)} onChange={onDistrict} onSelect={onDistrictSelect} />
     <Pressable onPress={onAccepted} style={styles.consentRow}><View style={[styles.checkbox, accepted && styles.checkboxActive]}>{accepted ? <Ionicons name="checkmark" size={16} color={colors.white} /> : null}</View><Text style={styles.consentText}>Sorumlu buluşma, güvenli alan ve hayvan refahı kurallarını kabul ediyorum.</Text></Pressable>
     <Pressable disabled={busy || !hasPhoto} onPress={onEnroll} style={[styles.primaryButton, (!hasPhoto || busy) && styles.disabled]}>{busy ? <ActivityIndicator color={colors.white} /> : <><Ionicons name="heart-outline" size={19} color={colors.white} /><Text style={styles.primaryButtonText}>{pet.isActive ? 'Tercihleri kaydet' : 'PatiMatch’e katıl'}</Text></>}</Pressable>
   </View>;
 }
 
 type LocationAutocompleteProps = {
+  token: string;
   label: string; value: string; selectedId: string | null; kind: 'city' | 'district'; city?: string;
   placeholder: string; enabled?: boolean; onChange: (value: string) => void; onSelect: (suggestion: LocationSuggestion) => void;
 };
 
-function LocationAutocomplete({ label, value, selectedId, kind, city, placeholder, enabled = true, onChange, onSelect }: LocationAutocompleteProps) {
+function LocationAutocomplete({ token, label, value, selectedId, kind, city, placeholder, enabled = true, onChange, onSelect }: LocationAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -208,7 +209,7 @@ function LocationAutocomplete({ label, value, selectedId, kind, city, placeholde
     let controller: AbortController | null = null;
     const timer = setTimeout(() => {
       controller = new AbortController(); setLoadingSuggestions(true); setLookupError(null);
-      getLocationSuggestions(value, kind, city, controller.signal)
+      getLocationSuggestions(token, value, kind, city, controller.signal)
         .then(setSuggestions)
         .catch(reason => {
           if (!controller?.signal.aborted) { setSuggestions([]); setLookupError(reason instanceof Error ? reason.message : 'Konumlar alınamadı.'); }
@@ -216,7 +217,7 @@ function LocationAutocomplete({ label, value, selectedId, kind, city, placeholde
         .finally(() => { if (!controller?.signal.aborted) setLoadingSuggestions(false); });
     }, 350);
     return () => { clearTimeout(timer); controller?.abort(); };
-  }, [city, enabled, kind, selectedId, value]);
+  }, [city, enabled, kind, selectedId, token, value]);
 
   const showPanel = enabled && !selectedId && value.trim().length >= 2;
   return <View>

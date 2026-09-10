@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Validation;
 
 namespace PetWork.Controllers.Api
 {
@@ -168,12 +169,16 @@ namespace PetWork.Controllers.Api
 
         // POST: api/DiseasesApi
         [HttpPost]
-        public async Task<ActionResult<Disease>> PostDisease(Disease disease)
+        public async Task<ActionResult<Disease>> PostDisease(LegacyDiseaseCreateRequest request)
         {
-            if (!ModelState.IsValid)
+            var disease = new Disease
             {
-                return BadRequest(ModelState);
-            }
+                Name = request.Name.Trim(), Description = request.Description.Trim(), Symptoms = request.Symptoms?.Trim(),
+                Treatments = request.Treatments?.Trim(), Treatment = request.Treatment?.Trim(), Prevention = request.Prevention?.Trim(),
+                PetType = request.PetType?.Trim(), AnimalType = request.AnimalType?.Trim(),
+                FeaturedImage = request.FeaturedImage?.Trim() ?? "img/hero-health-v2.png", Category = request.Category?.Trim(),
+                SeverityLevel = request.SeverityLevel?.Trim(), ViewCount = 0, PublishDate = DateTime.Now
+            };
 
             _context.Diseases.Add(disease);
             await _context.SaveChangesAsync();

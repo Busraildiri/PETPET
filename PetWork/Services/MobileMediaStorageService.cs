@@ -1,40 +1,24 @@
-using Microsoft.EntityFrameworkCore;
-using PetWork.Data;
-using PetWork.Models;
-
 namespace PetWork.Services;
 
 public sealed class MobileMediaStorageService
 {
-    private readonly PetWorkDbContext _context;
+    private const long MaximumBytes = 8 * 1024 * 1024;
+    private readonly SecureMediaStorageService _storage;
 
-    public MobileMediaStorageService(PetWorkDbContext context) => _context = context;
+    public MobileMediaStorageService(SecureMediaStorageService storage) => _storage = storage;
 
-    public string StageUpload(string folder, string extension, string contentType, byte[] data)
+    public string StageUpload(string folder, string contentType, byte[] data)
     {
-        var key = $"uploads/{folder}/{Guid.NewGuid():N}{extension}";
-        _context.MobileMediaAssets.Add(new MobileMediaAsset
-        {
-            StorageKey = key,
-            ContentType = contentType,
-            Data = data,
-            CreatedAt = DateTime.Now
-        });
-        return key;
+        return _storage.StoreBytes(folder, data, MaximumBytes, contentType).StorageKey;
     }
 
     public void DiscardPending(string? storageKey)
     {
-        if (string.IsNullOrWhiteSpace(storageKey)) return;
-        var pending = _context.MobileMediaAssets.Local.FirstOrDefault(item => item.StorageKey == storageKey);
-        if (pending is not null) _context.MobileMediaAssets.Remove(pending);
+        _storage.Discard(storageKey);
     }
 
     public async Task StageDeleteAsync(string? storageKey, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(storageKey)) return;
-        var asset = await _context.MobileMediaAssets.FirstOrDefaultAsync(
-            item => item.StorageKey == storageKey, cancellationToken);
-        if (asset is not null) _context.MobileMediaAssets.Remove(asset);
+        await _storage.DeleteAsync(storageKey, cancellationToken);
     }
 }

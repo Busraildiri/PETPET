@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
+using PetWork.Data;
+using PetWork.Models;
 
 namespace PetWork.Tests;
 
@@ -78,6 +81,40 @@ public sealed class CommunityApiTests : IClassFixture<AuthApiFactory>
         var user = await Register($"pet_{id}", $"pet-{id}@example.com");
         Assert.Equal(HttpStatusCode.BadRequest,
             (await Authorized(HttpMethod.Post, "api/mobile/pets", user.Token, new { name = "  ", type = "Kedi" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Adoption_reports_reject_the_listing_owner_but_allow_another_user()
+    {
+        var id = Guid.NewGuid().ToString("N")[..8];
+        var owner = await Register($"adoptionOwner_{id}", $"adoption-owner-{id}@example.com");
+        var reporter = await Register($"adoptionReporter_{id}", $"adoption-reporter-{id}@example.com");
+
+        int listingId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PetWorkDbContext>();
+            var listing = new AdoptionListing
+            {
+                UserId = owner.UserId,
+                PetName = "Misket",
+                Species = "Kedi",
+                City = "İstanbul",
+                HealthInfo = "Kontrolleri tamamlandı.",
+                Story = "Güvenli bir yuva arıyor.",
+                ImagePath = "/uploads/adoption/test.jpg"
+            };
+            db.AdoptionListings.Add(listing);
+            await db.SaveChangesAsync();
+            listingId = listing.Id;
+        }
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await Authorized(HttpMethod.Post, $"api/mobile/adoption/listings/{listingId}/reports", owner.Token,
+                new { reason = "Kendi ilanımı bildiriyorum" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await Authorized(HttpMethod.Post, $"api/mobile/adoption/listings/{listingId}/reports", reporter.Token,
+                new { reason = "Şüpheli iletişim bilgisi" })).StatusCode);
     }
 
     private async Task<AuthDto> Register(string username, string email)

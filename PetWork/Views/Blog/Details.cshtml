@@ -23,7 +23,7 @@
                 
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div class="d-flex align-items-center">
-                        <img src="~/@Model.User.ProfileImage" class="rounded-circle me-2" width="40" height="40" alt="@Model.User.Username">
+                        <img src="@PetWork.Services.MediaUrlResolver.Resolve(Url, Model.User.ProfileImage, "img/user-profile.jpg")" class="rounded-circle me-2" width="40" height="40" alt="@Model.User.Username">
                         <div>
                             <h6 class="mb-0">@Model.User.Username</h6>
                             <small class="text-muted">@Model.PublishDate.ToString("dd MMMM yyyy")</small>
@@ -43,7 +43,7 @@
             </div>
 
             <div class="blog-content mb-5">
-                @Html.Raw(Model.Content)
+                <div class="content-text">@Model.Content</div>
             </div>
 
             <div class="blog-tags mb-4">

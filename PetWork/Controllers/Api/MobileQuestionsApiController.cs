@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers.Api;
 
@@ -113,6 +114,7 @@ public sealed class MobileQuestionsApiController : ControllerBase
     [HttpPost("{id:int}/answers")]
     [Authorize]
     [EnableRateLimiting("mobile-content")]
+    [SensitiveRateLimit("Expensive")]
     public async Task<ActionResult<MobileAnswerItem>> PostAnswer(
         int id,
         MobileAnswerRequest request,

@@ -79,14 +79,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const maxLength = textarea.getAttribute('maxlength');
         const counter = document.createElement('div');
         counter.className = 'form-text text-end';
-        counter.innerHTML = `<span>0</span>/${maxLength} karakter`;
+        const counterValue = document.createElement('span');
+        counterValue.textContent = '0';
+        counter.append(counterValue, `/${maxLength} karakter`);
         
         textarea.parentNode.appendChild(counter);
         
         textarea.addEventListener('input', function() {
             const currentLength = this.value.length;
-            const counterSpan = counter.querySelector('span');
-            counterSpan.textContent = currentLength;
+            counterValue.textContent = currentLength;
             
             if (currentLength > maxLength * 0.9) {
                 counter.classList.add('text-danger');

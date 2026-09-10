@@ -27,7 +27,7 @@
                 <div class="card-body">
                     <div class="d-flex mb-3">
                         <div class="flex-shrink-0">
-                            @if (externalSource is null) { <img src="~/@Model.User.ProfileImage" class="rounded-circle" width="50" height="50" alt="User"> }
+                            @if (externalSource is null) { <img src="@PetWork.Services.MediaUrlResolver.Resolve(Url, Model.User.ProfileImage, "img/user-profile.jpg")" class="rounded-circle" width="50" height="50" alt="User"> }
                             else { <span class="badge" style="background:#62495f">Dış kaynak</span> }
                         </div>
                         <div class="flex-grow-1 ms-3">
@@ -99,7 +99,7 @@
                                     <div class="flex-grow-1">
                                         <div class="d-flex mb-3">
                                             <div class="flex-shrink-0">
-                                                <img src="~/@answer.User.ProfileImage" class="rounded-circle" width="40" height="40" alt="User">
+                                                <img src="@PetWork.Services.MediaUrlResolver.Resolve(Url, answer.User.ProfileImage, "img/user-profile.jpg")" class="rounded-circle" width="40" height="40" alt="User">
                                             </div>
                                             <div class="flex-grow-1 ms-3">
                                                 <div class="d-flex justify-content-between align-items-center">

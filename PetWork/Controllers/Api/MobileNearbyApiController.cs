@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Authorization;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers.Api;
 
 [ApiController]
 [Route("api/mobile/nearby")]
+[Authorize]
 public sealed class MobileNearbyApiController : ControllerBase
 {
     private readonly GooglePlacesService _googlePlaces;
@@ -21,6 +24,7 @@ public sealed class MobileNearbyApiController : ControllerBase
 
     [HttpGet("locations/autocomplete")]
     [EnableRateLimiting("mobile-autocomplete")]
+    [DailyCostQuota("GooglePlacesAutocomplete")]
     public async Task<ActionResult<IReadOnlyList<LocationSuggestion>>> SearchLocations(
         [FromQuery] string? input,
         [FromQuery] string kind = "city",
@@ -59,6 +63,7 @@ public sealed class MobileNearbyApiController : ControllerBase
 
     [HttpPost("veterinarians")]
     [EnableRateLimiting("mobile-content")]
+    [DailyCostQuota("GooglePlacesSearch")]
     public async Task<ActionResult<IReadOnlyList<NearbyVeterinarian>>> GetVeterinarians(
         [FromBody] NearbyLocationRequest request,
         CancellationToken cancellationToken = default)
@@ -91,6 +96,7 @@ public sealed class MobileNearbyApiController : ControllerBase
 
     [HttpGet("veterinarians/search")]
     [EnableRateLimiting("mobile-content")]
+    [DailyCostQuota("GooglePlacesSearch")]
     public async Task<ActionResult<IReadOnlyList<NearbyVeterinarian>>> SearchVeterinarians(
         [FromQuery] string? city,
         [FromQuery] string? district,
@@ -123,6 +129,7 @@ public sealed class MobileNearbyApiController : ControllerBase
 
     [HttpPost("groomers")]
     [EnableRateLimiting("mobile-content")]
+    [DailyCostQuota("GooglePlacesSearch")]
     public async Task<ActionResult<IReadOnlyList<NearbyVeterinarian>>> GetGroomers(
         [FromBody] NearbyLocationRequest request,
         CancellationToken cancellationToken = default)
@@ -152,6 +159,7 @@ public sealed class MobileNearbyApiController : ControllerBase
 
     [HttpGet("groomers/search")]
     [EnableRateLimiting("mobile-content")]
+    [DailyCostQuota("GooglePlacesSearch")]
     public async Task<ActionResult<IReadOnlyList<NearbyVeterinarian>>> SearchGroomers(
         [FromQuery] string? city,
         [FromQuery] string? district,
@@ -184,6 +192,7 @@ public sealed class MobileNearbyApiController : ControllerBase
 
     [HttpPost("pet-hotels")]
     [EnableRateLimiting("mobile-content")]
+    [DailyCostQuota("GooglePlacesSearch")]
     public async Task<ActionResult<IReadOnlyList<NearbyVeterinarian>>> GetPetHotels(
         [FromBody] NearbyLocationRequest request,
         CancellationToken cancellationToken = default)
@@ -213,6 +222,7 @@ public sealed class MobileNearbyApiController : ControllerBase
 
     [HttpGet("pet-hotels/search")]
     [EnableRateLimiting("mobile-content")]
+    [DailyCostQuota("GooglePlacesSearch")]
     public async Task<ActionResult<IReadOnlyList<NearbyVeterinarian>>> SearchPetHotels(
         [FromQuery] string? city,
         [FromQuery] string? district,

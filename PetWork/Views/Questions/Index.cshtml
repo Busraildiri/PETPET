@@ -50,7 +50,7 @@
                         <div class="card-body">
                             <div class="d-flex">
                                 <div class="flex-shrink-0">
-                                    <img src="~/@question.User.ProfileImage" class="rounded-circle" width="50" height="50" alt="User">
+                                    <img src="@PetWork.Services.MediaUrlResolver.Resolve(Url, question.User.ProfileImage, "img/user-profile.jpg")" class="rounded-circle" width="50" height="50" alt="User">
                                 </div>
                                 <div class="flex-grow-1 ms-3">
                                     <h4><a asp-controller="Questions" asp-action="Details" asp-route-id="@question.Id">@question.Title</a></h4>
@@ -142,4 +142,4 @@
             window.location.href = url;
         }
     </script>
-} 
+}

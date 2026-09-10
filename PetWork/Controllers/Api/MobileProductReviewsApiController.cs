@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers.Api;
 
@@ -31,7 +32,9 @@ public sealed class MobileProductReviewsApiController : ControllerBase
 
     [HttpPost]
     [Authorize]
+    [RequestSizeLimit(12 * 1024 * 1024)]
     [EnableRateLimiting("mobile-content")]
+    [SensitiveRateLimit("Expensive")]
     public async Task<ActionResult<MobileProductReviewResponse>> CreateReview(MobileCreateProductReviewRequest request, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
@@ -46,8 +49,7 @@ public sealed class MobileProductReviewsApiController : ControllerBase
             DigestionScore = request.DigestionScore, ValueScore = request.ValueScore, ImagePath = image.Path, CreatedAt = DateTime.Now
         };
         _context.ProductReviews.Add(review);
-        try { await _context.SaveChangesAsync(cancellationToken); }
-        catch { _mediaStorage.DiscardPending(review.ImagePath); DeleteUploadedImage(review.ImagePath); throw; }
+        await _context.SaveChangesAsync(cancellationToken);
         review.User = await _context.Users.AsNoTracking().FirstAsync(user => user.Id == userId, cancellationToken);
         return Ok(ToResponse(review));
     }
@@ -83,16 +85,9 @@ public sealed class MobileProductReviewsApiController : ControllerBase
         if (bytes.Length is <= 0 or > 8 * 1024 * 1024) return (null, "Fotoğraf en fazla 8 MB olabilir.");
         var extension = contentType?.ToLowerInvariant() switch { "image/jpeg" => ".jpg", "image/png" => ".png", "image/webp" => ".webp", _ => null };
         if (extension is null || !ValidImage(bytes, extension)) return (null, "Yalnızca geçerli JPG, PNG veya WebP fotoğrafları yükleyebilirsin.");
-        return (_mediaStorage.StageUpload("product-reviews", extension, contentType!.ToLowerInvariant(), bytes), null);
+        return (_mediaStorage.StageUpload("product-reviews", contentType!.ToLowerInvariant(), bytes), null);
     }
 
-    private void DeleteUploadedImage(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path)) return;
-        var root = Path.GetFullPath(Path.Combine(_environment.WebRootPath, "uploads", "product-reviews"));
-        var fullPath = Path.GetFullPath(Path.Combine(_environment.WebRootPath, path));
-        if (fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
-    }
     private bool TryGetUserId(out int userId) => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub), out userId);
     private static bool ValidScore(int score) => score is >= 1 and <= 5;
     private static bool ValidImage(byte[] bytes, string extension) => extension switch

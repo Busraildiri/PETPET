@@ -4,6 +4,7 @@ using PetWork.Data;
 using PetWork.Models;
 using PetWork.Models.ViewModels;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers;
 
@@ -14,9 +15,11 @@ public sealed class AdminExternalContentController : Controller
     private readonly IExternalContentImportService _imports;
     private readonly IExternalContentPublishingService _publisher;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<AdminExternalContentController> _logger;
     public AdminExternalContentController(PetWorkDbContext db, IExternalContentImportService imports,
-        IExternalContentPublishingService publisher, IConfiguration configuration)
-    { _db = db; _imports = imports; _publisher = publisher; _configuration = configuration; }
+        IExternalContentPublishingService publisher, IConfiguration configuration,
+        ILogger<AdminExternalContentController> logger)
+    { _db = db; _imports = imports; _publisher = publisher; _configuration = configuration; _logger = logger; }
 
     [HttpGet("")]
     public async Task<IActionResult> Index(string? provider, string? status, string? contentType, string? query,
@@ -35,6 +38,7 @@ public sealed class AdminExternalContentController : Controller
     }
 
     [HttpGet("Search")]
+    [SensitiveRateLimit("Expensive")]
     public async Task<IActionResult> Search(string provider, string query, string? tags, string? targetContentType,
         CancellationToken cancellationToken)
     {
@@ -42,13 +46,14 @@ public sealed class AdminExternalContentController : Controller
         var model = new ExternalContentListViewModel { Providers = _imports.Providers, Provider = provider, Query = query,
             TargetContentType = targetContentType };
         try { model.SearchResults = (await _imports.SearchAsync(provider, new(query, tags), cancellationToken)).ToList(); }
-        catch (Exception ex) { TempData["ErrorMessage"] = ex.Message; }
+        catch (Exception ex) { SetUnexpectedError(ex, "Harici içerik araması tamamlanamadı.", "ExternalContentSearch"); }
         model.Items = await _db.ExternalContentSources.AsNoTracking().OrderByDescending(x => x.ImportedAt).Take(100).ToListAsync(cancellationToken);
         return View("Index", model);
     }
 
     [HttpPost("Import")]
     [ValidateAntiForgeryToken]
+    [SensitiveRateLimit("Expensive")]
     public async Task<IActionResult> Import(string provider, string externalId, string? targetContentType,
         CancellationToken cancellationToken)
     {
@@ -67,7 +72,11 @@ public sealed class AdminExternalContentController : Controller
             else TempData["SuccessMessage"] = "İçerik inceleme kuyruğuna alındı.";
             return RedirectToAction(nameof(Details), new { id = source.Id });
         }
-        catch (Exception ex) { TempData["ErrorMessage"] = ex.Message; return RedirectToAction(nameof(Index)); }
+        catch (Exception ex)
+        {
+            SetUnexpectedError(ex, "İçerik içe aktarılamadı.", "ExternalContentImport");
+            return RedirectToAction(nameof(Index));
+        }
     }
 
     [HttpGet("{id:int}")]
@@ -106,12 +115,13 @@ public sealed class AdminExternalContentController : Controller
 
     [HttpPost("{id:int}/Refresh")]
     [ValidateAntiForgeryToken]
+    [SensitiveRateLimit("Expensive")]
     public async Task<IActionResult> Refresh(int id, CancellationToken cancellationToken)
     {
         var userId = await AdminUserIdAsync(cancellationToken);
         if (userId is null) return RedirectToAction("Login", "Account");
         try { await _imports.RefreshAsync(id, userId.Value, cancellationToken); TempData["SuccessMessage"] = "Kaynak yeniden kontrol edildi."; }
-        catch (Exception ex) { TempData["ErrorMessage"] = ex.Message; }
+        catch (Exception ex) { SetUnexpectedError(ex, "Kaynak yenilenemedi.", "ExternalContentRefresh"); }
         return RedirectToAction(nameof(Details), new { id });
     }
 
@@ -133,7 +143,7 @@ public sealed class AdminExternalContentController : Controller
             await _publisher.PublishAsync(source.Id, userId.Value, true, cancellationToken);
             TempData["SuccessMessage"] = "İçerik kaynak bilgisiyle yayınlandı.";
         }
-        catch (InvalidOperationException ex) { TempData["ErrorMessage"] = ex.Message; }
+        catch (InvalidOperationException ex) { SetUnexpectedError(ex, "İçerik yayınlanamadı.", "ExternalContentApprove"); }
         return RedirectToAction(nameof(Details), new { id });
     }
 
@@ -154,6 +164,16 @@ public sealed class AdminExternalContentController : Controller
         source.ReviewStatus = status; source.RejectionReason = reason; source.ReviewedByUserId = userId; source.ReviewedAt = Now();
         AddAudit(source, eventType, "Success", reason ?? status, userId.Value); await _db.SaveChangesAsync(token);
         return RedirectToAction(nameof(Details), new { id });
+    }
+
+    private void SetUnexpectedError(Exception exception, string userMessage, string operation)
+    {
+        var referenceCode = ErrorReferenceCode.Create(HttpContext);
+        _logger.LogError(exception,
+            "{Operation} başarısız. ReferenceCode: {ReferenceCode}, TraceIdentifier: {TraceIdentifier}",
+            operation, referenceCode, HttpContext.TraceIdentifier);
+        TempData["ErrorMessage"] = ErrorReferenceCode.UserMessage(
+            $"{userMessage} Lütfen tekrar deneyin.", referenceCode);
     }
 
     private async Task<int> PublishAsync(ExternalContentSource source, int userId, CancellationToken token)

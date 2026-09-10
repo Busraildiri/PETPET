@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers.Api;
 
@@ -99,7 +100,9 @@ public sealed class MobileLostPetsApiController : ControllerBase
 
     [HttpPost]
     [Authorize]
+    [RequestSizeLimit(12 * 1024 * 1024)]
     [EnableRateLimiting("mobile-content")]
+    [SensitiveRateLimit("Expensive")]
     public async Task<ActionResult<MobileLostPetDetail>> CreateListing(
         MobileCreateLostPetRequest request,
         CancellationToken cancellationToken)
@@ -139,8 +142,7 @@ public sealed class MobileLostPetsApiController : ControllerBase
         };
         _context.LostPetListings.Add(listing);
         user.ExperiencePoints += 15;
-        try { await _context.SaveChangesAsync(cancellationToken); }
-        catch { _mediaStorage.DiscardPending(listing.ImagePath); DeleteUploadedImage(listing.ImagePath); throw; }
+        await _context.SaveChangesAsync(cancellationToken);
 
         listing.User = user;
         return CreatedAtAction(nameof(GetListing), new { id = listing.Id }, ToDetail(listing, true));
@@ -149,6 +151,7 @@ public sealed class MobileLostPetsApiController : ControllerBase
     [HttpPost("{id:int}/sightings")]
     [Authorize]
     [EnableRateLimiting("mobile-content")]
+    [SensitiveRateLimit("Expensive")]
     public async Task<ActionResult<MobileLostPetSightingResponse>> AddSighting(
         int id,
         MobileCreateLostPetSightingRequest request,
@@ -218,7 +221,6 @@ public sealed class MobileLostPetsApiController : ControllerBase
         listing.IsDeleted = true;
         await _mediaStorage.StageDeleteAsync(listing.ImagePath, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
-        DeleteUploadedImage(listing.ImagePath);
         return NoContent();
     }
 
@@ -250,7 +252,7 @@ public sealed class MobileLostPetsApiController : ControllerBase
         if (extension is null) return (null, "Yalnızca JPG, PNG veya WebP fotoğrafları yükleyebilirsin.");
         if (!HasValidImageSignature(bytes, extension)) return (null, "Seçilen dosya geçerli bir fotoğraf değil.");
         var normalizedContentType = contentType!.ToLowerInvariant();
-        return (_mediaStorage.StageUpload("lost-pets", extension, normalizedContentType, bytes), null);
+        return (_mediaStorage.StageUpload("lost-pets", normalizedContentType, bytes), null);
     }
 
     private static bool HasValidImageSignature(byte[] bytes, string extension) => extension switch
@@ -260,15 +262,6 @@ public sealed class MobileLostPetsApiController : ControllerBase
         ".webp" => bytes.Length >= 12 && bytes[..4].SequenceEqual("RIFF"u8.ToArray()) && bytes[8..12].SequenceEqual("WEBP"u8.ToArray()),
         _ => false
     };
-
-    private void DeleteUploadedImage(string? imagePath)
-    {
-        if (string.IsNullOrWhiteSpace(imagePath)) return;
-        var root = Path.GetFullPath(Path.Combine(_environment.WebRootPath, "uploads", "lost-pets"));
-        var fullPath = Path.GetFullPath(Path.Combine(_environment.WebRootPath, imagePath));
-        if (fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(fullPath))
-            System.IO.File.Delete(fullPath);
-    }
 
     private bool TryGetUserId(out int userId)
     {

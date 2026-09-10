@@ -9,7 +9,7 @@
         <div class="col-md-4 mb-4">
             <div class="card">
                 <div class="card-body text-center">
-                    <img src="~/@Model.ProfileImage" alt="@Model.Username" class="rounded-circle img-fluid mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                    <img src="@PetWork.Services.MediaUrlResolver.Resolve(Url, Model.ProfileImage, "img/user-profile.jpg")" alt="@Model.Username" class="rounded-circle img-fluid mb-3" style="width: 150px; height: 150px; object-fit: cover;">
                     <h3 class="mb-1">@Model.Username</h3>
                     <p class="text-muted">@Model.Email</p>
                     
@@ -116,7 +116,7 @@
                                     <div class="card h-100">
                                         <div class="row g-0">
                                             <div class="col-4">
-                                                <img src="~/@pet.ProfileImage" class="img-fluid rounded-start h-100" style="object-fit: cover;" alt="@pet.Name">
+                                                <img src="@PetWork.Services.MediaUrlResolver.Resolve(Url, pet.ProfileImage, "img/pet-default.jpg")" class="img-fluid rounded-start h-100" style="object-fit: cover;" alt="@pet.Name">
                                             </div>
                                             <div class="col-8">
                                                 <div class="card-body">
@@ -234,4 +234,4 @@
         width: 2px;
         background-color: #dee2e6;
     }
-</style> 
+</style>

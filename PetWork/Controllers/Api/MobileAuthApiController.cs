@@ -13,12 +13,12 @@ using Microsoft.IdentityModel.Tokens;
 using PetWork.Data;
 using PetWork.Models;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers.Api;
 
 [ApiController]
 [Route("api/mobile/auth")]
-[EnableRateLimiting("mobile-auth")]
 public sealed class MobileAuthApiController : ControllerBase
 {
     private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(15);
@@ -32,6 +32,8 @@ public sealed class MobileAuthApiController : ControllerBase
     private readonly IPasswordResetEmailSender _passwordResetSender;
     private readonly EmailVerificationService _emailVerificationService;
     private readonly IWebHostEnvironment _environment;
+    private readonly SecureMediaStorageService _mediaStorage;
+    private readonly DailyCostQuotaService _dailyCostQuota;
 
     public MobileAuthApiController(
         PetWorkDbContext context,
@@ -39,7 +41,9 @@ public sealed class MobileAuthApiController : ControllerBase
         ILogger<MobileAuthApiController> logger,
         IPasswordResetEmailSender passwordResetSender,
         EmailVerificationService emailVerificationService,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        SecureMediaStorageService mediaStorage,
+        DailyCostQuotaService dailyCostQuota)
     {
         _context = context;
         _configuration = configuration;
@@ -47,9 +51,12 @@ public sealed class MobileAuthApiController : ControllerBase
         _passwordResetSender = passwordResetSender;
         _emailVerificationService = emailVerificationService;
         _environment = environment;
+        _mediaStorage = mediaStorage;
+        _dailyCostQuota = dailyCostQuota;
     }
 
     [HttpPost("register")]
+    [SensitiveRateLimit("CodeSend", nameof(MobileRegisterRequest.Email))]
     public async Task<ActionResult<object>> Register(MobileRegisterRequest request, CancellationToken cancellationToken)
     {
         var username = request.Username.Trim();
@@ -61,6 +68,9 @@ public sealed class MobileAuthApiController : ControllerBase
             .AnyAsync(user => user.Username == username || user.Email == email, cancellationToken);
         if (exists)
             return Conflict(new MobileAuthError("Bu e-posta veya kullanıcı adı zaten kayıtlı."));
+
+        var quotaRejection = await EnforceEmailQuotaAsync($"email:{email}", cancellationToken);
+        if (quotaRejection is not null) return quotaRejection;
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         var user = new User
@@ -93,11 +103,14 @@ public sealed class MobileAuthApiController : ControllerBase
         {
             _context.Users.Remove(user);
             await _context.SaveChangesAsync(CancellationToken.None);
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new MobileAuthError(exception.Message));
+            return OperationalFailure(exception, StatusCodes.Status503ServiceUnavailable,
+                "Üyelik doğrulama e-postası gönderimi",
+                "Doğrulama e-postası gönderilemedi. Lütfen daha sonra tekrar deneyin.");
         }
     }
 
     [HttpPost("login")]
+    [SensitiveRateLimit("Login", nameof(MobileLoginRequest.EmailOrUsername))]
     public async Task<ActionResult<MobileAuthResponse>> Login(MobileLoginRequest request, CancellationToken cancellationToken)
     {
         try
@@ -106,18 +119,23 @@ public sealed class MobileAuthApiController : ControllerBase
             var user = await _context.Users.FirstOrDefaultAsync(
                 candidate => candidate.Email.ToLower() == identifier || candidate.Username.ToLower() == identifier,
                 cancellationToken);
-            if (user is null) return InvalidCredentials();
-
             var hasher = new PasswordHasher<User>();
-            var verification = hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
-            if (verification == PasswordVerificationResult.Failed) return InvalidCredentials();
+            var verification = PasswordAuthentication.Verify(hasher, user, request.Password);
+            if (user is null || verification == PasswordVerificationResult.Failed) return InvalidCredentials();
             if (verification == PasswordVerificationResult.SuccessRehashNeeded)
                 user.PasswordHash = hasher.HashPassword(user, request.Password);
 
             if (!user.IsEmailVerified)
             {
+                var quotaRejection = await EnforceEmailQuotaAsync($"email:{user.Email}", cancellationToken);
+                if (quotaRejection is not null) return quotaRejection;
                 try { return Ok(await CreateEmailChallengeAsync(user, request.RememberMe, cancellationToken)); }
-                catch (EmailDeliveryException exception) { return StatusCode(StatusCodes.Status503ServiceUnavailable, new MobileAuthError(exception.Message)); }
+                catch (EmailDeliveryException exception)
+                {
+                    return OperationalFailure(exception, StatusCodes.Status503ServiceUnavailable,
+                        "Giriş doğrulama e-postası gönderimi",
+                        "Doğrulama e-postası gönderilemedi. Lütfen daha sonra tekrar deneyin.");
+                }
             }
 
             var response = await CreateSessionAsync(user, request.RememberMe, "Tekrar hoş geldin.", cancellationToken);
@@ -130,20 +148,14 @@ public sealed class MobileAuthApiController : ControllerBase
         }
         catch (Exception exception)
         {
-            var rootCause = exception.GetBaseException();
-            _logger.LogError(exception,
-                "Mobil giriş sırasında beklenmeyen hata. ExceptionType: {ExceptionType}",
-                rootCause.GetType().FullName);
-
-            var message = _environment.IsDevelopment()
-                ? $"Giriş sunucu hatası ({rootCause.GetType().Name}): {rootCause.Message}"
-                : "Giriş sırasında sunucu hatası oluştu.";
-            return StatusCode(StatusCodes.Status500InternalServerError, new MobileAuthError(message));
+            return OperationalFailure(exception, StatusCodes.Status500InternalServerError,
+                "Mobil giriş", "Giriş sırasında beklenmeyen bir sunucu hatası oluştu. Lütfen tekrar deneyin.");
         }
     }
 
     [HttpPost("verify-email")]
     [AllowAnonymous]
+    [SensitiveRateLimit("CodeVerify", nameof(MobileVerifyEmailRequest.ChallengeToken))]
     public async Task<ActionResult<MobileAuthResponse>> VerifyEmail(MobileVerifyEmailRequest request, CancellationToken cancellationToken)
     {
         var verification = _emailVerificationService.Verify(request.ChallengeToken, request.Code);
@@ -158,14 +170,22 @@ public sealed class MobileAuthApiController : ControllerBase
 
     [HttpPost("resend-email-code")]
     [AllowAnonymous]
+    [SensitiveRateLimit("CodeSend", nameof(MobileResendEmailCodeRequest.ChallengeToken))]
     public async Task<ActionResult<MobileEmailChallengeResponse>> ResendEmailCode(MobileResendEmailCodeRequest request, CancellationToken cancellationToken)
     {
         if (!_emailVerificationService.TryConsumeContext(request.ChallengeToken, out var userId, out var rememberMe))
             return Unauthorized(new MobileAuthError("Doğrulama isteğinin süresi doldu. Yeniden giriş yap."));
         var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(candidate => candidate.Id == userId && !candidate.IsEmailVerified, cancellationToken);
         if (user is null) return Unauthorized(new MobileAuthError("Kullanıcı hesabı bulunamadı."));
+        var quotaRejection = await EnforceEmailQuotaAsync($"email:{user.Email}", cancellationToken);
+        if (quotaRejection is not null) return quotaRejection;
         try { return Ok(await CreateEmailChallengeAsync(user, rememberMe, cancellationToken)); }
-        catch (EmailDeliveryException exception) { return StatusCode(StatusCodes.Status503ServiceUnavailable, new MobileAuthError(exception.Message)); }
+        catch (EmailDeliveryException exception)
+        {
+            return OperationalFailure(exception, StatusCodes.Status503ServiceUnavailable,
+                "Doğrulama e-postasının yeniden gönderimi",
+                "Doğrulama e-postası gönderilemedi. Lütfen daha sonra tekrar deneyin.");
+        }
     }
 
     [HttpGet("me")]
@@ -183,6 +203,7 @@ public sealed class MobileAuthApiController : ControllerBase
 
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [SensitiveRateLimit("PasswordReset", nameof(MobileRefreshRequest.RefreshToken))]
     public async Task<ActionResult<MobileAuthResponse>> Refresh(MobileRefreshRequest request, CancellationToken cancellationToken)
     {
         var hash = HashToken(request.RefreshToken);
@@ -205,6 +226,7 @@ public sealed class MobileAuthApiController : ControllerBase
 
     [HttpPost("change-password")]
     [Authorize]
+    [SensitiveRateLimit("Login")]
     public async Task<ActionResult<MobileAuthResponse>> ChangePassword(MobileChangePasswordRequest request, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
@@ -231,10 +253,13 @@ public sealed class MobileAuthApiController : ControllerBase
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]
+    [SensitiveRateLimit("CodeSend", nameof(MobileForgotPasswordRequest.Email))]
     public async Task<IActionResult> ForgotPassword(MobileForgotPasswordRequest request, CancellationToken cancellationToken)
     {
         const string genericMessage = "Bu e-posta ile bir hesap varsa şifre yenileme bağlantısı gönderildi.";
         var email = request.Email.Trim().ToLowerInvariant();
+        var quotaRejection = await EnforceEmailQuotaAsync($"email:{email}", cancellationToken);
+        if (quotaRejection is not null) return quotaRejection;
         var user = await _context.Users.FirstOrDefaultAsync(candidate => candidate.Email.ToLower() == email, cancellationToken);
         if (user is null) return Ok(new MobileAuthError(genericMessage));
 
@@ -266,6 +291,7 @@ public sealed class MobileAuthApiController : ControllerBase
 
     [HttpPost("reset-password")]
     [AllowAnonymous]
+    [SensitiveRateLimit("PasswordReset", nameof(MobileResetPasswordRequest.Token))]
     public async Task<IActionResult> ResetPassword(MobileResetPasswordRequest request, CancellationToken cancellationToken)
     {
         var hash = HashToken(request.Token);
@@ -304,6 +330,7 @@ public sealed class MobileAuthApiController : ControllerBase
 
     [HttpDelete("account")]
     [Authorize]
+    [SensitiveRateLimit("Login")]
     public async Task<IActionResult> DeleteAccount(MobileDeleteAccountRequest request, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
@@ -328,6 +355,12 @@ public sealed class MobileAuthApiController : ControllerBase
         ownedFiles.AddRange(await _context.BlogPosts.Where(item => item.UserId == user.Id).Select(item => item.ImageUrl).ToListAsync(cancellationToken));
         ownedFiles.AddRange(await _context.SocialPosts.Where(item => item.UserId == user.Id).Select(item => item.ImagePath).ToListAsync(cancellationToken));
 
+        var ownedStorageKeys = ownedFiles
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path!)
+            .Distinct()
+            .ToList();
+
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
         // These user relationships are configured as RESTRICT and must be removed first.
@@ -336,17 +369,28 @@ public sealed class MobileAuthApiController : ControllerBase
         await _context.Answers.Where(item => item.UserId == user.Id).ExecuteDeleteAsync(cancellationToken);
         await _context.Questions.Where(item => item.UserId == user.Id).ExecuteDeleteAsync(cancellationToken);
         await _context.Recipes.Where(item => item.UserId == user.Id).ExecuteDeleteAsync(cancellationToken);
+        await _context.MobileMediaAssets.Where(asset => ownedStorageKeys.Contains(asset.StorageKey))
+            .ExecuteDeleteAsync(cancellationToken);
 
         _context.Users.Remove(user);
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        DeleteOwnedFiles(ownedFiles);
         _logger.LogInformation("Mobil hesap silindi. UserId: {UserId}", user.Id);
         return NoContent();
     }
 
     private UnauthorizedObjectResult InvalidCredentials() =>
         Unauthorized(new MobileAuthError("E-posta/kullanıcı adı veya şifre hatalı."));
+
+    private ObjectResult OperationalFailure(Exception exception, int statusCode, string operation, string userMessage)
+    {
+        var referenceCode = ErrorReferenceCode.Create(HttpContext);
+        _logger.LogError(exception,
+            "{Operation} başarısız. ReferenceCode: {ReferenceCode}, TraceIdentifier: {TraceIdentifier}",
+            operation, referenceCode, HttpContext.TraceIdentifier);
+        return StatusCode(statusCode, new MobileAuthError(
+            ErrorReferenceCode.UserMessage(userMessage, referenceCode), referenceCode));
+    }
 
     private int? GetUserId()
     {
@@ -381,6 +425,20 @@ public sealed class MobileAuthApiController : ControllerBase
         var challenge = await _emailVerificationService.CreateAsync(user.Id, user.Email, user.Username, rememberMe, cancellationToken);
         return new(true, challenge.ChallengeToken, challenge.ExpiresAt, challenge.MaskedEmail,
             $"{challenge.MaskedEmail} adresine 6 haneli doğrulama kodu gönderdik.");
+    }
+
+    private async Task<ObjectResult?> EnforceEmailQuotaAsync(string subject, CancellationToken cancellationToken)
+    {
+        var decision = await _dailyCostQuota.TryConsumeAsync("TransactionalEmail", subject, cancellationToken);
+        if (decision.Allowed)
+        {
+            Response.Headers["X-Daily-Quota-Remaining"] = decision.Remaining.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return null;
+        }
+
+        var seconds = Math.Max(1, (int)Math.Ceiling(decision.RetryAfter.TotalSeconds));
+        Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return DailyCostQuotaAttribute.CreateRejectedResult(seconds);
     }
 
     private MobileAuthResponse CreateResponse(User user, MobileAuthSession session, string refreshToken, string message) =>
@@ -418,21 +476,6 @@ public sealed class MobileAuthApiController : ControllerBase
     private static string HashToken(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
 
-    private void DeleteOwnedFiles(IEnumerable<string?> paths)
-    {
-        var roots = new[] { Path.Combine(_environment.WebRootPath, "img", "profiles"), Path.Combine(_environment.WebRootPath, "img", "recipes"), Path.Combine(_environment.WebRootPath, "uploads", "social") }
-            .Select(Path.GetFullPath).ToArray();
-        foreach (var path in paths.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            try
-            {
-                var fullPath = Path.GetFullPath(Path.Combine(_environment.WebRootPath, path!));
-                if (roots.Any(root => fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) && System.IO.File.Exists(fullPath))
-                    System.IO.File.Delete(fullPath);
-            }
-            catch (Exception exception) { _logger.LogWarning(exception, "Silinen hesaba ait dosya temizlenemedi."); }
-        }
-    }
 }
 
 public sealed class MobileRegisterRequest
@@ -523,4 +566,4 @@ public sealed record MobileAuthResponse(
     DateTime RefreshExpiresAt,
     string Message);
 public sealed record MobileMeResponse(int UserId, string Username, string Email);
-public sealed record MobileAuthError(string Message);
+public sealed record MobileAuthError(string Message, string? ReferenceCode = null);

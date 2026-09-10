@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers.Api;
 
@@ -21,14 +22,17 @@ public sealed class MobileAdoptionApiController : ControllerBase
     private readonly IWebHostEnvironment _environment;
     private readonly MobilePushNotificationService _pushNotifications;
     private readonly MobileMediaStorageService _mediaStorage;
+    private readonly ResourceAuthorizationService _resourceAuthorization;
 
     public MobileAdoptionApiController(PetWorkDbContext context, IWebHostEnvironment environment,
-        MobilePushNotificationService pushNotifications, MobileMediaStorageService mediaStorage)
+        MobilePushNotificationService pushNotifications, MobileMediaStorageService mediaStorage,
+        ResourceAuthorizationService resourceAuthorization)
     {
         _context = context;
         _environment = environment;
         _pushNotifications = pushNotifications;
         _mediaStorage = mediaStorage;
+        _resourceAuthorization = resourceAuthorization;
     }
 
     [HttpGet("listings")]
@@ -49,7 +53,9 @@ public sealed class MobileAdoptionApiController : ControllerBase
 
     [HttpPost("listings")]
     [Authorize]
+    [RequestSizeLimit(12 * 1024 * 1024)]
     [EnableRateLimiting("mobile-content")]
+    [SensitiveRateLimit("Expensive")]
     public async Task<ActionResult<MobileAdoptionListingResponse>> CreateListing(MobileCreateAdoptionListingRequest request, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized(new { message = "Oturum bilgisi doğrulanamadı." });
@@ -66,8 +72,7 @@ public sealed class MobileAdoptionApiController : ControllerBase
             ImagePath = image.Path!, Status = "active", CreatedAt = DateTime.Now
         };
         _context.AdoptionListings.Add(listing);
-        try { await _context.SaveChangesAsync(cancellationToken); }
-        catch { _mediaStorage.DiscardPending(listing.ImagePath); DeleteUploadedImage(listing.ImagePath); throw; }
+        await _context.SaveChangesAsync(cancellationToken);
         listing.User = await _context.Users.AsNoTracking().FirstAsync(user => user.Id == userId, cancellationToken);
         return CreatedAtAction(nameof(GetListings), new { id = listing.Id }, ToResponse(listing, userId));
     }
@@ -75,6 +80,7 @@ public sealed class MobileAdoptionApiController : ControllerBase
     [HttpPost("listings/{id:int}/applications")]
     [Authorize]
     [EnableRateLimiting("mobile-content")]
+    [SensitiveRateLimit("Expensive")]
     public async Task<ActionResult<MobileAdoptionApplicationResponse>> Apply(int id, MobileCreateAdoptionApplicationRequest request, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
@@ -110,10 +116,11 @@ public sealed class MobileAdoptionApiController : ControllerBase
     [Authorize]
     public async Task<ActionResult<IReadOnlyList<MobileAdoptionApplicationResponse>>> GetApplications(int id, CancellationToken cancellationToken)
     {
-        if (!TryGetUserId(out var userId)) return Unauthorized();
         var listing = await _context.AdoptionListings.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id && !item.IsDeleted, cancellationToken);
         if (listing is null) return NotFound(new { message = "İlan bulunamadı." });
-        if (listing.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+        var access = await _resourceAuthorization.AuthorizeAsync(User, listing.UserId, ResourceAccessRequirement.OwnerOrAdmin, cancellationToken);
+        if (access.Status == ResourceAuthorizationStatus.Unauthenticated) return Unauthorized();
+        if (!access.IsAllowed) return Forbid();
         var applications = await _context.AdoptionApplications.AsNoTracking().Include(item => item.User)
             .Where(item => item.AdoptionListingId == id).OrderByDescending(item => item.CreatedAt)
             .Select(item => new MobileAdoptionApplicationResponse(item.Id, item.User.Username, item.Message, item.Status, item.CreatedAt))
@@ -123,15 +130,17 @@ public sealed class MobileAdoptionApiController : ControllerBase
 
     [HttpPut("applications/{applicationId:int}/status")]
     [Authorize]
+    [SensitiveRateLimit("Expensive")]
     public async Task<IActionResult> UpdateApplication(int applicationId, MobileUpdateAdoptionApplicationRequest request, CancellationToken cancellationToken)
     {
-        if (!TryGetUserId(out var userId)) return Unauthorized();
         var status = request.Status.Trim().ToLowerInvariant();
         if (!ApplicationStatuses.Contains(status) || status == "pending") return BadRequest(new { message = "Başvuru durumu accepted veya rejected olmalıdır." });
         var application = await _context.AdoptionApplications.Include(item => item.AdoptionListing)
             .FirstOrDefaultAsync(item => item.Id == applicationId, cancellationToken);
         if (application is null) return NotFound(new { message = "Başvuru bulunamadı." });
-        if (application.AdoptionListing.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+        var access = await _resourceAuthorization.AuthorizeAsync(User, application.AdoptionListing.UserId, ResourceAccessRequirement.OwnerOrAdmin, cancellationToken);
+        if (access.Status == ResourceAuthorizationStatus.Unauthenticated) return Unauthorized();
+        if (!access.IsAllowed) return Forbid();
         if (application.AdoptionListing.Status != "active" && application.Status != status)
             return Conflict(new { message = "Bu sahiplendirme ilanı artık aktif değil." });
         var changed = application.Status != status;
@@ -187,12 +196,13 @@ public sealed class MobileAdoptionApiController : ControllerBase
     [Authorize]
     public async Task<IActionResult> UpdateListingStatus(int id, MobileUpdateAdoptionListingRequest request, CancellationToken cancellationToken)
     {
-        if (!TryGetUserId(out var userId)) return Unauthorized();
         var status = request.Status.Trim().ToLowerInvariant();
         if (!ListingStatuses.Contains(status)) return BadRequest(new { message = "İlan durumu geçersiz." });
         var listing = await _context.AdoptionListings.FirstOrDefaultAsync(item => item.Id == id && !item.IsDeleted, cancellationToken);
         if (listing is null) return NotFound(new { message = "İlan bulunamadı." });
-        if (listing.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+        var access = await _resourceAuthorization.AuthorizeAsync(User, listing.UserId, ResourceAccessRequirement.OwnerOrAdmin, cancellationToken);
+        if (access.Status == ResourceAuthorizationStatus.Unauthenticated) return Unauthorized();
+        if (!access.IsAllowed) return Forbid();
         listing.Status = status;
         await _context.SaveChangesAsync(cancellationToken);
         return Ok(new { status });
@@ -203,9 +213,15 @@ public sealed class MobileAdoptionApiController : ControllerBase
     [EnableRateLimiting("mobile-content")]
     public async Task<IActionResult> Report(int id, MobileReportRequest request, CancellationToken cancellationToken)
     {
-        if (!TryGetUserId(out var userId)) return Unauthorized();
-        if (!await _context.AdoptionListings.AnyAsync(item => item.Id == id && !item.IsDeleted, cancellationToken))
-            return NotFound(new { message = "İlan bulunamadı." });
+        var listing = await _context.AdoptionListings.AsNoTracking()
+            .Where(item => item.Id == id && !item.IsDeleted)
+            .Select(item => new { item.UserId })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (listing is null) return NotFound(new { message = "İlan bulunamadı." });
+        var access = await _resourceAuthorization.AuthorizeAsync(User, listing.UserId, ResourceAccessRequirement.NonOwner, cancellationToken);
+        if (access.Status == ResourceAuthorizationStatus.Unauthenticated) return Unauthorized();
+        if (!access.IsAllowed) return Forbid();
+        var userId = access.UserId!.Value;
         if (await _context.AdoptionListingReports.AnyAsync(item => item.AdoptionListingId == id && item.UserId == userId, cancellationToken))
             return Conflict(new { message = "Bu ilanı daha önce bildirdin." });
         _context.AdoptionListingReports.Add(new AdoptionListingReport { AdoptionListingId = id, UserId = userId, Reason = request.Reason.Trim(), CreatedAt = DateTime.Now });
@@ -233,14 +249,7 @@ public sealed class MobileAdoptionApiController : ControllerBase
         if (bytes.Length is <= 0 or > 8 * 1024 * 1024) return (null, "Fotoğraf en fazla 8 MB olabilir.");
         var extension = ImageExtension(contentType);
         if (extension is null || !ValidImage(bytes, extension)) return (null, "Yalnızca geçerli JPG, PNG veya WebP fotoğrafları yükleyebilirsin.");
-        return (_mediaStorage.StageUpload("adoption", extension, contentType!.ToLowerInvariant(), bytes), null);
-    }
-
-    private void DeleteUploadedImage(string path)
-    {
-        var root = Path.GetFullPath(Path.Combine(_environment.WebRootPath, "uploads", "adoption"));
-        var fullPath = Path.GetFullPath(Path.Combine(_environment.WebRootPath, path));
-        if (fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
+        return (_mediaStorage.StageUpload("adoption", contentType!.ToLowerInvariant(), bytes), null);
     }
 
     private bool TryGetUserId(out int userId) => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub), out userId);

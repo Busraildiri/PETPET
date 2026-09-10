@@ -343,6 +343,30 @@ namespace PetWork.Migrations.PostgreSql
                     b.ToTable("ContentImportAudits", "petwork");
                 });
 
+            modelBuilder.Entity("PetWork.Models.DailyCostUsage", b =>
+                {
+                    b.Property<string>("Category")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SubjectHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("UsageDateUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Category", "SubjectHash", "UsageDateUtc");
+
+                    b.ToTable("DailyCostUsages", "petwork");
+                });
+
             modelBuilder.Entity("PetWork.Models.Disease", b =>
                 {
                     b.Property<int>("Id")
@@ -1283,6 +1307,30 @@ namespace PetWork.Migrations.PostgreSql
                     b.HasIndex("UserId");
 
                     b.ToTable("Questions", "petwork");
+                });
+
+            modelBuilder.Entity("PetWork.Models.RateLimitUsage", b =>
+                {
+                    b.Property<string>("Policy")
+                        .HasMaxLength(96)
+                        .HasColumnType("character varying(96)");
+
+                    b.Property<string>("SubjectHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("WindowStartedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Policy", "SubjectHash");
+
+                    b.ToTable("RateLimitUsages", "petwork");
                 });
 
             modelBuilder.Entity("PetWork.Models.Recipe", b =>

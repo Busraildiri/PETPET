@@ -1,6 +1,11 @@
 @model PetWork.Models.ViewModels.ExternalContentEditViewModel
 @using PetWork.Models
-@{ ViewData["Title"] = "Dış içerik incelemesi"; var s = Model.Source; }
+@{
+    ViewData["Title"] = "Dış içerik incelemesi";
+    var s = Model.Source;
+    var hasSourceUrl = PetWork.Services.MediaUrlResolver.TryResolveExternalHttpUrl(s.SourceUrl, out var sourceUrl);
+    var hasLicenseUrl = PetWork.Services.MediaUrlResolver.TryResolveExternalHttpUrl(s.LicenseUrl, out var licenseUrl);
+}
 
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-start mb-3"><div><h1>@s.SourceTitle</h1><div class="d-flex gap-2">
@@ -12,9 +17,9 @@
 
     <div class="card mb-4"><div class="card-body"><div class="row g-3">
         <div class="col-md-4"><strong>Yazar</strong><div>@(s.SourceAuthorName ?? "Belirtilmemiş")</div></div>
-        <div class="col-md-4"><strong>Lisans</strong><div><a href="@s.LicenseUrl" target="_blank" rel="noopener noreferrer">@s.LicenseCode</a></div></div>
+        <div class="col-md-4"><strong>Lisans</strong><div>@if (hasLicenseUrl) { <a href="@licenseUrl" target="_blank" rel="noopener noreferrer">@s.LicenseCode</a> } else { @s.LicenseCode }</div></div>
         <div class="col-md-4"><strong>Son kontrol</strong><div>@s.LastCheckedAt.ToString("dd.MM.yyyy HH:mm")</div></div>
-        <div class="col-12"><strong>Zorunlu atıf</strong><div>@s.AttributionText</div><a href="@s.SourceUrl" target="_blank" rel="noopener noreferrer">Kaynak sayfayı aç</a></div>
+        <div class="col-12"><strong>Zorunlu atıf</strong><div>@s.AttributionText</div>@if (hasSourceUrl) { <a href="@sourceUrl" target="_blank" rel="noopener noreferrer">Kaynak sayfayı aç</a> }</div>
     </div></div></div>
 
     <form asp-action="Edit" asp-route-id="@Model.Id" method="post"><input asp-for="Id" type="hidden" />@Html.AntiForgeryToken()

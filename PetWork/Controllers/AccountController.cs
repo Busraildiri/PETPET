@@ -8,6 +8,7 @@ using PetWork.Services;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
+using PetWork.Security;
 
 namespace PetWork.Controllers
 {
@@ -16,12 +17,15 @@ namespace PetWork.Controllers
         private readonly PetWorkDbContext _context;
         private readonly ExperienceService _experienceService;
         private readonly ILogger<AccountController> _logger;
+        private readonly SecureMediaStorageService _mediaStorage;
 
-        public AccountController(PetWorkDbContext context, ExperienceService experienceService, ILogger<AccountController> logger)
+        public AccountController(PetWorkDbContext context, ExperienceService experienceService, ILogger<AccountController> logger,
+            SecureMediaStorageService mediaStorage)
         {
             _context = context;
             _experienceService = experienceService;
             _logger = logger;
+            _mediaStorage = mediaStorage;
         }
 
         public IActionResult Login(string returnUrl = null)
@@ -31,9 +35,11 @@ namespace PetWork.Controllers
         }
         
         [HttpPost]
+        [SensitiveRateLimit("Login", nameof(LoginViewModel.UsernameOrEmail))]
         public async Task<IActionResult> Login(LoginViewModel model, string returnUrl = null)
         {
-            _logger.LogInformation("Login girişimi: {0}", model.UsernameOrEmail);
+            var maskedIdentifier = SensitiveDataMasker.Mask(model.UsernameOrEmail);
+            _logger.LogInformation("Login girişimi: {Identifier}", maskedIdentifier);
             
             try
             {
@@ -44,20 +50,13 @@ namespace PetWork.Controllers
                         var user = _context.Users
                             .FirstOrDefault(u => u.Email == model.UsernameOrEmail || u.Username == model.UsernameOrEmail);
 
-                        if (user == null)
-                        {
-                            _logger.LogWarning("Kullanıcı bulunamadı: {0}", model.UsernameOrEmail);
-                            ModelState.AddModelError("", "Kullanıcı bulunamadı.");
-                            return View(model);
-                        }
-
                         var hasher = new PasswordHasher<User>();
-                        var result = hasher.VerifyHashedPassword(user, user.PasswordHash, model.Password);
+                        var result = PasswordAuthentication.Verify(hasher, user, model.Password);
 
-                        if (result == PasswordVerificationResult.Failed)
+                        if (user is null || result == PasswordVerificationResult.Failed)
                         {
-                            _logger.LogWarning("Geçersiz şifre: {0}", model.UsernameOrEmail);
-                            ModelState.AddModelError("", "Şifre yanlış.");
+                            _logger.LogWarning("Geçersiz giriş denemesi: {Identifier}", maskedIdentifier);
+                            ModelState.AddModelError("", "Kullanıcı adı/e-posta veya şifre hatalı.");
                             return View(model);
                         }
 
@@ -74,7 +73,7 @@ namespace PetWork.Controllers
                             return View(model);
                         }
                         
-                        _logger.LogInformation("Kullanıcı başarıyla giriş yaptı: {0}, ID: {1}", user.Username, user.Id);
+                        _logger.LogInformation("Kullanıcı başarıyla giriş yaptı. UserId: {UserId}", user.Id);
                         
                         // Günlük giriş yapmak için deneyim puanı ekle
                         await _experienceService.AddExperienceAsync(user.Id, ExperienceService.ExperiencePoints.DailyLogin, "Günlük giriş yaptı");
@@ -91,10 +90,12 @@ namespace PetWork.Controllers
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Giriş işlemi sırasında hata: {0}", model.UsernameOrEmail);
-                        ModelState.AddModelError("", "Giriş sırasında bir hata oluştu: " + ex.Message);
-                        // Debug için hatayı daha detaylı göster
-                        ViewBag.Error = ex.ToString();
+                        var referenceCode = ErrorReferenceCode.Create(HttpContext);
+                        _logger.LogError(ex,
+                            "Giriş işlemi başarısız. ReferenceCode: {ReferenceCode}, Identifier: {Identifier}",
+                            referenceCode, maskedIdentifier);
+                        ModelState.AddModelError("", ErrorReferenceCode.UserMessage(
+                            "Giriş sırasında beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.", referenceCode));
                     }
                 }
                 else
@@ -111,9 +112,12 @@ namespace PetWork.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Beklenmeyen hata: {0}", model.UsernameOrEmail);
-                ModelState.AddModelError("", "Beklenmeyen bir hata oluştu: " + ex.Message);
-                ViewBag.Error = ex.ToString();
+                var referenceCode = ErrorReferenceCode.Create(HttpContext);
+                _logger.LogError(ex,
+                    "Beklenmeyen giriş hatası. ReferenceCode: {ReferenceCode}, Identifier: {Identifier}",
+                    referenceCode, maskedIdentifier);
+                ModelState.AddModelError("", ErrorReferenceCode.UserMessage(
+                    "Giriş sırasında beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.", referenceCode));
             }
             
             ViewBag.ReturnUrl = returnUrl;
@@ -126,6 +130,7 @@ namespace PetWork.Controllers
         }
         
         [HttpPost]
+        [SensitiveRateLimit("Registration", nameof(RegisterViewModel.Email))]
         public async Task<IActionResult> Register(RegisterViewModel model)
         {
             // Kullanım koşullarını kabul etme kontrolü
@@ -204,6 +209,8 @@ namespace PetWork.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [RequestSizeLimit(3 * 1024 * 1024)]
+        [SensitiveRateLimit("Expensive")]
         public async Task<IActionResult> EditProfile(EditProfileViewModel model)
         {
             var userId = HttpContext.Session.GetInt32("UserId");
@@ -224,16 +231,19 @@ namespace PetWork.Controllers
                     ModelState.AddModelError(nameof(model.CurrentPassword), "Mevcut şifreniz doğru değil.");
             }
 
-            if (model.ProfileImage is { Length: > 0 })
-            {
-                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
-                var extension = Path.GetExtension(model.ProfileImage.FileName).ToLowerInvariant();
-                if (model.ProfileImage.Length > 2 * 1024 * 1024 || !allowedExtensions.Contains(extension))
-                    ModelState.AddModelError(nameof(model.ProfileImage), "En fazla 2 MB boyutunda JPG, PNG veya WebP görsel yükleyebilirsiniz.");
-            }
-
             if (!ModelState.IsValid)
                 return View(model);
+
+            StoredMedia? uploadedProfile = null;
+            if (model.ProfileImage is { Length: > 0 })
+            {
+                try { uploadedProfile = await _mediaStorage.StoreAsync(model.ProfileImage, "profiles", 2 * 1024 * 1024); }
+                catch (MediaValidationException exception)
+                {
+                    ModelState.AddModelError(nameof(model.ProfileImage), exception.Message);
+                    return View(model);
+                }
+            }
 
             var completedProfileNow = string.IsNullOrWhiteSpace(user.Bio) && !string.IsNullOrWhiteSpace(model.Bio);
             user.Username = model.Username.Trim();
@@ -243,15 +253,11 @@ namespace PetWork.Controllers
             if (!string.IsNullOrWhiteSpace(model.NewPassword))
                 user.PasswordHash = hasher.HashPassword(user, model.NewPassword);
 
-            if (model.ProfileImage is { Length: > 0 })
+            var previousProfile = user.ProfileImage;
+            if (uploadedProfile is not null)
             {
-                var extension = Path.GetExtension(model.ProfileImage.FileName).ToLowerInvariant();
-                var fileName = $"{Guid.NewGuid():N}{extension}";
-                var profileDirectory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "img", "profiles");
-                Directory.CreateDirectory(profileDirectory);
-                await using var stream = System.IO.File.Create(Path.Combine(profileDirectory, fileName));
-                await model.ProfileImage.CopyToAsync(stream);
-                user.ProfileImage = $"img/profiles/{fileName}";
+                user.ProfileImage = uploadedProfile.StorageKey;
+                await _mediaStorage.DeleteAsync(previousProfile);
             }
 
             await _context.SaveChangesAsync();

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Validation;
 
 namespace PetWork.Controllers.Api
 {
@@ -105,15 +106,15 @@ namespace PetWork.Controllers.Api
 
         // POST: api/QuestionsApi
         [HttpPost]
-        public async Task<ActionResult<Question>> PostQuestion(Question question)
+        public async Task<ActionResult<Question>> PostQuestion(LegacyQuestionCreateRequest request)
         {
-            if (!ModelState.IsValid)
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (!userId.HasValue) return Unauthorized();
+            var question = new Question
             {
-                return BadRequest(ModelState);
-            }
-
-            question.CreatedDate = DateTime.Now;
-            question.ViewCount = 0;
+                Title = request.Title.Trim(), Content = request.Content.Trim(), Category = request.Category?.Trim(),
+                Tags = request.Tags?.Trim(), CreatedDate = DateTime.Now, ViewCount = 0, UserId = userId.Value
+            };
 
             _context.Questions.Add(question);
             await _context.SaveChangesAsync();

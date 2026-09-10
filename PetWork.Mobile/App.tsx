@@ -240,7 +240,8 @@ export default function App() {
   else if (page === 'reset') screen = <AuthScreen key={`reset-${resetToken}`} initialMode="reset" resetToken={resetToken} onBack={() => setPage('login')} onAuthenticated={authenticated} />;
   else if (page === 'account' && currentUser && authToken) screen = <AccountScreen username={currentUser} token={authToken} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} onSessionChanged={sessionChanged} onDeleted={logout} />;
   else if (page === 'pets' && authToken) screen = <PetsScreen token={authToken} onBack={() => setPage('account')} />;
-  else if (page === 'nearby') screen = <NearbyScreen category={nearbyCategory} onBack={() => setPage('root')} />;
+  else if (page === 'nearby' && authToken) screen = <NearbyScreen token={authToken} category={nearbyCategory} onBack={() => setPage('root')} />;
+  else if (page === 'nearby') screen = <AuthScreen key="nearby-login" initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
   else if (page === 'adoption') screen = <AdoptionScreen token={authToken} initialListingId={adoptionInitialListingId} onLogin={() => setPage('login')} onBack={() => { setAdoptionInitialListingId(null); setPage('root'); }} />;
   else if (page === 'reviews') screen = <ReviewsScreen token={authToken} onLogin={() => setPage('login')} onBack={() => setPage('root')} />;
   else if (page === 'content') screen = <ContentScreen kind={contentKind} onBack={() => setPage('root')} onOpenLost={openLost} />;
@@ -475,7 +476,7 @@ function ScreenShell({ title, subtitle, onBack, children }: { title: string; sub
   </ScrollView>;
 }
 
-function NearbyScreen({ category, onBack }: { category: 'veterinarian' | 'groomer' | 'hotel'; onBack: () => void }) {
+function NearbyScreen({ token, category, onBack }: { token: string; category: 'veterinarian' | 'groomer' | 'hotel'; onBack: () => void }) {
   const isGroomer = category === 'groomer';
   const isHotel = category === 'hotel';
   const placeLabel = isHotel ? 'pet oteli' : isGroomer ? 'pet kuaförü' : 'veteriner';
@@ -535,10 +536,10 @@ function NearbyScreen({ category, onBack }: { category: 'veterinarian' | 'groome
       ]);
       setLocationText(`Konum bulundu · ${placeLabelPlural} aranıyor…`);
       const results = isHotel
-        ? await getNearbyPetHotels(current.coords.latitude, current.coords.longitude)
+        ? await getNearbyPetHotels(token, current.coords.latitude, current.coords.longitude)
         : isGroomer
-          ? await getNearbyGroomers(current.coords.latitude, current.coords.longitude)
-          : await getNearbyVeterinarians(current.coords.latitude, current.coords.longitude);
+          ? await getNearbyGroomers(token, current.coords.latitude, current.coords.longitude)
+          : await getNearbyVeterinarians(token, current.coords.latitude, current.coords.longitude);
       setPlaces(results);
       setLocationText(`Konum izni açık · ${results.length} ${placeLabel} bulundu`);
     } catch (reason) {
@@ -586,10 +587,10 @@ function NearbyScreen({ category, onBack }: { category: 'veterinarian' | 'groome
     setLocationText(`${[trimmedDistrict, trimmedCity].filter(Boolean).join(', ')} için ${placeLabelPlural} aranıyor…`);
     try {
       const results = isHotel
-        ? await searchPetHotelsByArea(trimmedCity, trimmedDistrict)
+        ? await searchPetHotelsByArea(token, trimmedCity, trimmedDistrict)
         : isGroomer
-          ? await searchGroomersByArea(trimmedCity, trimmedDistrict)
-          : await searchVeterinariansByArea(trimmedCity, trimmedDistrict);
+          ? await searchGroomersByArea(token, trimmedCity, trimmedDistrict)
+          : await searchVeterinariansByArea(token, trimmedCity, trimmedDistrict);
       setPlaces(results);
       setLocationText(`Manuel konum uygulandı · ${results.length} ${placeLabel} bulundu`);
     } catch (reason) {

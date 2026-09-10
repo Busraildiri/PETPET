@@ -43,7 +43,7 @@
                     <div class="card-body">
                         @if (!string.IsNullOrEmpty(Model.Symptoms))
                         {
-                            @Html.Raw(Model.Symptoms)
+                            <div class="content-text">@Model.Symptoms</div>
                         }
                         else
                         {
@@ -59,7 +59,7 @@
                     <div class="card-body">
                         @if (!string.IsNullOrEmpty(Model.Treatment))
                         {
-                            @Html.Raw(Model.Treatment)
+                            <div class="content-text">@Model.Treatment</div>
                         }
                         else if (!string.IsNullOrEmpty(Model.Treatments))
                         {
@@ -79,7 +79,7 @@
                     <div class="card-body">
                         @if (!string.IsNullOrEmpty(Model.Prevention))
                         {
-                            @Html.Raw(Model.Prevention)
+                            <div class="content-text">@Model.Prevention</div>
                         }
                         else
                         {

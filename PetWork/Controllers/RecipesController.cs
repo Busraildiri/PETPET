@@ -6,11 +6,11 @@ using PetWork.Data;
 using PetWork.Models;
 using PetWork.Models.ViewModels;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using System.IO;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers
 {
@@ -18,16 +18,16 @@ namespace PetWork.Controllers
     {
         private readonly PetWorkDbContext _context;
         private readonly ILogger<RecipesController> _logger;
-        private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly ExperienceService _experienceService;
+        private readonly SecureMediaStorageService _mediaStorage;
 
         public RecipesController(PetWorkDbContext context, ILogger<RecipesController> logger,
-            IWebHostEnvironment webHostEnvironment, ExperienceService experienceService)
+            ExperienceService experienceService, SecureMediaStorageService mediaStorage)
         {
             _context = context;
             _logger = logger;
-            _webHostEnvironment = webHostEnvironment;
             _experienceService = experienceService;
+            _mediaStorage = mediaStorage;
         }
 
         public IActionResult Index(string? animalType = null, string? difficulty = null, string? sortOption = "En Yeni", DateTime? startDate = null, DateTime? endDate = null)
@@ -169,11 +169,15 @@ namespace PetWork.Controllers
         }
         
         [HttpPost]
+        [RequestSizeLimit(6 * 1024 * 1024)]
+        [SensitiveRateLimit("Expensive")]
         public async Task<IActionResult> Add(Recipe recipe, IFormFile ImageFile)
         {
             try
             {
-                _logger.LogInformation("Add metoduna POST isteği geldi: {0}", JsonSerializer.Serialize(recipe));
+                _logger.LogInformation(
+                    "Tarif ekleme isteği alındı. TitleLength: {TitleLength}, DescriptionLength: {DescriptionLength}, HasImage: {HasImage}",
+                    recipe.Title?.Length ?? 0, recipe.Description?.Length ?? 0, ImageFile is { Length: > 0 });
                 _logger.LogInformation("Dosya yükleme bilgisi: {0}", ImageFile != null ? "Dosya mevcut" : "Dosya yok");
                 
                 // User property için validasyon hatasını temizle
@@ -184,6 +188,7 @@ namespace PetWork.Controllers
                 
                 if (ModelState.IsValid)
                 {
+                    StoredMedia? uploadedImage = null;
                     try
                     {
                         // Session'dan kullanıcı bilgisini al
@@ -208,49 +213,15 @@ namespace PetWork.Controllers
                         // Dosya Yükleme İşlemi
                         if (ImageFile != null && ImageFile.Length > 0)
                         {
-                            // Dosya boyutu kontrolü (5MB)
-                            if (ImageFile.Length > 5 * 1024 * 1024)
-                            {
-                                ModelState.AddModelError("ImageFile", "Dosya boyutu 5MB'dan küçük olmalıdır.");
-                                return View(recipe);
-                            }
-                            
-                            // Dosya uzantısı kontrolü
-                            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif" };
-                            var fileExtension = Path.GetExtension(ImageFile.FileName).ToLowerInvariant();
-                            
-                            if (!allowedExtensions.Contains(fileExtension))
-                            {
-                                ModelState.AddModelError("ImageFile", "Yalnızca .jpg, .jpeg, .png veya .gif uzantılı dosyaları yükleyebilirsiniz.");
-                                return View(recipe);
-                            }
-                            
                             try
                             {
-                                // Yükleme klasörünü oluştur (yoksa)
-                                string uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "img", "recipes");
-                                if (!Directory.Exists(uploadsFolder))
-                                {
-                                    Directory.CreateDirectory(uploadsFolder);
-                                }
-                                
-                                // Benzersiz dosya adı oluştur
-                                string uniqueFileName = Guid.NewGuid().ToString() + "_" + ImageFile.FileName;
-                                string filePath = Path.Combine(uploadsFolder, uniqueFileName);
-                                
-                                // Dosyayı kaydet
-                                using (var fileStream = new FileStream(filePath, FileMode.Create))
-                                {
-                                    ImageFile.CopyTo(fileStream);
-                                }
-                                
-                                // Tarif modelindeki görsel yolunu güncelle
-                                recipe.ImageUrl = "/img/recipes/" + uniqueFileName;
+                                uploadedImage = await _mediaStorage.StoreAsync(ImageFile, "recipes", 5 * 1024 * 1024);
+                                recipe.ImageUrl = uploadedImage.StorageKey;
                                 recipe.FeaturedImage = recipe.ImageUrl;
                                 
                                 _logger.LogInformation("Görsel başarıyla yüklendi: {0}", recipe.ImageUrl);
                             }
-                            catch (Exception ex)
+                            catch (MediaValidationException ex)
                             {
                                 _logger.LogError(ex, "Dosya yükleme hatası");
                                 ModelState.AddModelError("ImageFile", "Dosya yüklenirken bir hata oluştu: " + ex.Message);
@@ -285,6 +256,7 @@ namespace PetWork.Controllers
                         // Başarılı mı kontrol et
                         if (result > 0)
                         {
+                            uploadedImage = null;
                             await _experienceService.AddExperienceAsync(userId.Value,
                                 ExperienceService.ExperiencePoints.CreateRecipe, "Tarif paylaştı");
                             _logger.LogInformation("Tarif başarıyla eklendi, ID: {0}", recipe.Id);
@@ -293,14 +265,18 @@ namespace PetWork.Controllers
                         }
                         else
                         {
+                            if (uploadedImage is not null) _mediaStorage.Discard(uploadedImage.StorageKey);
                             TempData["ErrorMessage"] = "Tarifiniz eklenirken bir hata oluştu. Lütfen tekrar deneyin.";
                             _logger.LogWarning("Tarif eklenemedi. SaveChanges 0 döndü.");
                         }
                     }
                     catch (Exception ex)
                     {
-                        TempData["ErrorMessage"] = "Tarif eklenirken bir hata oluştu: " + ex.Message;
-                        _logger.LogError(ex, "Tarif eklenirken hata");
+                        if (uploadedImage is not null) _mediaStorage.Discard(uploadedImage.StorageKey);
+                        var referenceCode = ErrorReferenceCode.Create(HttpContext);
+                        TempData["ErrorMessage"] = ErrorReferenceCode.UserMessage(
+                            "Tarif eklenirken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.", referenceCode);
+                        _logger.LogError(ex, "Tarif eklenemedi. ReferenceCode: {ReferenceCode}", referenceCode);
                     }
                 }
                 else
@@ -317,8 +293,10 @@ namespace PetWork.Controllers
             }
             catch (Exception ex)
             {
-                TempData["ErrorMessage"] = "Beklenmeyen bir hata oluştu: " + ex.Message;
-                _logger.LogError(ex, "Tarif işleme sırasında beklenmeyen hata");
+                var referenceCode = ErrorReferenceCode.Create(HttpContext);
+                TempData["ErrorMessage"] = ErrorReferenceCode.UserMessage(
+                    "Tarif işlenirken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.", referenceCode);
+                _logger.LogError(ex, "Tarif işleme hatası. ReferenceCode: {ReferenceCode}", referenceCode);
             }
             
             return View(recipe);

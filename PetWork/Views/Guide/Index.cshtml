@@ -74,7 +74,7 @@
                             </div>
                             <div class="card-footer bg-transparent border-0 d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center">
-                                    <img src="~/@(string.IsNullOrEmpty(guide.User?.ProfileImage) ? "img/user-profile.jpg" : guide.User.ProfileImage)" alt="@guide.User?.Username" class="rounded-circle me-2" width="25" height="25">
+                                    <img src="@PetWork.Services.MediaUrlResolver.Resolve(Url, guide.User?.ProfileImage, "img/user-profile.jpg")" alt="@guide.User?.Username" class="rounded-circle me-2" width="25" height="25">
                                     <span class="text-muted small">@guide.User?.Username</span>
                                 </div>
                                 <a asp-controller="Guide" asp-action="Details" asp-route-id="@guide.Id" class="btn btn-sm btn-outline-primary">Rehberi Gör</a>
@@ -85,4 +85,4 @@
             </div>
         }
     </div>
-</section> 
+</section>

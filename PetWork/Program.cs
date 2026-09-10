@@ -5,13 +5,61 @@ using Microsoft.AspNetCore.HttpOverrides;
 using System.Net;
 using PetWork.Data;
 using PetWork.Services;
+using PetWork.Security;
+using PetWork.Validation;
 using System.Text;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("rate-limits.json", optional: false, reloadOnChange: true);
+
+if (builder.Environment.IsProduction() &&
+    builder.Configuration.GetValue<bool>("DatabaseMigrations:ApplyOnStartup"))
+    throw new InvalidOperationException(
+        "DatabaseMigrations:ApplyOnStartup is disabled in Production. Run migrations as a controlled deployment step.");
+
+if (builder.Environment.IsProduction() &&
+    builder.Configuration.GetValue<bool>("ExternalContent:BootstrapOnStartup"))
+    throw new InvalidOperationException(
+        "ExternalContent:BootstrapOnStartup is disabled in Production. Bootstrap data in a controlled maintenance step.");
+
+const string corsPolicyName = "TrustedClientOrigins";
+var allowedCorsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+foreach (var origin in allowedCorsOrigins)
+{
+    if (origin.Contains('*', StringComparison.Ordinal) ||
+        !Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+        uri.Scheme is not ("https" or "http") ||
+        uri.AbsolutePath != "/" || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+        throw new InvalidOperationException($"Cors:AllowedOrigins contains an invalid exact origin: '{origin}'.");
+    if (builder.Environment.IsProduction() && uri.Scheme != Uri.UriSchemeHttps)
+        throw new InvalidOperationException("Production CORS origins must use HTTPS.");
+}
 
 // Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options => options.Filters.Add<ApiInputValidationFilter>());
+builder.Services.AddCors(options => options.AddPolicy(corsPolicyName, policy =>
+{
+    // Kimlik bilgileri açıkken wildcard origin geçersiz ve güvensizdir; yalnızca tam origin listesi kullanılır.
+    policy.WithOrigins(allowedCorsOrigins)
+        .WithMethods(HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Delete)
+        .WithHeaders("Accept", "Content-Type", "Authorization", "X-CSRF-TOKEN")
+        .AllowCredentials();
+}));
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+    options.Preload = false;
+});
+builder.Services.AddHttpsRedirection(options =>
+{
+    options.RedirectStatusCode = StatusCodes.Status301MovedPermanently;
+    options.HttpsPort = builder.Configuration.GetValue<int?>("HttpsRedirection:HttpsPort");
+});
+builder.Services.Configure<RateLimitSettings>(builder.Configuration.GetSection("RateLimits"));
+builder.Services.AddSingleton<SensitiveEndpointRateLimiter>();
+builder.Services.AddSingleton<DailyCostQuotaService>();
 builder.Services.AddRateLimiter(options =>
 {
     var authPermitLimit = builder.Configuration.GetValue("RateLimiting:MobileAuthPermitLimit", 8);
@@ -43,7 +91,31 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
+    // Medya uçları tek ekranda onlarca istek alır; limit yalnızca sürekli
+    // taramayı durdurmak içindir, normal gezinmeyi engellememelidir.
+    options.AddPolicy("media", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 240,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var delay)
+            ? delay
+            : TimeSpan.FromMinutes(1);
+        var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+        context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            message = $"Çok fazla istek gönderdin. {seconds} saniye sonra tekrar dene.",
+            retryAfterSeconds = seconds
+        }, cancellationToken);
+    };
 });
 
 var mobileJwtKey = builder.Configuration["MobileAuth:JwtKey"];
@@ -122,11 +194,19 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 // Session servisi ekle
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddMemoryCache();
+builder.Services.Configure<CookiePolicyOptions>(options =>
+{
+    options.HttpOnly = Microsoft.AspNetCore.CookiePolicy.HttpOnlyPolicy.Always;
+    options.Secure = CookieSecurePolicy.Always;
+    options.MinimumSameSitePolicy = SameSiteMode.Lax;
+});
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(30);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 
 // Session ömrünü daha uzun tutmak için Cookie ayarları
@@ -134,6 +214,9 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.ExpireTimeSpan = TimeSpan.FromDays(1);
     options.SlidingExpiration = true;
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 
 // HttpContextAccessor servisi ekle
@@ -144,6 +227,9 @@ builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
     options.SuppressXFrameOptionsHeader = false;
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 
 // SQL Server kaynak/geri dönüş sağlayıcısı olarak korunur. PostgreSQL seçildiğinde
@@ -198,13 +284,17 @@ else
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    options.JsonSerializerOptions.UnmappedMemberHandling =
+        System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow;
 });
 
 // HttpClient ve web scraping servisleri
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<MobilePushNotificationService>();
+builder.Services.AddScoped<SecureMediaStorageService>();
 builder.Services.AddScoped<MobileMediaStorageService>();
-builder.Services.AddHostedService<MobileMediaBackfillService>();
+builder.Services.AddScoped<ResourceAuthorizationService>();
+builder.Services.AddScoped<AdminAccessService>();
 builder.Services.AddHttpClient<GooglePlacesService>(client =>
 {
     client.BaseAddress = new Uri("https://places.googleapis.com/");
@@ -289,35 +379,54 @@ if (!allowMobileDevelopmentHttp)
 {
     app.UseHttpsRedirection();
 }
-app.UseStaticFiles();
 
-// Güvenlik başlıkları ekle
+// Rapor modu bilinçlidir: ihlaller gözlemlendikten sonra bu değer
+// Content-Security-Policy başlığına taşınarak zorlayıcı hale getirilebilir.
+var contentSecurityPolicyReportOnly = string.Join(" ",
+    "default-src 'self';",
+    "base-uri 'self';",
+    "object-src 'none';",
+    "frame-ancestors 'self';",
+    "form-action 'self';",
+    "script-src 'self' https://cdn.jsdelivr.net;",
+    "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com;",
+    "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:;",
+    "img-src 'self' data:;",
+    "connect-src 'self';",
+    "frame-src 'none';",
+    "media-src 'self';",
+    "worker-src 'self';",
+    "manifest-src 'self';",
+    "report-uri /security/csp-report;");
+
+// Statik dosya yanıtları da aynı başlıkları alsın diye UseStaticFiles'dan önce çalışır.
 app.Use(async (context, next) =>
 {
     context.Response.Headers["X-Content-Type-Options"] = "nosniff";
     context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
-    context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+    context.Response.Headers["X-XSS-Protection"] = "0";
     context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-    context.Response.Headers["Content-Security-Policy"] =
-        "default-src 'self' https://* http://*; " +
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://* http://*; " +
-        "style-src 'self' 'unsafe-inline' https://* http://*; " +
-        "font-src 'self' https://* http://* data:; " +
-        "img-src 'self' https://* http://* data:; " +
-        "connect-src 'self' https://* http://*;";
+    context.Response.Headers["Permissions-Policy"] =
+        "accelerometer=(), ambient-light-sensor=(), autoplay=(), browsing-topics=(), camera=(), " +
+        "display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), " +
+        "payment=(), picture-in-picture=(), publickey-credentials-create=(), usb=()";
+    context.Response.Headers["Content-Security-Policy-Report-Only"] = contentSecurityPolicyReportOnly;
     await next();
 });
+app.UseStaticFiles();
 
 app.UseRouting();
+app.UseCors(corsPolicyName);
 app.UseRateLimiter();
 
+app.UseCookiePolicy();
 app.UseSession(); // Use Session middleware
 
-// Mobil istemci için token tabanlı kimlik doğrulama ayrı tasarlanana kadar API
-// yazma işlemleri yalnızca mevcut yönetici oturumuna açıktır. GET/HEAD/OPTIONS
-// uçları halka açık kalır; hassas User alanları ayrıca JSON'dan çıkarılmıştır.
+// Yönetim alanı ve eski API yazma uçları için veritabanındaki güncel rol
+// yetkilidir. Oturumdaki IsAdmin kopyası rol geri alındıktan sonra eski kalabilir.
 app.Use(async (context, next) =>
 {
+    var isAdminArea = context.Request.Path.StartsWithSegments("/admin");
     var isApiRequest = context.Request.Path.StartsWithSegments("/api");
     var isMobileAuthRequest = context.Request.Path.StartsWithSegments("/api/mobile/auth");
     var isMobileQuestionRequest = context.Request.Path.StartsWithSegments("/api/mobile/questions");
@@ -333,25 +442,35 @@ app.Use(async (context, next) =>
                            HttpMethods.IsHead(context.Request.Method) ||
                            HttpMethods.IsOptions(context.Request.Method);
 
-    if (isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest && !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest && !isMobilePetRequest && !isMobilePatiMatchRequest && !isMobileLostPetsRequest && !isMobileAdoptionRequest && !isMobileReviewRequest && !isMobileNotificationRequest)
+    var isLegacyApiWrite = isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest &&
+                           !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest &&
+                           !isMobilePetRequest && !isMobilePatiMatchRequest && !isMobileLostPetsRequest &&
+                           !isMobileAdoptionRequest && !isMobileReviewRequest && !isMobileNotificationRequest;
+
+    if (isAdminArea || isLegacyApiWrite)
     {
-        var userId = context.Session.GetInt32("UserId");
-        if (userId is null)
+        var access = await context.RequestServices.GetRequiredService<AdminAccessService>()
+            .CheckAsync(context, context.RequestAborted);
+        if (!access.IsAuthenticated)
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsJsonAsync(new { error = "Authentication required." });
+            if (isAdminArea)
+            {
+                var returnUrl = Uri.EscapeDataString(context.Request.PathBase + context.Request.Path + context.Request.QueryString);
+                context.Response.Redirect($"/Account/Login?returnUrl={returnUrl}");
+            }
+            else
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { error = "Authentication required." });
+            }
             return;
         }
 
-        var isAdmin = string.Equals(
-            context.Session.GetString("IsAdmin"),
-            bool.TrueString,
-            StringComparison.OrdinalIgnoreCase);
-
-        if (!isAdmin)
+        if (!access.IsAdmin)
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await context.Response.WriteAsJsonAsync(new { error = "Administrator permission required." });
+            if (isLegacyApiWrite)
+                await context.Response.WriteAsJsonAsync(new { error = "Administrator permission required." });
             return;
         }
     }

@@ -327,22 +327,32 @@ internal static class MigrationProgram
         await using var transaction = await target.BeginTransactionAsync();
         try
         {
+            string roleSql;
+            await using (var formatCommand = target.CreateCommand())
+            {
+                formatCommand.Transaction = transaction;
+                formatCommand.CommandText = """
+                    SELECT format(
+                        'CREATE ROLE %1$I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD %2$L;
+                         GRANT CONNECT ON DATABASE %3$I TO %1$I;
+                         GRANT USAGE ON SCHEMA %4$I TO %1$I;
+                         GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %4$I TO %1$I;
+                         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %4$I TO %1$I;
+                         ALTER DEFAULT PRIVILEGES IN SCHEMA %4$I GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %1$I;
+                         ALTER DEFAULT PRIVILEGES IN SCHEMA %4$I GRANT USAGE, SELECT ON SEQUENCES TO %1$I;',
+                        @role, @password, current_database(), @schema);
+                    """;
+                formatCommand.Parameters.AddWithValue("role", AppRole);
+                formatCommand.Parameters.AddWithValue("password", password);
+                formatCommand.Parameters.AddWithValue("schema", TargetSchema);
+                roleSql = Convert.ToString(await formatCommand.ExecuteScalarAsync(), CultureInfo.InvariantCulture)
+                    ?? throw new InvalidOperationException("PostgreSQL role command could not be generated.");
+            }
+
             await using (var command = target.CreateCommand())
             {
                 command.Transaction = transaction;
-                command.CommandText = $"""
-                    CREATE ROLE {AppRole}
-                        WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
-                        PASSWORD '{password}';
-                    GRANT CONNECT ON DATABASE postgres TO {AppRole};
-                    GRANT USAGE ON SCHEMA "{TargetSchema}" TO {AppRole};
-                    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "{TargetSchema}" TO {AppRole};
-                    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "{TargetSchema}" TO {AppRole};
-                    ALTER DEFAULT PRIVILEGES IN SCHEMA "{TargetSchema}"
-                        GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {AppRole};
-                    ALTER DEFAULT PRIVILEGES IN SCHEMA "{TargetSchema}"
-                        GRANT USAGE, SELECT ON SEQUENCES TO {AppRole};
-                    """;
+                command.CommandText = roleSql;
                 await command.ExecuteNonQueryAsync();
             }
 
@@ -524,6 +534,7 @@ internal static class MigrationProgram
         NpgsqlTransaction transaction,
         TableSpec table)
     {
+        EnsureWhitelisted(table);
         await using var command = target.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = $"""
@@ -614,6 +625,7 @@ internal static class MigrationProgram
 
     private static async Task<long> CountSourceAsync(SqlConnection source, TableSpec table)
     {
+        EnsureWhitelisted(table);
         await using var command = source.CreateCommand();
         command.CommandText = $"SELECT COUNT_BIG(*) FROM [dbo].[{table.Name}];";
         return Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
@@ -621,6 +633,7 @@ internal static class MigrationProgram
 
     private static async Task<long?> CountTargetIfPresentAsync(NpgsqlConnection target, TableSpec table)
     {
+        EnsureWhitelisted(table);
         await using var exists = target.CreateCommand();
         exists.CommandText = "SELECT to_regclass(@qualified_name) IS NOT NULL;";
         exists.Parameters.AddWithValue("qualified_name", $"\"{TargetSchema}\".\"{table.Name}\"");
@@ -639,6 +652,7 @@ internal static class MigrationProgram
         NpgsqlTransaction transaction,
         TableSpec table)
     {
+        EnsureWhitelisted(table);
         await using var command = target.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = $"SELECT COUNT(*) FROM \"{TargetSchema}\".\"{table.Name}\";";
@@ -675,6 +689,7 @@ internal static class MigrationProgram
 
     private static string BuildSourceSelect(TableSpec table)
     {
+        EnsureWhitelisted(table);
         var columns = string.Join(", ", table.AllColumns.Select(column => $"[{column.Name}]"));
         var ordering = string.Join(", ", table.KeyColumns.Select(column => $"[{column}]"));
         return $"SELECT {columns} FROM [dbo].[{table.Name}] ORDER BY {ordering};";
@@ -682,6 +697,7 @@ internal static class MigrationProgram
 
     private static string BuildTargetSelect(TableSpec table)
     {
+        EnsureWhitelisted(table);
         var columns = string.Join(", ", table.AllColumns.Select(column => $"\"{column.Name}\""));
         var ordering = string.Join(", ", table.KeyColumns.Select(column => $"\"{column}\""));
         return $"SELECT {columns} FROM \"{TargetSchema}\".\"{table.Name}\" ORDER BY {ordering};";
@@ -689,8 +705,15 @@ internal static class MigrationProgram
 
     private static string BuildCopyCommand(TableSpec table)
     {
+        EnsureWhitelisted(table);
         var columns = string.Join(", ", table.AllColumns.Select(column => $"\"{column.Name}\""));
         return $"COPY \"{TargetSchema}\".\"{table.Name}\" ({columns}) FROM STDIN (FORMAT BINARY)";
+    }
+
+    private static void EnsureWhitelisted(TableSpec table)
+    {
+        if (!Tables.Any(approved => ReferenceEquals(approved, table)))
+            throw new InvalidOperationException("Dynamic SQL identifiers must come from the approved table catalog.");
     }
 
     private static void AppendByte(IncrementalHash hash, byte value)

@@ -7,9 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 using System.Data;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers
 {
@@ -145,7 +145,9 @@ namespace PetWork.Controllers
         {
             try
             {
-                _logger.LogInformation("Ask metoduna POST isteği geldi: {0}", JsonSerializer.Serialize(question));
+                _logger.LogInformation(
+                    "Soru ekleme isteği alındı. TitleLength: {TitleLength}, ContentLength: {ContentLength}",
+                    question.Title?.Length ?? 0, question.Content?.Length ?? 0);
                 
                 // User property için validasyon hatasını temizle
                 if (ModelState.ContainsKey("User"))
@@ -210,8 +212,10 @@ namespace PetWork.Controllers
                     }
                     catch (Exception ex)
                     {
-                        TempData["ErrorMessage"] = "Soru eklenirken bir hata oluştu: " + ex.Message;
-                        _logger.LogError(ex, "Soru eklenirken hata");
+                        var referenceCode = ErrorReferenceCode.Create(HttpContext);
+                        TempData["ErrorMessage"] = ErrorReferenceCode.UserMessage(
+                            "Soru eklenirken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.", referenceCode);
+                        _logger.LogError(ex, "Soru eklenemedi. ReferenceCode: {ReferenceCode}", referenceCode);
                     }
                 }
                 else
@@ -228,8 +232,10 @@ namespace PetWork.Controllers
             }
             catch (Exception ex)
             {
-                TempData["ErrorMessage"] = "Beklenmeyen bir hata oluştu: " + ex.Message;
-                _logger.LogError(ex, "Soru işleme sırasında beklenmeyen hata");
+                var referenceCode = ErrorReferenceCode.Create(HttpContext);
+                TempData["ErrorMessage"] = ErrorReferenceCode.UserMessage(
+                    "Soru işlenirken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.", referenceCode);
+                _logger.LogError(ex, "Soru işleme hatası. ReferenceCode: {ReferenceCode}", referenceCode);
             }
             
             return View(question);
@@ -268,8 +274,10 @@ namespace PetWork.Controllers
                 }
                 catch (Exception ex)
                 {
-                    TempData["ErrorMessage"] = "Cevap eklenirken bir hata oluştu: " + ex.Message;
-                    _logger.LogError(ex, "Cevap eklenirken hata");
+                    var referenceCode = ErrorReferenceCode.Create(HttpContext);
+                    TempData["ErrorMessage"] = ErrorReferenceCode.UserMessage(
+                        "Cevap eklenirken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.", referenceCode);
+                    _logger.LogError(ex, "Cevap eklenemedi. ReferenceCode: {ReferenceCode}", referenceCode);
                 }
             }
             

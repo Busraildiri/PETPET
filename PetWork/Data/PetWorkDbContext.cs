@@ -48,6 +48,8 @@ namespace PetWork.Data
         public DbSet<MobileNotificationPreference> MobileNotificationPreferences { get; set; }
         public DbSet<MobilePushToken> MobilePushTokens { get; set; }
         public DbSet<MobileMediaAsset> MobileMediaAssets { get; set; }
+        public DbSet<DailyCostUsage> DailyCostUsages { get; set; }
+        public DbSet<RateLimitUsage> RateLimitUsages { get; set; }
         
         public override int SaveChanges()
         {
@@ -83,6 +85,16 @@ namespace PetWork.Data
 
             modelBuilder.Entity<User>().HasIndex(user => user.Username).IsUnique();
             modelBuilder.Entity<User>().HasIndex(user => user.Email).IsUnique();
+
+            modelBuilder.Entity<DailyCostUsage>()
+                .HasKey(usage => new { usage.Category, usage.SubjectHash, usage.UsageDateUtc });
+            modelBuilder.Entity<DailyCostUsage>().Property(usage => usage.Category).HasMaxLength(64);
+            modelBuilder.Entity<DailyCostUsage>().Property(usage => usage.SubjectHash).HasMaxLength(64);
+
+            modelBuilder.Entity<RateLimitUsage>()
+                .HasKey(usage => new { usage.Policy, usage.SubjectHash });
+            modelBuilder.Entity<RateLimitUsage>().Property(usage => usage.Policy).HasMaxLength(96);
+            modelBuilder.Entity<RateLimitUsage>().Property(usage => usage.SubjectHash).HasMaxLength(64);
 
             if (Database.IsNpgsql())
             {

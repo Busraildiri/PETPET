@@ -85,7 +85,7 @@
                                 <span class="badge @(recipe.AnimalType == "Kedi" ? "bg-success" : (recipe.AnimalType == "Köpek" ? "bg-primary" : "bg-info"))">@recipe.AnimalType</span>
                                 <span class="badge bg-secondary ms-2">@recipe.Difficulty</span>
                             </div>
-                            <img src="~/@recipeImage" class="card-img-top" alt="@recipe.Title">
+                            <img src="@PetWork.Services.MediaUrlResolver.Resolve(Url, recipeImage, "img/hero-recipes-v2.png")" class="card-img-top" alt="@recipe.Title">
                             <div class="card-body">
                                 <h5 class="card-title">@recipe.Title</h5>
                                 <p class="card-text">@recipe.Description</p>

@@ -1,0 +1,21 @@
+{
+  "RateLimits": {
+    "Policies": {
+      "Login": { "PermitLimit": 5, "WindowSeconds": 900 },
+      "Registration": { "PermitLimit": 3, "WindowSeconds": 3600 },
+      "CodeSend": { "PermitLimit": 3, "WindowSeconds": 3600 },
+      "CodeVerify": { "PermitLimit": 5, "WindowSeconds": 900 },
+      "PasswordReset": { "PermitLimit": 5, "WindowSeconds": 900 },
+      "Expensive": { "PermitLimit": 12, "WindowSeconds": 60 }
+    }
+  },
+  "CostControls": {
+    "DailyLimits": {
+      "TransactionalEmail": 10,
+      "GooglePlacesAutocomplete": 100,
+      "GooglePlacesSearch": 20,
+      "AiGeneration": 20,
+      "Sms": 3
+    }
+  }
+}

@@ -30,7 +30,8 @@
             <thead><tr><th>Sonuç</th><th>Kaynak</th><th>Lisans</th><th></th></tr></thead><tbody>
             @foreach (var item in Model.SearchResults)
             {
-                <tr><td><a href="@item.SourceUrl" target="_blank" rel="noopener noreferrer">@item.Title</a><br><small class="text-muted">@item.AuthorName</small></td>
+                var hasSourceUrl = PetWork.Services.MediaUrlResolver.TryResolveExternalHttpUrl(item.SourceUrl, out var sourceUrl);
+                <tr><td>@if (hasSourceUrl) { <a href="@sourceUrl" target="_blank" rel="noopener noreferrer">@item.Title</a> } else { @item.Title }<br><small class="text-muted">@item.AuthorName</small></td>
                     <td>@item.Provider</td><td>@item.LicenseCode</td><td class="text-end"><form asp-action="Import" method="post">
                         @Html.AntiForgeryToken()<input type="hidden" name="provider" value="@item.Provider" /><input type="hidden" name="externalId" value="@item.ExternalId" /><input type="hidden" name="targetContentType" value="@Model.TargetContentType" />
                         <button class="btn btn-sm btn-primary">İncelemeye al</button></form></td></tr>

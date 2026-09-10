@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 
@@ -14,7 +15,7 @@ public sealed class MobileMediaApiController : ControllerBase
 
     [HttpGet("/uploads/{**path}")]
     [AllowAnonymous]
-    [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Any)]
+    [EnableRateLimiting("media")]
     public async Task<IActionResult> Get(string path, CancellationToken cancellationToken)
     {
         var storageKey = $"uploads/{path.Replace('\\', '/').TrimStart('/')}";
@@ -23,6 +24,11 @@ public sealed class MobileMediaApiController : ControllerBase
             .Where(item => item.StorageKey == storageKey)
             .Select(item => new { item.Data, item.ContentType })
             .FirstOrDefaultAsync(cancellationToken);
-        return asset is null ? NotFound() : File(asset.Data, asset.ContentType);
+        if (asset is null) return NotFound();
+
+        // Yalnızca başarılı yanıt önbelleklenir. Öznitelik olarak verildiğinde 404'ler de
+        // önbelleklenir ve istemci, görsel sonradan eklense bile bir gün boyunca sormaz.
+        Response.Headers.CacheControl = "public,max-age=86400";
+        return File(asset.Data, asset.ContentType);
     }
 }

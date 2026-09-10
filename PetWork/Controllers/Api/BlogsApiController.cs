@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
+using PetWork.Validation;
 
 namespace PetWork.Controllers.Api
 {
@@ -68,15 +69,17 @@ namespace PetWork.Controllers.Api
 
         // POST: api/BlogsApi
         [HttpPost]
-        public async Task<ActionResult<BlogPost>> PostBlog(BlogPost blog)
+        public async Task<ActionResult<BlogPost>> PostBlog(LegacyBlogCreateRequest request)
         {
-            if (!ModelState.IsValid)
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (!userId.HasValue) return Unauthorized();
+            var blog = new BlogPost
             {
-                return BadRequest(ModelState);
-            }
-
-            blog.PublishDate = DateTime.Now;
-            blog.ViewCount = 0;
+                Title = request.Title.Trim(), Content = request.Content.Trim(), Category = request.Category.Trim(),
+                FeaturedImage = request.FeaturedImage?.Trim() ?? "img/hero-community-v2.png",
+                ImageUrl = request.ImageUrl?.Trim() ?? "img/hero-community-v2.png",
+                PublishedDate = DateTime.Now, PublishDate = DateTime.Now, ViewCount = 0, UserId = userId.Value
+            };
 
             _context.BlogPosts.Add(blog);
             await _context.SaveChangesAsync();

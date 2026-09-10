@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.IdentityModel.Tokens;
+using PetWork.Security;
 
 namespace PetWork.Services;
 
@@ -31,7 +32,7 @@ public sealed class EmailVerificationService
         _challenges[Hash(token)] = new(userId, rememberMe, Hash(code), expiresAt);
         try { await _sender.SendAsync(email, username, code, token, cancellationToken); }
         catch { _challenges.TryRemove(Hash(token), out _); throw; }
-        return new(token, expiresAt, Mask(email));
+        return new(token, expiresAt, SensitiveDataMasker.Mask(email));
     }
 
     public EmailVerificationResult Verify(string token, string code)
@@ -67,11 +68,6 @@ public sealed class EmailVerificationService
             if (pair.Value.ExpiresAt <= now) _challenges.TryRemove(pair.Key, out _);
     }
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
-    private static string Mask(string email)
-    {
-        var at = email.IndexOf('@');
-        return at <= 1 ? $"***{email[Math.Max(0, at)..]}" : $"{email[0]}{new string('*', Math.Min(5, at - 1))}{email[at..]}";
-    }
     private sealed class ChallengeState(int userId, bool rememberMe, string codeHash, DateTime expiresAt)
     { public int UserId { get; } = userId; public bool RememberMe { get; } = rememberMe; public string CodeHash { get; } = codeHash; public DateTime ExpiresAt { get; } = expiresAt; public int Attempts; }
 }

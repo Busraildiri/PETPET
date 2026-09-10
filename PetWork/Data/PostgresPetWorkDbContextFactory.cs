@@ -15,9 +15,14 @@ public sealed class PostgresPetWorkDbContextFactory
             .AddEnvironmentVariables()
             .Build();
 
-        var connectionString = PostgreSqlConnectionString.Normalize(
-            configuration.GetConnectionString("PostgreSqlAdmin")
-                ?? "Host=localhost;Port=5432;Database=petwork_design;Username=postgres;Password=design-time-only");
+        var connectionStringValue = configuration.GetConnectionString("PostgreSqlAdmin");
+        if (string.IsNullOrWhiteSpace(connectionStringValue))
+        {
+            throw new InvalidOperationException(
+                "PostgreSqlAdmin bağlantı dizesi eksik. Bunu User Secrets veya ConnectionStrings__PostgreSqlAdmin ortam değişkeniyle sağlayın.");
+        }
+
+        var connectionString = PostgreSqlConnectionString.Normalize(connectionStringValue);
 
         var options = new DbContextOptionsBuilder<PostgresPetWorkDbContext>()
             .UseNpgsql(

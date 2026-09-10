@@ -24,4 +24,8 @@
     <Compile Remove="tools\**\*.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="rate-limits.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

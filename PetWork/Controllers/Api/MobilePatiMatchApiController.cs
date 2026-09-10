@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using PetWork.Data;
 using PetWork.Models;
 using PetWork.Services;
+using PetWork.Security;
 
 namespace PetWork.Controllers.Api;
 
@@ -151,6 +152,7 @@ public sealed class MobilePatiMatchApiController : ControllerBase
 
     [HttpPost("decisions")]
     [EnableRateLimiting("mobile-content")]
+    [SensitiveRateLimit("Expensive")]
     public async Task<ActionResult<PatiMatchDecisionResponse>> Decide(PatiMatchDecisionRequest request, CancellationToken cancellationToken)
     {
         var sourceProfile = await GetOwnedActiveProfile(request.SourcePetId, cancellationToken);
@@ -262,6 +264,7 @@ public sealed class MobilePatiMatchApiController : ControllerBase
 
     [HttpPost("messages")]
     [EnableRateLimiting("mobile-content")]
+    [SensitiveRateLimit("Expensive")]
     public async Task<ActionResult<PatiMatchMessageResponse>> SendMessage(
         PatiMatchMessageRequest request,
         CancellationToken cancellationToken)
