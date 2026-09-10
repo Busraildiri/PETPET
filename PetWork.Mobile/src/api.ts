@@ -351,7 +351,10 @@ async function authRequest(path: string, init: RequestInit, fallback: string): P
       try { payload = responseText ? JSON.parse(responseText) : null; } catch { /* The development exception page may be plain text or HTML. */ }
       const validation = payload?.errors ? Object.values(payload.errors).flat()[0] : undefined;
       if (__DEV__) console.log('[PetWork auth API]', { path, status: response.status });
-      if (response.status === 429) throw new ApiError('Çok fazla deneme yapıldı. Lütfen bir dakika sonra tekrar dene.', response.status);
+      if (response.status === 429) throw new ApiError(
+        payload?.message || 'Çok fazla deneme yapıldı. Lütfen belirtilen süre sonunda tekrar dene.',
+        response.status,
+      );
       const serverMessage = validation || payload?.message || payload?.title || fallback;
       throw new ApiError(__DEV__ ? `${serverMessage} (HTTP ${response.status})` : serverMessage, response.status);
     }

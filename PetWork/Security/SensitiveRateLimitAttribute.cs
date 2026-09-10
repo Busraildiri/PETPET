@@ -64,10 +64,15 @@ public sealed class SensitiveEndpointRateLimiter
         RateLimitRule rule,
         CancellationToken cancellationToken)
     {
-        var now = DateTime.UtcNow;
+        var nowUtc = DateTime.UtcNow;
         var windowTicks = TimeSpan.FromSeconds(rule.WindowSeconds).Ticks;
-        var windowStart = new DateTime(now.Ticks - now.Ticks % windowTicks, DateTimeKind.Utc);
-        var retryAfter = windowStart.AddSeconds(rule.WindowSeconds) - now;
+        var windowStartUtc = new DateTime(
+            nowUtc.Ticks - nowUtc.Ticks % windowTicks, DateTimeKind.Utc);
+        var retryAfter = windowStartUtc.AddSeconds(rule.WindowSeconds) - nowUtc;
+        // The shared PostgreSQL model deliberately uses timestamp without time zone
+        // for compatibility with the legacy schema. Npgsql requires Kind=Unspecified.
+        var windowStart = DateTime.SpecifyKind(windowStartUtc, DateTimeKind.Unspecified);
+        var storedNow = DateTime.SpecifyKind(nowUtc, DateTimeKind.Unspecified);
         var subjectHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(subject)));
 
         for (var attempt = 0; attempt < 2; attempt++)
@@ -101,14 +106,14 @@ public sealed class SensitiveEndpointRateLimiter
                     SubjectHash = subjectHash,
                     WindowStartedAtUtc = windowStart,
                     Count = 1,
-                    UpdatedAtUtc = now
+                    UpdatedAtUtc = storedNow
                 };
                 db.RateLimitUsages.Add(usage);
             }
             else
             {
                 usage.Count++;
-                usage.UpdatedAtUtc = now;
+                usage.UpdatedAtUtc = storedNow;
             }
 
             try
@@ -117,10 +122,10 @@ public sealed class SensitiveEndpointRateLimiter
                 await transaction.CommitAsync(cancellationToken);
                 return new(true, TimeSpan.Zero);
             }
-            catch (Exception exception) when (exception is DbUpdateException or DbException)
+            catch (Exception exception) when (
+                attempt == 0 && (exception is DbUpdateException || exception is DbException))
             {
                 await transaction.RollbackAsync(cancellationToken);
-                if (attempt == 1) return new(false, retryAfter);
             }
         }
 

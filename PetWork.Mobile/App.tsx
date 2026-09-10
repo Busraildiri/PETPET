@@ -110,8 +110,12 @@ export default function App() {
   useEffect(() => {
     if (!refreshToken || !authExpiresAt) return;
     let cancelled = false;
+    let renewing = false;
     let timer: ReturnType<typeof setTimeout>;
+    const expires = new Date(authExpiresAt).getTime();
     const renew = async () => {
+      if (renewing) return;
+      renewing = true;
       try {
         const session = await refreshAuthSession(refreshToken);
         if (cancelled) return;
@@ -131,12 +135,17 @@ export default function App() {
           return;
         }
         timer = setTimeout(() => void renew(), 30_000);
+      } finally {
+        renewing = false;
       }
     };
-    const expires = new Date(authExpiresAt).getTime();
     const delay = Number.isFinite(expires) ? Math.max(0, expires - Date.now() - 60_000) : 0;
     timer = setTimeout(() => void renew(), delay);
-    return () => { cancelled = true; clearTimeout(timer); };
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active' && (!Number.isFinite(expires) || expires <= Date.now() + 60_000))
+        void renew();
+    });
+    return () => { cancelled = true; clearTimeout(timer); subscription.remove(); };
   }, [authExpiresAt, refreshToken]);
 
   const refreshUnreadNotifications = useCallback(async () => {

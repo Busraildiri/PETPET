@@ -48,9 +48,11 @@ public sealed class DailyCostQuotaService
         CancellationToken cancellationToken = default)
     {
         var limit = GetLimit(category);
-        var now = DateTime.UtcNow;
-        var day = now.Date;
-        var retryAfter = day.AddDays(1) - now;
+        var nowUtc = DateTime.UtcNow;
+        var dayUtc = nowUtc.Date;
+        var retryAfter = dayUtc.AddDays(1) - nowUtc;
+        var day = DateTime.SpecifyKind(dayUtc, DateTimeKind.Unspecified);
+        var storedNow = DateTime.SpecifyKind(nowUtc, DateTimeKind.Unspecified);
         var subjectHash = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(subject.Trim().ToLowerInvariant())));
 
@@ -83,14 +85,14 @@ public sealed class DailyCostQuotaService
                     SubjectHash = subjectHash,
                     UsageDateUtc = day,
                     Count = 1,
-                    UpdatedAtUtc = now
+                    UpdatedAtUtc = storedNow
                 };
                 db.DailyCostUsages.Add(usage);
             }
             else
             {
                 usage.Count++;
-                usage.UpdatedAtUtc = now;
+                usage.UpdatedAtUtc = storedNow;
             }
 
             try
