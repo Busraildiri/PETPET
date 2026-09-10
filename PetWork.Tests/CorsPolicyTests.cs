@@ -78,6 +78,11 @@ public sealed class CorsPolicyFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Development");
         builder.UseSetting("MobileAuth:JwtKey", "test-only-jwt-key-with-at-least-thirty-two-bytes");
         builder.UseSetting("DatabaseMigrations:ApplyOnStartup", "false");
+        // İçerik kökü test projesi olduğu için appsettings.Development.json yüklenmez.
+        // Origin listesi burada verilmezse CORS hiç yapılandırılmaz ve testler
+        // başlıkların yokluğunu doğruladıkları için boşuna geçer.
+        builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:8081");
+        builder.UseSetting("Cors:AllowedOrigins:1", "http://127.0.0.1:8081");
         builder.ConfigureLogging(logging => logging.ClearProviders());
         builder.ConfigureServices(services => services.AddDataProtection().UseEphemeralDataProtectionProvider());
     }
