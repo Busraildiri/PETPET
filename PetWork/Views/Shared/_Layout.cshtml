@@ -10,7 +10,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#5d4058" />
     <title>@ViewData["Title"] - PetWork</title>
-    <link rel="icon" type="image/svg+xml" href="~/img/petwork-mark.svg" />
+    <link rel="icon" type="image/png" href="~/img/petim-logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -26,7 +26,7 @@
         <nav class="navbar navbar-expand-lg" aria-label="Ana menü">
             <div class="container site-nav-container">
                 <a class="navbar-brand petwork-brand" asp-controller="Home" asp-action="Index">
-                    <img src="~/img/petwork-mark.svg" alt="" width="44" height="44" />
+                    <img src="~/img/petim-logo.png" alt="" width="44" height="44" />
                     <span class="brand-copy"><strong>PetWork</strong><small>Birlikte daha iyi bakarız</small></span>
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation" aria-expanded="false" aria-label="Menüyü aç veya kapat"><span class="navbar-toggler-icon"></span></button>
@@ -37,7 +37,7 @@
                         <li class="nav-item"><a class="nav-link @(controller == "Guide" ? "active" : "")" asp-controller="Guide" asp-action="Index">Rehberler</a></li>
                         <li class="nav-item dropdown"><button class="nav-link dropdown-toggle @(controller is "Blog" or "Recipes" or "Diseases" ? "active" : "")" type="button" data-bs-toggle="dropdown">Bilgi merkezi</button><ul class="dropdown-menu border-0"><li><a class="dropdown-item" asp-controller="Diseases" asp-action="Index">Sağlık bilgileri</a></li><li><a class="dropdown-item" asp-controller="Recipes" asp-action="Index">Tarifler</a></li><li><a class="dropdown-item" asp-controller="Blog" asp-action="Index">Yazılar</a></li></ul></li>
                         <li class="nav-item"><a class="nav-link @(controller == "Home" && action == "About" ? "active" : "")" asp-controller="Home" asp-action="About">Neden PetWork?</a></li>
-                        <li class="nav-item"><a class="nav-link petim-nav-link @(controller == "Home" && action == "Petim" ? "active" : "")" asp-controller="Home" asp-action="Petim"><i class="fa-solid fa-paw"></i> Pet’im</a></li>
+                        <li class="nav-item"><a class="nav-link petim-nav-link @(controller == "Home" && action == "Petim" ? "active" : "")" asp-controller="Home" asp-action="Petim"><img class="petim-nav-mark" src="~/img/petim-logo.png" alt="" width="20" height="20" /> Pet’im</a></li>
                     </ul>
                     <div class="nav-actions">
                         @if (loggedIn) { <a class="btn btn-petwork-primary btn-sm" asp-controller="Questions" asp-action="Ask"><i class="fa-regular fa-message"></i> Paylaş</a> }
@@ -58,7 +58,7 @@
     <footer class="site-footer">
         <div class="container">
             <div class="footer-grid">
-                <div class="footer-intro"><a class="petwork-brand footer-brand" asp-controller="Home" asp-action="Index"><img src="~/img/petwork-mark.svg" alt="" width="48" height="48" /><span class="brand-copy"><strong>PetWork</strong><small>Birlikte daha iyi bakarız</small></span></a><p>Bakımın güzel günlerinde de zor zamanlarında da bilgiye ve birbirimize daha yakın olmak için.</p></div>
+                <div class="footer-intro"><a class="petwork-brand footer-brand" asp-controller="Home" asp-action="Index"><img src="~/img/petim-logo.png" alt="" width="48" height="48" /><span class="brand-copy"><strong>PetWork</strong><small>Birlikte daha iyi bakarız</small></span></a><p>Bakımın güzel günlerinde de zor zamanlarında da bilgiye ve birbirimize daha yakın olmak için.</p></div>
                 <div><h2>Topluluk</h2><ul><li><a asp-controller="Questions" asp-action="Index">Sorular ve paylaşımlar</a></li><li><a asp-controller="Questions" asp-action="Ask">Bir şey paylaş</a></li><li><a asp-controller="Home" asp-action="About">Hikâyemiz</a></li></ul></div>
                 <div><h2>Bilgi</h2><ul><li><a asp-controller="Guide" asp-action="Index">Bakım rehberleri</a></li><li><a asp-controller="Diseases" asp-action="Index">Sağlık bilgileri</a></li><li><a asp-controller="Recipes" asp-action="Index">Tarifler</a></li><li><a asp-controller="Home" asp-action="Petim">Pet’im uygulaması</a></li><li><a asp-controller="Home" asp-action="Privacy">Gizlilik</a></li></ul></div>
                 <div class="footer-note"><span class="footer-note-icon"><i class="fa-solid fa-shield-dog"></i></span><p><strong>Acil durumlarda burada yanıt beklemeyin.</strong> En yakın veteriner kliniğiyle doğrudan iletişim kurun.</p></div>
