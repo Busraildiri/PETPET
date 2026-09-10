@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,7 +16,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { deletePet, getPets, PetProfile, PetProfileRequest, savePet } from '../api';
+import { deletePet, getPets, mediaUrl, PetProfile, PetProfileRequest, savePet } from '../api';
 import { colors, createThemedStyles, getThemeMode, shadow } from '../theme';
 
 const petTypes = ['Kedi', 'Köpek', 'Kuş', 'Tavşan', 'Balık', 'Diğer'];
@@ -103,9 +105,12 @@ export function PetsScreen({ token, onBack }: { token: string; onBack: () => voi
 
 function PetCard({ pet, onEdit, onDelete }: { pet: PetProfile; onEdit: () => void; onDelete: () => void }) {
   const icon = pet.type === 'Kuş' ? 'flame-outline' : pet.type === 'Balık' ? 'fish-outline' : pet.type === 'Tavşan' ? 'leaf-outline' : 'paw';
+  const hasPhoto = Boolean(pet.profileImage && pet.profileImage !== 'img/pet-default.jpg');
   return <View style={styles.petCard}>
     <View style={styles.petTop}>
-      <View style={styles.petAvatar}><Ionicons name={icon} size={30} color={colors.primary} /></View>
+      <View style={styles.petAvatar}>{hasPhoto
+        ? <Image source={{ uri: mediaUrl(pet.profileImage) }} style={styles.petAvatarImage} />
+        : <Ionicons name={icon} size={30} color={colors.primary} />}</View>
       <View style={styles.flexOne}><Text style={styles.petName}>{pet.name}</Text><Text style={styles.petMeta}>{[pet.type, pet.breed, pet.age != null ? `${formatAge(pet.age)} yaş` : null].filter(Boolean).join(' · ')}</Text></View>
       <View style={styles.petActions}>
         <Pressable onPress={onEdit} accessibilityLabel={`${pet.name} profilini düzenle`} style={styles.iconButton}><Ionicons name="create-outline" size={19} color={colors.primary} /></Pressable>
@@ -120,13 +125,31 @@ function PetCard({ pet, onEdit, onDelete }: { pet: PetProfile; onEdit: () => voi
 function PetFormModal({ visible, token, pet, onClose, onSaved }: { visible: boolean; token: string; pet: PetProfile | null; onClose: () => void; onSaved: (pet: PetProfile) => void }) {
   const [form, setForm] = useState<PetProfileRequest>(emptyForm);
   const [ageText, setAgeText] = useState('');
+  const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setForm(pet ? { name: pet.name, type: pet.type, breed: pet.breed || '', age: pet.age, gender: pet.gender || 'Belirtilmedi', description: pet.description || '' } : emptyForm);
     setAgeText(pet?.age != null ? String(pet.age) : '');
+    setImage(null);
   }, [visible, pet]);
+
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Galeri izni gerekli', 'Pati fotoğrafı seçebilmek için Pet’im uygulamasına galeri erişimi vermelisin.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.82,
+    });
+    if (!result.canceled && result.assets[0]) setImage(result.assets[0]);
+  };
 
   const submit = async () => {
     const name = form.name.trim();
@@ -134,7 +157,14 @@ function PetFormModal({ visible, token, pet, onClose, onSaved }: { visible: bool
     const age = ageText.trim() ? Number(ageText.replace(',', '.')) : null;
     if (age !== null && (!Number.isFinite(age) || age < 0 || age > 80)) return Alert.alert('Yaşı kontrol et', 'Yaş 0 ile 80 arasında olmalı. Örneğin 1,5 yazabilirsin.');
     setSaving(true);
-    try { onSaved(await savePet(token, { ...form, name, age }, pet?.id)); }
+    try {
+      onSaved(await savePet(token, {
+        ...form,
+        name,
+        age,
+        image: image ? { uri: image.uri, fileName: image.fileName, mimeType: image.mimeType } : undefined,
+      }, pet?.id));
+    }
     catch (reason) { Alert.alert('Kaydedilemedi', reason instanceof Error ? reason.message : 'Lütfen tekrar dene.'); }
     finally { setSaving(false); }
   };
@@ -143,6 +173,12 @@ function PetFormModal({ visible, token, pet, onClose, onSaved }: { visible: bool
     <KeyboardAvoidingView style={styles.modalScreen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
         <View style={styles.modalHeader}><Pressable onPress={onClose} style={styles.modalClose}><Ionicons name="close" size={23} color={colors.primary} /></Pressable><Text style={styles.modalTitle}>{pet ? 'Patiyi düzenle' : 'Yeni pati ekle'}</Text><View style={styles.modalClose} /></View>
+        <Pressable disabled={saving} onPress={() => void pickImage()} style={styles.photoPicker} accessibilityLabel="Pati fotoğrafı seç">
+          {image || pet?.profileImage
+            ? <Image source={{ uri: image?.uri || mediaUrl(pet?.profileImage) }} style={styles.photoPreview} />
+            : <View style={styles.photoPlaceholder}><Ionicons name="camera-outline" size={31} color={colors.primary} /></View>}
+          <View style={styles.photoAction}><Ionicons name="images-outline" size={18} color={colors.primary} /><Text style={styles.photoActionText}>{image || pet?.profileImage ? 'Fotoğrafı değiştir' : 'Pati fotoğrafı ekle'}</Text></View>
+        </Pressable>
         <Text style={styles.label}>Adı *</Text><TextInput value={form.name} onChangeText={name => setForm(current => ({ ...current, name }))} placeholder="Örn. Luna" placeholderTextColor="#A09599" style={styles.input} maxLength={50} />
         <Text style={styles.label}>Türü *</Text><View style={styles.choices}>{petTypes.map(type => <Pressable key={type} onPress={() => setForm(current => ({ ...current, type }))} style={[styles.choice, form.type === type && styles.choiceActive]}><Text style={[styles.choiceText, form.type === type && styles.choiceTextActive]}>{type}</Text></Pressable>)}</View>
         <Text style={styles.label}>Irkı</Text><TextInput value={form.breed || ''} onChangeText={breed => setForm(current => ({ ...current, breed }))} placeholder="Örn. Golden Retriever" placeholderTextColor="#A09599" style={styles.input} maxLength={80} />
@@ -164,8 +200,8 @@ const styles = createThemedStyles(() => ({
   state: { minHeight: 240, alignItems: 'center', justifyContent: 'center', gap: 11 }, stateText: { color: colors.muted, fontSize: 12 }, errorCard: { alignItems: 'center', gap: 10, backgroundColor: colors.peachSoft, borderRadius: 22, padding: 24, marginTop: 20 }, errorText: { color: colors.text, textAlign: 'center', lineHeight: 19 }, retry: { backgroundColor: colors.card, borderRadius: 15, paddingHorizontal: 16, paddingVertical: 10 }, retryText: { color: colors.primary, fontWeight: '800' },
   emptyCard: { alignItems: 'center', backgroundColor: colors.card, borderRadius: 26, padding: 28, marginTop: 18, borderWidth: 1, borderColor: colors.border, ...shadow }, emptyIcon: { width: 82, height: 82, borderRadius: 41, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' }, emptyTitle: { color: colors.text, fontFamily: serif, fontSize: 21, fontWeight: '700', marginTop: 18 }, emptyText: { color: colors.muted, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 7 },
   primaryButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: 17, paddingHorizontal: 22, marginTop: 20 }, primaryText: { color: colors.white, fontSize: 12, fontWeight: '900' },
-  petCard: { backgroundColor: colors.card, borderRadius: 24, padding: 17, marginTop: 15, borderWidth: 1, borderColor: colors.border, ...shadow }, petTop: { flexDirection: 'row', alignItems: 'center', gap: 12 }, petAvatar: { width: 58, height: 58, borderRadius: 29, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' }, petName: { color: colors.text, fontFamily: serif, fontSize: 21, fontWeight: '700' }, petMeta: { color: colors.muted, fontSize: 10, marginTop: 4 }, petActions: { flexDirection: 'row', gap: 5 }, iconButton: { width: 37, height: 37, borderRadius: 19, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }, badge: { alignSelf: 'flex-start', flexDirection: 'row', gap: 5, alignItems: 'center', backgroundColor: colors.sageSoft, borderRadius: 13, paddingHorizontal: 9, paddingVertical: 5, marginTop: 13 }, badgeText: { color: '#4E7458', fontSize: 9, fontWeight: '800' }, description: { color: colors.text, fontSize: 11, lineHeight: 17, marginTop: 11 }, descriptionMuted: { color: colors.muted, fontSize: 10, fontStyle: 'italic', marginTop: 11 },
+  petCard: { backgroundColor: colors.card, borderRadius: 24, padding: 17, marginTop: 15, borderWidth: 1, borderColor: colors.border, ...shadow }, petTop: { flexDirection: 'row', alignItems: 'center', gap: 12 }, petAvatar: { width: 58, height: 58, borderRadius: 29, overflow: 'hidden', backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' }, petAvatarImage: { width: '100%', height: '100%' }, petName: { color: colors.text, fontFamily: serif, fontSize: 21, fontWeight: '700' }, petMeta: { color: colors.muted, fontSize: 10, marginTop: 4 }, petActions: { flexDirection: 'row', gap: 5 }, iconButton: { width: 37, height: 37, borderRadius: 19, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }, badge: { alignSelf: 'flex-start', flexDirection: 'row', gap: 5, alignItems: 'center', backgroundColor: colors.sageSoft, borderRadius: 13, paddingHorizontal: 9, paddingVertical: 5, marginTop: 13 }, badgeText: { color: '#4E7458', fontSize: 9, fontWeight: '800' }, description: { color: colors.text, fontSize: 11, lineHeight: 17, marginTop: 11 }, descriptionMuted: { color: colors.muted, fontSize: 10, fontStyle: 'italic', marginTop: 11 },
   outlineButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1.3, borderColor: colors.primary, borderRadius: 17, marginTop: 18 }, outlineText: { color: colors.primary, fontWeight: '900', fontSize: 12 },
-  modalScreen: { flex: 1, backgroundColor: colors.background }, modalContent: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 22 : 28, paddingBottom: 40 }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }, modalClose: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' }, modalTitle: { color: colors.text, fontFamily: serif, fontSize: 22, fontWeight: '700' }, label: { color: colors.text, fontSize: 11, fontWeight: '900', marginTop: 14, marginBottom: 7 }, input: { minHeight: 51, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 16, paddingHorizontal: 15, color: colors.text, fontSize: 13 }, textArea: { minHeight: 105, paddingTop: 14 }, choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, choice: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 15, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }, choiceActive: { backgroundColor: colors.primary, borderColor: colors.primary }, choiceText: { color: colors.muted, fontSize: 11, fontWeight: '700' }, choiceTextActive: { color: colors.white }, saveButton: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: 18, marginTop: 24 }, saveText: { color: colors.white, fontWeight: '900', fontSize: 13 },
+  modalScreen: { flex: 1, backgroundColor: colors.background }, modalContent: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 22 : 28, paddingBottom: 40 }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }, modalClose: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.lilacSoft, alignItems: 'center', justifyContent: 'center' }, modalTitle: { color: colors.text, fontFamily: serif, fontSize: 22, fontWeight: '700' }, photoPicker: { alignItems: 'center', gap: 10, marginBottom: 5 }, photoPreview: { width: 128, height: 128, borderRadius: 64, backgroundColor: colors.lilacSoft }, photoPlaceholder: { width: 128, height: 128, borderRadius: 64, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lilacSoft, borderWidth: 1, borderColor: colors.border }, photoAction: { flexDirection: 'row', alignItems: 'center', gap: 6 }, photoActionText: { color: colors.primary, fontSize: 12, fontWeight: '900' }, label: { color: colors.text, fontSize: 11, fontWeight: '900', marginTop: 14, marginBottom: 7 }, input: { minHeight: 51, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 16, paddingHorizontal: 15, color: colors.text, fontSize: 13 }, textArea: { minHeight: 105, paddingTop: 14 }, choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, choice: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 15, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }, choiceActive: { backgroundColor: colors.primary, borderColor: colors.primary }, choiceText: { color: colors.muted, fontSize: 11, fontWeight: '700' }, choiceTextActive: { color: colors.white }, saveButton: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: 18, marginTop: 24 }, saveText: { color: colors.white, fontWeight: '900', fontSize: 13 },
   flexOne: { flex: 1 }, pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
 }));

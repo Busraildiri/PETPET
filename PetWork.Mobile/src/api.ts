@@ -110,7 +110,9 @@ export type LocationSuggestion = {
   label: string;
 };
 
-export type PetProfileRequest = Omit<PetProfile, 'id' | 'profileImage'>;
+export type PetProfileRequest = Omit<PetProfile, 'id' | 'profileImage'> & {
+  image?: { uri: string; fileName?: string | null; mimeType?: string | null };
+};
 
 export type SocialPostPayload = {
   id: number;
@@ -439,11 +441,17 @@ export async function getPets(token: string, signal?: AbortSignal): Promise<PetP
 }
 
 export async function savePet(token: string, request: PetProfileRequest, id?: number): Promise<PetProfile> {
+  const imageFile = request.image ? new File(request.image.uri) : null;
   const response = await fetchApi(`${apiUrl}/api/mobile/pets${id ? `/${id}` : ''}`, {
     method: id ? 'PUT' : 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(request),
-  });
+    body: JSON.stringify({
+      ...request,
+      image: undefined,
+      imageBase64: imageFile ? await imageFile.base64() : null,
+      imageContentType: request.image?.mimeType || imageFile?.type || null,
+    }),
+  }, 30_000);
   return readPetResponse(response, id ? 'Pati profili güncellenemedi.' : 'Pati profili oluşturulamadı.');
 }
 

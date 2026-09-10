@@ -151,7 +151,16 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
         Assert.DoesNotContain((await listA.Content.ReadFromJsonAsync<List<PetDto>>())!, item => item.Id == pet!.Id);
         Assert.Equal(HttpStatusCode.BadRequest, (await Authorized(HttpMethod.Put, $"api/mobile/pets/{pet!.Id}", userA.Token, new { name = "Çalındı", type = "Kedi", age = 3, userId = userB.UserId })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await Authorized(HttpMethod.Delete, $"api/mobile/pets/{pet.Id}", userA.Token)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await Authorized(HttpMethod.Put, $"api/mobile/pets/{pet.Id}", userB.Token, new { name = "Misket 2", type = "Kedi", age = 3 })).StatusCode);
+        var imageBase64 = Convert.ToBase64String([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+        var updated = await Authorized(HttpMethod.Put, $"api/mobile/pets/{pet.Id}", userB.Token,
+            new { name = "Misket 2", type = "Kedi", age = 3, imageBase64, imageContentType = "image/png" });
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        var updatedPet = await updated.Content.ReadFromJsonAsync<PetDto>();
+        Assert.StartsWith("uploads/pets/", updatedPet!.ProfileImage);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PetWorkDbContext>();
+        Assert.True(await db.MobileMediaAssets.AnyAsync(asset => asset.StorageKey == updatedPet.ProfileImage));
     }
 
     private async Task<HttpResponseMessage> Register(string username, string email, string password)
@@ -185,7 +194,7 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
     }
     private sealed record AuthDto(int UserId, string Username, string Token, DateTime ExpiresAt, string RefreshToken, DateTime RefreshExpiresAt, string Message);
     private sealed record EmailChallengeDto(bool RequiresEmailVerification, string ChallengeToken, DateTime ExpiresAt, string MaskedEmail, string Message);
-    private sealed record PetDto(int Id, string Name);
+    private sealed record PetDto(int Id, string Name, string? ProfileImage = null);
 }
 
 public sealed class AuthApiFactory : WebApplicationFactory<Program>
