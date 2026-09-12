@@ -7,9 +7,10 @@ import {
   Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import {
-  createLostPet, createLostPetSighting, deleteLostPet, getLostPet, getLostPets, getMyLostPets,
+  createLostPet, createLostPetSighting, deleteLostPet, getLostPet, getLostPets, getMobileContactSettings, getMyLostPets,
   mediaUrl, updateLostPetStatus, type CreateLostPetRequest, type LostPetDetail, type LostPetSummary,
 } from '../api';
+import { ListingContactDetails, ListingContactMethodPicker, type ListingContactSelection } from '../components/ListingContactMethods';
 import { BrandMark } from '../components/BrandMark';
 import { colors, createThemedStyles, shadow } from '../theme';
 
@@ -164,7 +165,8 @@ function Detail({ id, token, onBack, onSighting, onChanged }: { id: number; toke
       <Text style={styles.label}>Ayırt edici özellikler</Text><Text style={styles.body}>{item.distinguishingFeatures}</Text>
       {item.collarOrMicrochip ? <><Text style={styles.label}>Tasma / mikroçip</Text><Text style={styles.body}>{item.collarOrMicrochip}</Text></> : null}
       {item.notes ? <><Text style={styles.label}>Not</Text><Text style={styles.body}>{item.notes}</Text></> : null}
-      {!item.isMine && item.status === 'active' ? <Primary label="Burada Gördüm" icon="eye-outline" onPress={onSighting} /> : null}
+      <ListingContactDetails allowInAppMessages={item.allowInAppMessages} phone={item.contactPhone} email={item.contactEmail} inAppText="Görülme bildirimini uygulama içinden gönderebilirsin." />
+      {!item.isMine && item.status === 'active' && item.allowInAppMessages ? <Primary label="Burada Gördüm" icon="eye-outline" onPress={onSighting} /> : null}
       <View style={styles.sectionRow}><Text style={styles.sectionTitle}>Görülme bildirimleri</Text><Text style={styles.muted}>{item.sightings.length}</Text></View>
       {item.sightings.length ? item.sightings.map(s => <View key={s.id} style={styles.timeline}><Text style={styles.label}>{new Date(s.seenAt).toLocaleString('tr-TR')}</Text><Text style={styles.body}>{s.locationLabel}</Text>{s.note ? <Text style={styles.muted}>{s.note}</Text> : null}{item.isMine && s.latitude != null && s.longitude != null ? <Pressable onPress={() => void openSightingMap(s.latitude!, s.longitude!)}><Text style={styles.link}>Kesin konumu haritada aç →</Text></Pressable> : null}</View>) : <Text style={styles.muted}>Henüz görülme bildirimi yok.</Text>}
       <Text style={styles.privacy}>{item.isMine ? 'Gözlemde koordinat paylaşıldıysa kesin konumu yalnızca sen haritada açabilirsin.' : 'Kesin konum ayrıntıları yalnızca ilan sahibine gösterilir.'}</Text>
@@ -180,6 +182,9 @@ function ListingForm({ kind, token, onBack, onCreated }: { kind: 'lost' | 'found
   const [city, setCity] = useState(''); const [district, setDistrict] = useState(''); const [neighborhood, setNeighborhood] = useState('');
   const [collar, setCollar] = useState(''); const [notes, setNotes] = useState(''); const [coords, setCoords] = useState<{ latitude: number; longitude: number }>();
   const [submitting, setSubmitting] = useState(false); const [error, setError] = useState<string | null>(null);
+  const [contactSettings, setContactSettings] = useState<Awaited<ReturnType<typeof getMobileContactSettings>> | null>(null);
+  const [contactMethods, setContactMethods] = useState<ListingContactSelection>({ allowInAppMessages: true, sharePhone: false, shareEmail: false });
+  useEffect(() => { getMobileContactSettings(token).then(setContactSettings).catch(() => setContactSettings(null)); }, [token]);
   const choosePhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return Alert.alert('Fotoğraf izni gerekli', 'İlan fotoğrafı seçmek için galeri izni vermelisin.');
@@ -194,11 +199,12 @@ function ListingForm({ kind, token, onBack, onCreated }: { kind: 'lost' | 'found
   };
   const submit = async () => {
     if (!photo || !petName.trim() || !species.trim() || features.trim().length < 5 || !city.trim() || !district.trim()) return setError('Fotoğraf, ad, tür, ayırt edici özellik, il ve ilçe zorunludur.');
+    if (!contactMethods.allowInAppMessages && !contactMethods.sharePhone && !contactMethods.shareEmail) return setError('En az bir iletişim yöntemi seçmelisin.');
     const parsed = new Date(eventAt);
     if (Number.isNaN(parsed.getTime())) return setError('Tarih biçimi geçersiz. Örnek: 2026-09-08T17:30');
     setSubmitting(true); setError(null);
     try {
-      const request: CreateLostPetRequest = { kind, petName: petName.trim(), species: species.trim(), breed: breed.trim(), distinguishingFeatures: features.trim(), eventAt, city: city.trim(), district: district.trim(), neighborhood: neighborhood.trim(), latitude: coords?.latitude, longitude: coords?.longitude, collarOrMicrochip: collar.trim(), notes: notes.trim(), image: { uri: photo.uri, mimeType: photo.mimeType } };
+      const request: CreateLostPetRequest = { kind, petName: petName.trim(), species: species.trim(), breed: breed.trim(), distinguishingFeatures: features.trim(), eventAt, city: city.trim(), district: district.trim(), neighborhood: neighborhood.trim(), latitude: coords?.latitude, longitude: coords?.longitude, collarOrMicrochip: collar.trim(), notes: notes.trim(), ...contactMethods, image: { uri: photo.uri, mimeType: photo.mimeType } };
       onCreated(await createLostPet(token, request));
       Alert.alert('İlan yayınlandı', 'İlanın gerçek kaydı oluşturuldu ve listelerde görünmeye başladı.');
     } catch (e) { setError(e instanceof Error ? e.message : 'İlan oluşturulamadı.'); } finally { setSubmitting(false); }
@@ -210,7 +216,8 @@ function ListingForm({ kind, token, onBack, onCreated }: { kind: 'lost' | 'found
     <Field value={city} onChangeText={setCity} placeholder="İl *" /><Field value={district} onChangeText={setDistrict} placeholder="İlçe *" /><Field value={neighborhood} onChangeText={setNeighborhood} placeholder="Mahalle" />
     <Pressable onPress={useLocation} style={styles.locationButton}><Ionicons name={coords ? 'checkmark-circle' : 'locate-outline'} size={21} color="#4E7458" /><Text style={styles.locationText}>{coords ? 'Yaklaşık konum eklendi' : 'Telefonun yaklaşık konumunu ekle'}</Text></Pressable>
     <Field value={collar} onChangeText={setCollar} placeholder="Tasma / mikroçip bilgisi" /><Field value={notes} onChangeText={setNotes} placeholder="Önemli notlar" multiline />
-    <Text style={styles.privacy}>Telefon numaranı veya açık ev adresini yazma.</Text>{error ? <Text style={styles.errorText}>{error}</Text> : null}
+    <ListingContactMethodPicker context="lost" settings={contactSettings} value={contactMethods} onChange={setContactMethods} />
+    <Text style={styles.privacy}>Açık ev adresini açıklama alanlarına yazma. Telefon ve e-posta yalnızca yukarıdan seçtiğinde bu ilanda görünür.</Text>{error ? <Text style={styles.errorText}>{error}</Text> : null}
     <Primary label={submitting ? 'Gönderiliyor…' : 'İlanı yayınla'} icon="paper-plane-outline" onPress={() => { if (!submitting) void submit(); }} />
   </Page>;
 }

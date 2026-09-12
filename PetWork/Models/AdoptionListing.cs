@@ -17,6 +17,9 @@ public sealed class AdoptionListing
     [Required, StringLength(500)] public string HealthInfo { get; set; } = string.Empty;
     [Required, StringLength(2000)] public string Story { get; set; } = string.Empty;
     [Required, StringLength(500)] public string ImagePath { get; set; } = string.Empty;
+    public bool AllowInAppMessages { get; set; } = true;
+    [StringLength(32)] public string? ContactPhone { get; set; }
+    [StringLength(254)] public string? ContactEmail { get; set; }
     [Required, StringLength(20)] public string Status { get; set; } = "active";
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public bool IsDeleted { get; set; }

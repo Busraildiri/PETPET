@@ -216,13 +216,14 @@ export type LostPetSighting = {
 
 export type LostPetDetail = Omit<LostPetSummary, 'sightingCount' | 'distanceKm'> & {
   distinguishingFeatures: string; collarOrMicrochip?: string | null; notes?: string | null;
-  sourceName: string; expiresAt: string; ownerUsername: string; isMine: boolean; sightings: LostPetSighting[];
+  sourceName: string; expiresAt: string; ownerUsername: string; isMine: boolean;
+  allowInAppMessages: boolean; contactPhone?: string | null; contactEmail?: string | null; sightings: LostPetSighting[];
 };
 
 export type CreateLostPetRequest = {
   kind: 'lost' | 'found'; petName: string; species: string; breed?: string; distinguishingFeatures: string;
   eventAt: string; city: string; district: string; neighborhood?: string; latitude?: number; longitude?: number;
-  collarOrMicrochip?: string; notes?: string;
+  collarOrMicrochip?: string; notes?: string; allowInAppMessages: boolean; sharePhone: boolean; shareEmail: boolean;
   image: { uri: string; mimeType?: string | null };
 };
 
@@ -231,6 +232,7 @@ export type AdoptionListing = {
   city: string; district?: string | null; healthInfo: string; story: string; imagePath: string;
   status: 'active' | 'adopted' | 'closed'; ownerUsername: string; createdAt: string; isMine: boolean; hasApplied: boolean;
   applicationStatus?: 'pending' | 'accepted' | 'rejected' | null;
+  allowInAppMessages: boolean; contactPhone?: string | null; contactEmail?: string | null;
 };
 
 export type AdoptionApplication = { id: number; username: string; message: string; status: 'pending' | 'accepted' | 'rejected'; createdAt: string };
@@ -270,7 +272,8 @@ export type MobileContactSettings = {
 
 export type CreateAdoptionListingRequest = {
   petName: string; species: string; breed?: string; ageYears?: number; gender?: string; city: string; district?: string;
-  healthInfo: string; story: string; image: { uri: string; mimeType?: string | null };
+  healthInfo: string; story: string; allowInAppMessages: boolean; sharePhone: boolean; shareEmail: boolean;
+  image: { uri: string; mimeType?: string | null };
 };
 
 export type ProductReview = {

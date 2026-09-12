@@ -87,6 +87,11 @@ namespace PetWork.Migrations.PostgreSql
                     b.Property<int?>("AgeYears")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("AllowInAppMessages")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Breed")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -95,6 +100,14 @@ namespace PetWork.Migrations.PostgreSql
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
@@ -646,6 +659,11 @@ namespace PetWork.Migrations.PostgreSql
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("AllowInAppMessages")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Breed")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -658,6 +676,14 @@ namespace PetWork.Migrations.PostgreSql
                     b.Property<string>("CollarOrMicrochip")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");

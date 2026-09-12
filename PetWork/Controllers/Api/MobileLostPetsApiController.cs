@@ -95,7 +95,9 @@ public sealed class MobileLostPetsApiController : ControllerBase
         if (listing is null) return NotFound(new { message = "İlan bulunamadı." });
 
         var mine = TryGetUserId(out var userId) && listing.UserId == userId;
-        return Ok(ToDetail(listing, mine));
+        var exposeContact = await _context.MobileContactPreferences.AsNoTracking()
+            .AnyAsync(item => item.UserId == listing.UserId && item.AllowLostPetSharing, cancellationToken);
+        return Ok(ToDetail(listing, mine, exposeContact));
     }
 
     [HttpPost]
@@ -112,6 +114,10 @@ public sealed class MobileLostPetsApiController : ControllerBase
         if (!AllowedKinds.Contains(kind)) return BadRequest(new { message = "İlan türü geçersiz." });
         if (!ValidCoordinates(request.Latitude, request.Longitude)) return BadRequest(new { message = "Konum koordinatları geçersiz." });
         if (request.EventAt > DateTime.Now.AddMinutes(10)) return BadRequest(new { message = "Olay zamanı gelecekte olamaz." });
+
+        var contact = await ResolveListingContact(userId, request.AllowInAppMessages, request.SharePhone,
+            request.ShareEmail, cancellationToken);
+        if (contact.Error is not null) return BadRequest(new { message = contact.Error });
 
         var user = await _context.Users.FirstOrDefaultAsync(item => item.Id == userId, cancellationToken);
         if (user is null) return Unauthorized(new { message = "Kullanıcı hesabı bulunamadı." });
@@ -135,6 +141,9 @@ public sealed class MobileLostPetsApiController : ControllerBase
             CollarOrMicrochip = Clean(request.CollarOrMicrochip),
             Notes = Clean(request.Notes),
             ImagePath = imageResult.Path!,
+            AllowInAppMessages = request.AllowInAppMessages,
+            ContactPhone = contact.Phone,
+            ContactEmail = contact.Email,
             Status = "active",
             SourceName = "Pet'im",
             CreatedAt = DateTime.Now,
@@ -145,7 +154,7 @@ public sealed class MobileLostPetsApiController : ControllerBase
         await _context.SaveChangesAsync(cancellationToken);
 
         listing.User = user;
-        return CreatedAtAction(nameof(GetListing), new { id = listing.Id }, ToDetail(listing, true));
+        return CreatedAtAction(nameof(GetListing), new { id = listing.Id }, ToDetail(listing, true, true));
     }
 
     [HttpPost("{id:int}/sightings")]
@@ -164,6 +173,8 @@ public sealed class MobileLostPetsApiController : ControllerBase
             .FirstOrDefaultAsync(item => item.Id == id && !item.IsDeleted && item.Status == "active", cancellationToken);
         if (listing is null) return NotFound(new { message = "Aktif ilan bulunamadı." });
         if (listing.UserId == userId) return BadRequest(new { message = "Kendi ilanına görülme bildirimi ekleyemezsin." });
+        if (!listing.AllowInAppMessages)
+            return Conflict(new { message = "İlan sahibi uygulama içinden görülme bildirimi kabul etmiyor. İlandaki diğer iletişim yöntemlerini kullanabilirsin." });
 
         var sighting = new LostPetSighting
         {
@@ -229,15 +240,33 @@ public sealed class MobileLostPetsApiController : ControllerBase
         RoundCoordinate(item.Latitude), RoundCoordinate(item.Longitude), item.EventAt, item.ImagePath, item.Status,
         item.CreatedAt, sightingCount, Distance(latitude, longitude, item.Latitude, item.Longitude));
 
-    private static MobileLostPetDetail ToDetail(LostPetListing item, bool owner) => new(
+    private static MobileLostPetDetail ToDetail(LostPetListing item, bool owner, bool exposeContact) => new(
         item.Id, item.Kind, item.PetName, item.Species, item.Breed, item.DistinguishingFeatures, item.EventAt,
         item.City, item.District, item.Neighborhood, owner ? item.Latitude : RoundCoordinate(item.Latitude),
         owner ? item.Longitude : RoundCoordinate(item.Longitude), item.CollarOrMicrochip, item.Notes, item.ImagePath,
         item.Status, item.SourceName, item.CreatedAt, item.ExpiresAt, item.User.Username, owner,
+        item.AllowInAppMessages, exposeContact ? item.ContactPhone : null, exposeContact ? item.ContactEmail : null,
         item.Sightings.OrderByDescending(sighting => sighting.SeenAt).Select(sighting => new MobileLostPetSightingResponse(
             sighting.Id, sighting.LocationLabel, sighting.SeenAt, sighting.Note,
             owner ? sighting.Latitude : RoundCoordinate(sighting.Latitude), owner ? sighting.Longitude : RoundCoordinate(sighting.Longitude),
             sighting.CreatedAt)).ToList());
+
+    private async Task<(string? Phone, string? Email, string? Error)> ResolveListingContact(int userId,
+        bool allowInAppMessages, bool sharePhone, bool shareEmail, CancellationToken cancellationToken)
+    {
+        if (!sharePhone && !shareEmail)
+            return allowInAppMessages ? (null, null, null) : (null, null, "En az bir iletişim yöntemi seçmelisin.");
+
+        var preference = await _context.MobileContactPreferences.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        if (preference?.AllowLostPetSharing != true)
+            return (null, null, "Telefon veya e-posta paylaşmak için Ayarlar > İletişim bilgileri bölümündeki kayıp pati iznini açmalısın.");
+        if (sharePhone && string.IsNullOrWhiteSpace(preference.Phone))
+            return (null, null, "Telefonu seçebilmek için Ayarlar > İletişim bilgileri bölümüne telefon numaranı kaydetmelisin.");
+        if (shareEmail && string.IsNullOrWhiteSpace(preference.ContactEmail))
+            return (null, null, "E-postayı seçebilmek için Ayarlar > İletişim bilgileri bölümüne e-posta adresini kaydetmelisin.");
+        return (sharePhone ? preference.Phone : null, shareEmail ? preference.ContactEmail : null, null);
+    }
 
     private (string? Path, string? Error) SaveImage(string imageBase64, string? contentType)
     {
@@ -305,6 +334,9 @@ public sealed class MobileCreateLostPetRequest
     [StringLength(1500)] public string? Notes { get; init; }
     [Required] public string ImageBase64 { get; init; } = string.Empty;
     [Required, StringLength(100)] public string ImageContentType { get; init; } = string.Empty;
+    public bool AllowInAppMessages { get; init; } = true;
+    public bool SharePhone { get; init; }
+    public bool ShareEmail { get; init; }
 }
 
 public sealed class MobileCreateLostPetSightingRequest
@@ -332,4 +364,5 @@ public sealed record MobileLostPetDetail(int Id, string Kind, string PetName, st
     string DistinguishingFeatures, DateTime EventAt, string City, string District, string? Neighborhood,
     double? Latitude, double? Longitude, string? CollarOrMicrochip, string? Notes, string ImagePath,
     string Status, string SourceName, DateTime CreatedAt, DateTime ExpiresAt, string OwnerUsername,
-    bool IsMine, IReadOnlyList<MobileLostPetSightingResponse> Sightings);
+    bool IsMine, bool AllowInAppMessages, string? ContactPhone, string? ContactEmail,
+    IReadOnlyList<MobileLostPetSightingResponse> Sightings);

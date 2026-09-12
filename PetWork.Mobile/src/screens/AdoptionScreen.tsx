@@ -7,8 +7,9 @@ import {
 } from 'react-native';
 import {
   AdoptionApplication, AdoptionListing, applyToAdoptionListing, createAdoptionListing, getAdoptionApplications,
-  getAdoptionListings, mediaUrl, reportAdoptionListing, updateAdoptionApplication, updateAdoptionListingStatus,
+  getAdoptionListings, getMobileContactSettings, mediaUrl, reportAdoptionListing, updateAdoptionApplication, updateAdoptionListingStatus,
 } from '../api';
+import { ListingContactDetails, ListingContactMethodPicker, type ListingContactSelection } from '../components/ListingContactMethods';
 import { colors, createThemedStyles, shadow } from '../theme';
 
 type Props = { token: string | null; onLogin: () => void; onBack: () => void; initialListingId?: number | null };
@@ -88,8 +89,9 @@ export function AdoptionScreen({ token, onLogin, onBack, initialListingId }: Pro
           <Text style={styles.owner}>@{item.ownerUsername} · {new Date(item.createdAt).toLocaleDateString('tr-TR')}</Text>
           <Text style={styles.label}>Sağlık ve bakım bilgisi</Text><Text style={styles.body}>{item.healthInfo}</Text>
           <Text style={styles.label}>{item.petName}'ın hikâyesi</Text><Text style={styles.body}>{item.story}</Text>
+          <ListingContactDetails allowInAppMessages={item.allowInAppMessages} phone={item.contactPhone} email={item.contactEmail} inAppText="Sahiplenme başvurusunu uygulama içinden gönderebilirsin." />
           {item.isMine ? <><Pressable style={styles.outlineButton} onPress={() => void openApplications(item)}><Text style={styles.outlineText}>Başvuruları gör</Text></Pressable>{item.status === 'active' ? <Pressable onPress={() => closeListing(item)}><Text style={styles.dangerText}>Sahiplendirildi olarak kapat</Text></Pressable> : <Text style={styles.owner}>İlan durumu: Sahiplendirildi</Text>}</>
-            : <Pressable disabled={item.hasApplied || item.status !== 'active'} style={[styles.primaryButton, (item.hasApplied || item.status !== 'active') && styles.disabled]} onPress={() => openAction('apply', item)}><Ionicons name="heart-outline" size={19} color="#fff" /><Text style={styles.primaryText}>{item.applicationStatus === 'accepted' ? 'Başvurun kabul edildi' : item.applicationStatus === 'rejected' ? 'Başvurun reddedildi' : item.hasApplied ? 'Başvurun bekliyor' : item.status === 'adopted' ? 'Sahiplendirildi' : 'Sahiplenme başvurusu yap'}</Text></Pressable>}
+            : item.allowInAppMessages ? <Pressable disabled={item.hasApplied || item.status !== 'active'} style={[styles.primaryButton, (item.hasApplied || item.status !== 'active') && styles.disabled]} onPress={() => openAction('apply', item)}><Ionicons name="heart-outline" size={19} color="#fff" /><Text style={styles.primaryText}>{item.applicationStatus === 'accepted' ? 'Başvurun kabul edildi' : item.applicationStatus === 'rejected' ? 'Başvurun reddedildi' : item.hasApplied ? 'Başvurun bekliyor' : item.status === 'adopted' ? 'Sahiplendirildi' : 'Sahiplenme başvurusu yap'}</Text></Pressable> : null}
           <View style={styles.actions}><Pressable onPress={() => Alert.alert('Güvenli sahiplendirme', 'Hayvanı ve yaşam alanını yüz yüze gör. Kimlik, adres veya ödeme bilgilerini aceleyle paylaşma. Ücret isteyen ya da şüpheli davranan ilanları bildir.')}><Text style={styles.link}>Güvenlik önerileri</Text></Pressable>{!item.isMine ? <Pressable onPress={() => openAction('report', item)}><Text style={styles.report}>İlanı bildir</Text></Pressable> : null}</View>
         </View>
       </View>)}
@@ -104,12 +106,16 @@ function CreateListingForm({ token, onCreated }: { token: string; onCreated: (it
   const [petName, setPetName] = useState(''); const [species, setSpecies] = useState(''); const [breed, setBreed] = useState('');
   const [age, setAge] = useState(''); const [gender, setGender] = useState(''); const [city, setCity] = useState(''); const [district, setDistrict] = useState('');
   const [healthInfo, setHealthInfo] = useState(''); const [story, setStory] = useState('');
+  const [contactSettings, setContactSettings] = useState<Awaited<ReturnType<typeof getMobileContactSettings>> | null>(null);
+  const [contactMethods, setContactMethods] = useState<ListingContactSelection>({ allowInAppMessages: true, sharePhone: false, shareEmail: false });
+  useEffect(() => { getMobileContactSettings(token).then(setContactSettings).catch(() => setContactSettings(null)); }, [token]);
   const pick = async () => { const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(); if (!permission.granted) { Alert.alert('Fotoğraf izni gerekli', 'İlan fotoğrafı seçebilmek için galeri izni ver.'); return; } const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.85 }); if (!result.canceled) setPhoto(result.assets[0]); };
   const submit = async () => {
     Keyboard.dismiss();
     if (!photo || !petName.trim() || species.trim().length < 2 || city.trim().length < 2 || healthInfo.trim().length < 5 || story.trim().length < 10) { Alert.alert('Eksik bilgi', 'Fotoğraf, isim, tür, şehir, sağlık bilgisi ve hikâye alanlarını doldur.'); return; }
+    if (!contactMethods.allowInAppMessages && !contactMethods.sharePhone && !contactMethods.shareEmail) { Alert.alert('İletişim yöntemi gerekli', 'En az bir iletişim yöntemi seçmelisin.'); return; }
     const ageYears = age.trim() ? Number(age) : undefined; if (ageYears !== undefined && (!Number.isInteger(ageYears) || ageYears < 0 || ageYears > 40)) { Alert.alert('Yaş geçersiz', 'Yaşı 0–40 arasında tam sayı olarak gir.'); return; }
-    setBusy(true); try { onCreated(await createAdoptionListing(token, { petName, species, breed, ageYears, gender, city, district, healthInfo, story, image: { uri: photo.uri, mimeType: photo.mimeType } })); Alert.alert('İlan yayınlandı', 'Sahiplendirme ilanı sunucuya kaydedildi.'); }
+    setBusy(true); try { onCreated(await createAdoptionListing(token, { petName, species, breed, ageYears, gender, city, district, healthInfo, story, ...contactMethods, image: { uri: photo.uri, mimeType: photo.mimeType } })); Alert.alert('İlan yayınlandı', 'Sahiplendirme ilanı sunucuya kaydedildi.'); }
     catch (reason) { Alert.alert('İlan oluşturulamadı', reason instanceof Error ? reason.message : 'Lütfen yeniden dene.'); } finally { setBusy(false); }
   };
   return <View style={styles.form}><Text style={styles.formTitle}>Yeni sahiplendirme ilanı</Text><Pressable style={styles.photoPicker} onPress={() => void pick()}>{photo ? <Image source={{ uri: photo.uri }} style={styles.photoPreview} /> : <><Ionicons name="images-outline" size={26} color={colors.primary} /><Text style={styles.link}>Galeriden fotoğraf ekle</Text></>}</Pressable>
@@ -117,6 +123,7 @@ function CreateListingForm({ token, onCreated }: { token: string; onCreated: (it
     <View style={styles.two}><View style={styles.flex}><Field value={age} onChange={setAge} placeholder="Yaş" keyboardType="number-pad" /></View><View style={styles.flex}><Field value={gender} onChange={setGender} placeholder="Cinsiyet" /></View></View>
     <View style={styles.two}><View style={styles.flex}><Field value={city} onChange={setCity} placeholder="Şehir *" /></View><View style={styles.flex}><Field value={district} onChange={setDistrict} placeholder="İlçe" /></View></View>
     <Field value={healthInfo} onChange={setHealthInfo} placeholder="Sağlık ve bakım bilgisi *" multiline /><Field value={story} onChange={setStory} placeholder="Hikâyesi ve aradığın yuva *" multiline />
+    <ListingContactMethodPicker context="adoption" settings={contactSettings} value={contactMethods} onChange={setContactMethods} />
     <Pressable disabled={busy} style={[styles.primaryButton, busy && styles.disabled]} onPress={() => void submit()}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>İlanı yayınla</Text>}</Pressable>
   </View>;
 }
