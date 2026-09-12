@@ -88,6 +88,7 @@ namespace PetWork.Data
 
             modelBuilder.Entity<User>().HasIndex(user => user.Username).IsUnique();
             modelBuilder.Entity<User>().HasIndex(user => user.Email).IsUnique();
+            var googleSubjectIndex = modelBuilder.Entity<User>().HasIndex(user => user.GoogleSubject).IsUnique();
 
             modelBuilder.Entity<DailyCostUsage>()
                 .HasKey(usage => new { usage.Category, usage.SubjectHash, usage.UsageDateUtc });
@@ -106,6 +107,7 @@ namespace PetWork.Data
 
                 modelBuilder.Entity<User>().Property(user => user.Username).HasColumnType("citext");
                 modelBuilder.Entity<User>().Property(user => user.Email).HasColumnType("citext");
+                googleSubjectIndex.HasFilter("\"GoogleSubject\" IS NOT NULL");
 
                 // Kaynak SQL Server datetime2 değerleri saat dilimi taşımıyor. İlk aktarımda
                 // saat kaymasını önlemek için olay zamanlarını timestamp without time zone
@@ -129,6 +131,10 @@ namespace PetWork.Data
                 modelBuilder.Entity<Recipe>().Property(recipe => recipe.Description).HasDefaultValue(string.Empty);
                 modelBuilder.Entity<Recipe>().Property(recipe => recipe.PreparationTime).HasDefaultValue(0);
                 modelBuilder.Entity<Pet>().Property(pet => pet.PetType).HasDefaultValue(string.Empty);
+            }
+            else
+            {
+                googleSubjectIndex.HasFilter("[GoogleSubject] IS NOT NULL");
             }
 
             // Question - User ilişkisi

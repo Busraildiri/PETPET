@@ -4,12 +4,14 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Google.Apis.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using PetWork.Data;
 using PetWork.Models;
 using PetWork.Services;
@@ -79,9 +81,13 @@ public sealed class MobileAuthApiController : ControllerBase
             Username = username,
             Email = email,
             PasswordHash = string.Empty,
+            ProfileImage = "img/user-profile.jpg",
             RegistrationDate = DateTime.UtcNow,
             ExperiencePoints = 50,
-            IsEmailVerified = false
+            IsEmailVerified = false,
+            IsAdmin = false,
+            ShowBioToOthers = true,
+            ShowPetsToOthers = true
         };
         user.PasswordHash = new PasswordHasher<User>().HashPassword(user, request.Password);
         _context.Users.Add(user);
@@ -94,11 +100,32 @@ public sealed class MobileAuthApiController : ControllerBase
             _logger.LogInformation("Mobil üyelik oluşturuldu; e-posta doğrulaması bekleniyor. UserId: {UserId}", user.Id);
             return Created(string.Empty, challenge);
         }
-        catch (DbUpdateException exception)
+        catch (DbUpdateException exception) when (
+            exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             await transaction.RollbackAsync(cancellationToken);
-            _logger.LogWarning(exception, "Mobil üyelik sırasında benzersiz alan çakışması oluştu.");
+            var postgres = (PostgresException)exception.InnerException!;
+            _logger.LogWarning(exception,
+                "Mobil üyelik sırasında benzersiz alan çakışması oluştu. Constraint: {ConstraintName}",
+                postgres.ConstraintName);
             return Conflict(new MobileAuthError("Bu e-posta veya kullanıcı adı zaten kayıtlı."));
+        }
+        catch (DbUpdateException exception)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            if (exception.InnerException is PostgresException postgres)
+            {
+                var referenceCode = ErrorReferenceCode.Create(HttpContext);
+                _logger.LogError(exception,
+                    "Mobil üyelik veritabanı yazımı başarısız. ReferenceCode: {ReferenceCode}, SqlState: {SqlState}, Table: {TableName}, Column: {ColumnName}, Constraint: {ConstraintName}",
+                    referenceCode, postgres.SqlState, postgres.TableName, postgres.ColumnName, postgres.ConstraintName);
+                return StatusCode(StatusCodes.Status500InternalServerError, new MobileAuthError(
+                    ErrorReferenceCode.UserMessage("Kayıt veritabanına yazılamadı. Lütfen tekrar deneyin.", referenceCode),
+                    referenceCode));
+            }
+
+            return OperationalFailure(exception, StatusCodes.Status500InternalServerError,
+                "Mobil üyelik veritabanı yazımı", "Kayıt veritabanına yazılamadı. Lütfen tekrar deneyin.");
         }
         catch (EmailDeliveryException exception)
         {
@@ -152,6 +179,87 @@ public sealed class MobileAuthApiController : ControllerBase
             return OperationalFailure(exception, StatusCodes.Status500InternalServerError,
                 "Mobil giriş", "Giriş sırasında beklenmeyen bir sunucu hatası oluştu. Lütfen tekrar deneyin.");
         }
+    }
+
+    [HttpPost("google")]
+    [AllowAnonymous]
+    [SensitiveRateLimit("Login")]
+    public async Task<ActionResult<MobileAuthResponse>> GoogleLogin(
+        MobileGoogleLoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        var configuredClientIds = _configuration
+            .GetSection("Authentication:Google:ClientIds")
+            .Get<string[]>()?
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray() ?? [];
+
+        if (configuredClientIds.Length == 0)
+        {
+            _logger.LogError("Google login requested but no Google OAuth client ID is configured.");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new MobileAuthError("Google ile giriş henüz yapılandırılmadı."));
+        }
+
+        GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken,
+                new GoogleJsonWebSignature.ValidationSettings
+                {
+                    Audience = configuredClientIds
+                });
+        }
+        catch (InvalidJwtException exception)
+        {
+            _logger.LogWarning(exception, "Invalid Google ID token received.");
+            return Unauthorized(new MobileAuthError("Google oturumu doğrulanamadı. Lütfen yeniden dene."));
+        }
+
+        var email = payload.Email?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(payload.Subject) || string.IsNullOrWhiteSpace(email) || !payload.EmailVerified)
+            return Unauthorized(new MobileAuthError("Google hesabının doğrulanmış e-posta bilgisi alınamadı."));
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        var user = await _context.Users.FirstOrDefaultAsync(candidate => candidate.GoogleSubject == payload.Subject, cancellationToken);
+        if (user is null)
+        {
+            user = await _context.Users.FirstOrDefaultAsync(candidate => candidate.Email == email, cancellationToken);
+            if (user is null)
+            {
+                if (!request.AcceptTerms)
+                    return BadRequest(new MobileAuthError("İlk kayıtta üyelik koşullarını ve gizlilik politikasını kabul etmelisin."));
+
+                var username = await CreateAvailableUsernameAsync(payload.Name, email, cancellationToken);
+                user = new User
+                {
+                    Username = username,
+                    Email = email,
+                    GoogleSubject = payload.Subject,
+                    IsEmailVerified = true,
+                    RegistrationDate = DateTime.UtcNow,
+                    ExperiencePoints = 50,
+                    PasswordHash = string.Empty
+                };
+                user.ProfileImage = "img/user-profile.jpg";
+                user.PasswordHash = new PasswordHasher<User>().HashPassword(user, CreateOpaqueToken());
+                _context.Users.Add(user);
+            }
+            else
+            {
+                if (!string.IsNullOrWhiteSpace(user.GoogleSubject) && user.GoogleSubject != payload.Subject)
+                    return Conflict(new MobileAuthError("Bu e-posta başka bir Google hesabıyla eşleştirilmiş."));
+                user.GoogleSubject = payload.Subject;
+                user.IsEmailVerified = true;
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        var response = await CreateSessionAsync(user, request.RememberMe, "Google hesabınla giriş yaptın.", cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Ok(response);
     }
 
     [HttpPost("verify-email")]
@@ -498,6 +606,28 @@ public sealed class MobileAuthApiController : ControllerBase
         return CreateResponse(user, session, rawRefreshToken, message);
     }
 
+    private async Task<string> CreateAvailableUsernameAsync(string? displayName, string email, CancellationToken cancellationToken)
+    {
+        var source = string.IsNullOrWhiteSpace(displayName) ? email.Split('@')[0] : displayName;
+        var normalized = new string(source.Trim().ToLowerInvariant()
+            .Select(character => char.IsLetterOrDigit(character) ? character : '_')
+            .ToArray());
+        while (normalized.Contains("__", StringComparison.Ordinal)) normalized = normalized.Replace("__", "_", StringComparison.Ordinal);
+        normalized = normalized.Trim('_');
+        if (normalized.Length < 3) normalized = "petim_kullanici";
+        if (normalized.Length > 40) normalized = normalized[..40];
+
+        var candidate = normalized;
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            if (!await _context.Users.AsNoTracking().AnyAsync(user => user.Username == candidate, cancellationToken))
+                return candidate;
+            candidate = $"{normalized[..Math.Min(normalized.Length, 35)]}_{RandomNumberGenerator.GetInt32(1000, 99999)}";
+        }
+
+        return $"petim_{Guid.NewGuid():N}"[..38];
+    }
+
     private async Task<MobileEmailChallengeResponse> CreateEmailChallengeAsync(User user, bool rememberMe, CancellationToken cancellationToken)
     {
         var challenge = await _emailVerificationService.CreateAsync(user.Id, user.Email, user.Username, rememberMe, cancellationToken);
@@ -655,6 +785,11 @@ public sealed record MobileAuthResponse(
     string RefreshToken,
     DateTime RefreshExpiresAt,
     string Message);
+
+public sealed record MobileGoogleLoginRequest(
+    [Required, StringLength(4096, MinimumLength = 20)] string IdToken,
+    bool RememberMe,
+    bool AcceptTerms);
 public sealed record MobileMeResponse(int UserId, string Username, string Email, string? Bio, string? City,
     string? Occupation, string? LivingSituation, bool? HasChildren, bool? HasOtherPets, string ProfileImage);
 public sealed class MobileUpdateProfileRequest

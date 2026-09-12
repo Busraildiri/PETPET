@@ -19,6 +19,10 @@ namespace PetWork.Models
         public string Email { get; set; }
 
         public bool IsEmailVerified { get; set; }
+
+        [StringLength(255)]
+        [JsonIgnore]
+        public string? GoogleSubject { get; set; }
         
         [Required]
         [JsonIgnore]
