@@ -236,6 +236,19 @@ export type MobileNotificationPreferences = {
   communityNotifications: boolean; lostPetNotifications: boolean; matchNotifications: boolean; isConfigured: boolean;
 };
 
+export type PatiMatchSharedContact = {
+  username: string;
+  phone?: string | null;
+  email?: string | null;
+  sharedAt: string;
+};
+
+export type PatiMatchContactShareState = {
+  myStatus: 'none' | 'shared' | 'revoked';
+  mine?: PatiMatchSharedContact | null;
+  peer?: PatiMatchSharedContact | null;
+};
+
 export type MobileContactSettings = {
   phone?: string | null;
   email?: string | null;
@@ -1139,6 +1152,31 @@ export async function sendPatiMatchMessage(token: string, sourcePetId: number, t
     body: JSON.stringify({ sourcePetId, targetPetId, body }),
   });
   return readPatiMatchResponse<PatiMatchMessage>(response, `Mesaj gönderilemedi (${response.status}).`);
+}
+
+export async function getPatiMatchContactShare(token: string, sourcePetId: number, targetPetId: number, signal?: AbortSignal): Promise<PatiMatchContactShareState> {
+  const query = new URLSearchParams({ sourcePetId: String(sourcePetId), targetPetId: String(targetPetId) });
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match/contact-share?${query}`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal,
+  });
+  return readPatiMatchResponse<PatiMatchContactShareState>(response, 'İletişim paylaşımı alınamadı.');
+}
+
+export async function sharePatiMatchContact(token: string, sourcePetId: number, targetPetId: number): Promise<PatiMatchContactShareState> {
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match/contact-share`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sourcePetId, targetPetId }),
+  });
+  return readPatiMatchResponse<PatiMatchContactShareState>(response, 'İletişim bilgileri paylaşılamadı.');
+}
+
+export async function revokePatiMatchContact(token: string, sourcePetId: number, targetPetId: number): Promise<PatiMatchContactShareState> {
+  const query = new URLSearchParams({ sourcePetId: String(sourcePetId), targetPetId: String(targetPetId) });
+  const response = await fetch(`${apiUrl}/api/mobile/pati-match/contact-share?${query}`, {
+    method: 'DELETE', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  return readPatiMatchResponse<PatiMatchContactShareState>(response, 'İletişim paylaşımı geri alınamadı.');
 }
 
 export async function deactivatePatiMatch(token: string, petId: number): Promise<void> {

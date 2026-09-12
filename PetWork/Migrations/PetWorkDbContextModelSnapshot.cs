@@ -1026,6 +1026,49 @@ namespace PetWork.Migrations
                     b.ToTable("PasswordResetTokens");
                 });
 
+            modelBuilder.Entity("PetWork.Models.PatiMatchContactShare", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<int>("PetOneId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PetTwoId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("SharedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("SharedByUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PetTwoId");
+
+                    b.HasIndex("SharedByUserId");
+
+                    b.HasIndex("PetOneId", "PetTwoId", "SharedByUserId")
+                        .IsUnique();
+
+                    b.ToTable("PatiMatchContactShares");
+                });
+
             modelBuilder.Entity("PetWork.Models.PatiMatchDecision", b =>
                 {
                     b.Property<int>("Id")
@@ -1907,6 +1950,33 @@ namespace PetWork.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PetWork.Models.PatiMatchContactShare", b =>
+                {
+                    b.HasOne("PetWork.Models.Pet", "PetOne")
+                        .WithMany()
+                        .HasForeignKey("PetOneId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("PetWork.Models.Pet", "PetTwo")
+                        .WithMany()
+                        .HasForeignKey("PetTwoId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("PetWork.Models.User", "SharedByUser")
+                        .WithMany()
+                        .HasForeignKey("SharedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("PetOne");
+
+                    b.Navigation("PetTwo");
+
+                    b.Navigation("SharedByUser");
                 });
 
             modelBuilder.Entity("PetWork.Models.PatiMatchDecision", b =>
