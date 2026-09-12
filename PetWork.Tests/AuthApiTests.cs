@@ -145,6 +145,66 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task PatiMatch_contact_share_requires_permission_is_visible_to_match_and_can_be_revoked()
+    {
+        var id = Guid.NewGuid().ToString("N")[..10];
+        var first = await ReadAuth(await Register($"matcha_{id}", $"matcha-{id}@example.com", "Valid1!x"));
+        var second = await ReadAuth(await Register($"matchb_{id}", $"matchb-{id}@example.com", "Valid1!x"));
+        int firstPetId;
+        int secondPetId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PetWorkDbContext>();
+            var firstPet = new Pet { UserId = first.UserId, Name = "Mavi", Type = "Kedi", PetType = "Kedi" };
+            var secondPet = new Pet { UserId = second.UserId, Name = "Tarçın", Type = "Kedi", PetType = "Kedi" };
+            db.Pets.AddRange(firstPet, secondPet);
+            await db.SaveChangesAsync();
+            firstPetId = firstPet.Id;
+            secondPetId = secondPet.Id;
+            db.PatiMatchProfiles.AddRange(
+                new PatiMatchProfile { PetId = firstPetId, City = "İstanbul", IsActive = true },
+                new PatiMatchProfile { PetId = secondPetId, City = "İstanbul", IsActive = true });
+            db.PatiMatchDecisions.AddRange(
+                new PatiMatchDecision { SourcePetId = firstPetId, TargetPetId = secondPetId, IsLike = true },
+                new PatiMatchDecision { SourcePetId = secondPetId, TargetPetId = firstPetId, IsLike = true });
+            db.MobileContactPreferences.Add(new MobileContactPreference
+            {
+                UserId = first.UserId, Phone = "+90 555 111 22 33", ContactEmail = $"share-{id}@example.com",
+                AllowPatiMatchSharing = false
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var request = new { sourcePetId = firstPetId, targetPetId = secondPetId };
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await Authorized(HttpMethod.Post, "api/mobile/pati-match/contact-share", first.Token, request)).StatusCode);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PetWorkDbContext>();
+            var preference = await db.MobileContactPreferences.SingleAsync(item => item.UserId == first.UserId);
+            preference.AllowPatiMatchSharing = true;
+            await db.SaveChangesAsync();
+        }
+
+        var sharedResponse = await Authorized(HttpMethod.Post, "api/mobile/pati-match/contact-share", first.Token, request);
+        Assert.Equal(HttpStatusCode.OK, sharedResponse.StatusCode);
+        var peerView = await Authorized(HttpMethod.Get,
+            $"api/mobile/pati-match/contact-share?sourcePetId={secondPetId}&targetPetId={firstPetId}", second.Token);
+        var peerState = await peerView.Content.ReadFromJsonAsync<ContactShareStateDto>();
+        Assert.Equal("+90 555 111 22 33", peerState!.Peer!.Phone);
+        Assert.Equal($"share-{id}@example.com", peerState.Peer.Email);
+
+        Assert.Equal(HttpStatusCode.OK, (await Authorized(HttpMethod.Delete,
+            $"api/mobile/pati-match/contact-share?sourcePetId={firstPetId}&targetPetId={secondPetId}", first.Token)).StatusCode);
+        peerView = await Authorized(HttpMethod.Get,
+            $"api/mobile/pati-match/contact-share?sourcePetId={secondPetId}&targetPetId={firstPetId}", second.Token);
+        peerState = await peerView.Content.ReadFromJsonAsync<ContactShareStateDto>();
+        Assert.Null(peerState!.Peer);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await Authorized(HttpMethod.Post, "api/mobile/pati-match/contact-share", first.Token, request)).StatusCode);
+    }
+
+    [Fact]
     public async Task Full_auth_lifecycle_revokes_tokens_and_deletes_account()
     {
         var id = Guid.NewGuid().ToString("N")[..10];
@@ -265,6 +325,8 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
     private sealed record MeDto(int UserId, string Username, string Email);
     private sealed record ContactSettingsDto(string? Phone, string? Email, bool AllowPatiMatchSharing,
         bool AllowAdoptionSharing, bool AllowLostPetSharing, bool IsConfigured);
+    private sealed record SharedContactDto(string Username, string? Phone, string? Email, DateTime SharedAt);
+    private sealed record ContactShareStateDto(string MyStatus, SharedContactDto? Mine, SharedContactDto? Peer);
     private sealed record EmailChallengeDto(bool RequiresEmailVerification, string ChallengeToken, DateTime ExpiresAt, string MaskedEmail, string Message);
     private sealed record PetDto(int Id, string Name, string? ProfileImage = null);
 }

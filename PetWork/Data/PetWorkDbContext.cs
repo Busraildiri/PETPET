@@ -37,6 +37,7 @@ namespace PetWork.Data
         public DbSet<PatiMatchProfile> PatiMatchProfiles { get; set; }
         public DbSet<PatiMatchDecision> PatiMatchDecisions { get; set; }
         public DbSet<PatiMatchMessage> PatiMatchMessages { get; set; }
+        public DbSet<PatiMatchContactShare> PatiMatchContactShares { get; set; }
         public DbSet<LostPetListing> LostPetListings { get; set; }
         public DbSet<LostPetSighting> LostPetSightings { get; set; }
         public DbSet<AdoptionListing> AdoptionListings { get; set; }
@@ -441,6 +442,25 @@ namespace PetWork.Data
 
             modelBuilder.Entity<PatiMatchMessage>()
                 .HasIndex(message => new { message.PetOneId, message.PetTwoId, message.CreatedAt });
+
+            modelBuilder.Entity<PatiMatchContactShare>()
+                .HasOne(share => share.PetOne)
+                .WithMany()
+                .HasForeignKey(share => share.PetOneId)
+                .OnDelete(DeleteBehavior.NoAction);
+            modelBuilder.Entity<PatiMatchContactShare>()
+                .HasOne(share => share.PetTwo)
+                .WithMany()
+                .HasForeignKey(share => share.PetTwoId)
+                .OnDelete(DeleteBehavior.NoAction);
+            modelBuilder.Entity<PatiMatchContactShare>()
+                .HasOne(share => share.SharedByUser)
+                .WithMany()
+                .HasForeignKey(share => share.SharedByUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+            modelBuilder.Entity<PatiMatchContactShare>()
+                .HasIndex(share => new { share.PetOneId, share.PetTwoId, share.SharedByUserId })
+                .IsUnique();
 
             modelBuilder.Entity<ExternalContentSource>()
                 .HasOne(source => source.ReviewedByUser)
