@@ -75,7 +75,7 @@ export function AdoptionScreen({ token, onLogin, onBack, initialListingId }: Pro
   return <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.primary} />}>
       <Header title="Sahiplendirme" subtitle="Satın alma, sahiplen" onBack={onBack} />
-      <View style={styles.notice}><Ionicons name="shield-checkmark-outline" size={23} color="#4E7458" /><Text style={styles.noticeText}>Hayvan satışı ve ücret talebi yasaktır. Görüşmelerde kişisel bilgilerini koru.</Text></View>
+      <View style={styles.notice}><Ionicons name="shield-checkmark-outline" size={23} color="#4E7458" /><Text style={styles.noticeText}>Pet'imde sahiplendirmeler tamamen ücretsizdir. Para talep edilirse Ayarlar → Sorun Bildir ile bildirin.</Text></View>
       <Pressable style={styles.primaryButton} onPress={() => { if (requireLogin()) setCreating(value => !value); }}><Ionicons name={creating ? 'close' : 'add-circle-outline'} size={20} color="#fff" /><Text style={styles.primaryText}>{creating ? 'Formu kapat' : 'Sahiplendirme ilanı ver'}</Text></Pressable>
       {creating && token ? <CreateListingForm token={token} onCreated={item => { setItems(current => [item, ...current]); setCreating(false); }} /> : null}
       <Text style={styles.sectionTitle}>Yeni yuva arayanlar</Text>

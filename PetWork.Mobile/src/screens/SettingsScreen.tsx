@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Application from 'expo-application';
+import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { apiUrl, getMobileContactSettings, getMobileNotificationPreferences, updateMobileContactSettings, updateMobileNotificationPreferences, type MobileContactSettings } from '../api';
+import { ActivityIndicator, Alert, AppState, BackHandler, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { apiUrl, createSupportReport, getMobileContactSettings, getMobileNotificationPreferences, updateMobileContactSettings, updateMobileNotificationPreferences, type CreateSupportReportRequest, type MobileContactSettings } from '../api';
 import {
   clearNotifications, defaultSettings, isExpoGo, NotificationPermission, NotificationSettingKey,
   notificationsAllowed, PetimSettings, readNotificationPermission, readSettings,
@@ -27,7 +28,7 @@ type Props = {
   initialPage?: Page;
   onInitialPageConsumed?: () => void;
 };
-type Page = 'main' | 'contact' | 'help' | 'legal';
+type Page = 'main' | 'contact' | 'report' | 'help' | 'about' | 'appInfo' | 'legal';
 type Permission = NotificationPermission | null;
 const notificationKeys: NotificationSettingKey[] = ['communityNotifications', 'lostPetNotifications', 'matchNotifications'];
 
@@ -185,7 +186,10 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, token, unre
   );
 
   if (page === 'contact' && token) return <ContactSettingsPage token={token} onBack={() => setPage('main')} />;
+  if (page === 'report' && token) return <ReportProblemPage token={token} onBack={() => setPage('main')} />;
   if (page === 'help') return <HelpPage onBack={() => setPage('main')} onOpenQuestions={onOpenQuestions} />;
+  if (page === 'about') return <AboutPage onBack={() => setPage('main')} />;
+  if (page === 'appInfo') return <AppInfoPage onBack={() => setPage('main')} onOpenLegal={() => setPage('legal')} />;
   if (page === 'legal') return <LegalPage onBack={() => setPage('main')} />;
 
   const allowed = permission ? notificationsAllowed(permission) : false;
@@ -234,9 +238,10 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, token, unre
 
       <SectionTitle icon="information-circle-outline" title="Uygulama" />
       <View style={styles.card}>
-        <InfoRow icon="help-circle-outline" title="Yardım ve geri bildirim" subtitle="Sık sorulanlar, topluluk ve destek" onPress={() => setPage('help')} />
-        <InfoRow icon="document-text-outline" title="Gizlilik ve kullanım koşulları" subtitle="Veri, güvenlik ve topluluk ilkeleri" onPress={() => setPage('legal')} />
-        <InfoRow icon="phone-portrait-outline" title="Pet’im mobil" subtitle={'Sürüm ' + version + (build ? ' (' + build + ')' : '')} onPress={() => Alert.alert('Pet’im mobil', 'Sürüm ' + version + (build ? '\nYapı ' + build : '') + '\n\nPetWork tarafından geliştirildi.')} last />
+        <InfoRow icon="warning-outline" title="Sorun bildir" subtitle={username ? 'Bir sorun anlat ve takip numarası al' : 'Sorun bildirmek için giriş yap'} onPress={username ? () => setPage('report') : onLogin} />
+        <InfoRow icon="help-circle-outline" title="Yardım ve destek" subtitle="SSS, topluluk ve destek e-postası" onPress={() => setPage('help')} />
+        <InfoRow icon="paw-outline" title="Hakkımızda" subtitle="Pet’im’in amacı ve topluluk ilkeleri" onPress={() => setPage('about')} />
+        <InfoRow icon="phone-portrait-outline" title="Uygulama bilgisi" subtitle={'Sürüm ' + version + (build ? ' (' + build + ')' : '')} onPress={() => setPage('appInfo')} last />
       </View>
     </>}
     {username ? <Pressable onPress={confirmLogout} accessibilityRole="button" style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed]}><Ionicons name="log-out-outline" size={20} color="#8E4036" /><Text style={styles.logoutText}>Çıkış Yap</Text></Pressable> : null}
@@ -302,6 +307,77 @@ function ContactSettingsPage({ token, onBack }: { token: string; onBack: () => v
   </ScrollView>;
 }
 
+const reportCategories: { value: CreateSupportReportRequest['category']; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: 'technical', label: 'Teknik sorun', icon: 'build-outline' },
+  { value: 'account', label: 'Hesap', icon: 'person-outline' },
+  { value: 'content', label: 'İçerik', icon: 'document-text-outline' },
+  { value: 'privacy', label: 'Gizlilik', icon: 'shield-outline' },
+  { value: 'other', label: 'Diğer', icon: 'ellipsis-horizontal' },
+];
+
+function ReportProblemPage({ token, onBack }: { token: string; onBack: () => void }) {
+  const [category, setCategory] = useState<CreateSupportReportRequest['category']>('technical');
+  const [description, setDescription] = useState('');
+  const [screenshot, setScreenshot] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const pickScreenshot = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Fotoğraf izni gerekli', 'Ekran görüntüsü ekleyebilmek için galeri izni vermelisin.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
+    if (!result.canceled) setScreenshot(result.assets[0]);
+  };
+
+  const submit = async () => {
+    const cleanDescription = description.trim();
+    if (cleanDescription.length < 10) {
+      Alert.alert('Açıklama gerekli', 'Sorunu en az 10 karakterle anlat.');
+      return;
+    }
+    setSending(true);
+    try {
+      const result = await createSupportReport(token, {
+        category,
+        description: cleanDescription,
+        screenshot: screenshot ? { uri: screenshot.uri, mimeType: screenshot.mimeType } : undefined,
+      });
+      setDescription('');
+      setScreenshot(null);
+      Alert.alert('Bildirimin alındı', `Takip numaran: ${result.trackingNumber}\n\nBu numarayı gerektiğinde destek ekibiyle paylaşabilirsin.`, [{ text: 'Tamam', onPress: onBack }]);
+    } catch (reason) {
+      Alert.alert('Gönderilemedi', reason instanceof Error ? reason.message : 'Lütfen tekrar dene.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} /><DetailHeader title="Sorun bildir" onBack={onBack} />
+    <Text style={styles.detailLead}>Yaşadığın sorunu anlat. Bildirimin veritabanına kaydedilir ve sana bir takip numarası verilir.</Text>
+    <Text style={styles.inputLabel}>Kategori</Text>
+    <View style={styles.categoryGrid}>{reportCategories.map(item => {
+      const selected = item.value === category;
+      return <Pressable key={item.value} onPress={() => setCategory(item.value)} style={({ pressed }) => [styles.categoryChip, selected && styles.categoryChipSelected, pressed && styles.pressed]}>
+        <Ionicons name={item.icon} size={18} color={selected ? colors.white : colors.primary} /><Text style={[styles.categoryText, selected && styles.categoryTextSelected]}>{item.label}</Text>
+      </Pressable>;
+    })}</View>
+    <View style={styles.formCard}>
+      <Text style={styles.inputLabel}>Açıklama</Text>
+      <TextInput value={description} onChangeText={setDescription} placeholder="Ne oldu, hangi ekranda oldu ve tekrar nasıl oluşuyor?" placeholderTextColor={colors.muted} multiline maxLength={3000} textAlignVertical="top" style={[styles.input, styles.reportDescription]} />
+      <Text style={styles.characterCount}>{description.length}/3000</Text>
+      <Text style={styles.inputLabel}>Ekran görüntüsü (isteğe bağlı)</Text>
+      {screenshot ? <View style={styles.screenshotWrap}><Image source={{ uri: screenshot.uri }} style={styles.screenshotPreview} /><Pressable accessibilityLabel="Ekran görüntüsünü kaldır" onPress={() => setScreenshot(null)} style={styles.removeScreenshot}><Ionicons name="close" size={18} color={colors.white} /></Pressable></View> : null}
+      <Pressable onPress={() => void pickScreenshot()} style={({ pressed }) => [styles.uploadButton, pressed && styles.pressed]}><Ionicons name="image-outline" size={20} color={colors.primary} /><Text style={styles.uploadText}>{screenshot ? 'Farklı görsel seç' : 'Galeriden ekran görüntüsü ekle'}</Text></Pressable>
+    </View>
+    <Pressable disabled={sending} onPress={() => void submit()} style={({ pressed }) => [styles.primaryAction, styles.reportSubmit, (pressed || sending) && styles.pressed]}>
+      {sending ? <ActivityIndicator color={colors.white} /> : <><Ionicons name="send-outline" size={20} color={colors.white} /><Text style={styles.primaryActionText}>Bildirimi gönder</Text></>}
+    </Pressable>
+  </ScrollView>;
+}
+
 function HelpPage({ onBack, onOpenQuestions }: { onBack: () => void; onOpenQuestions: () => void }) {
   const [openQuestion, setOpenQuestion] = useState<number | null>(0);
   const faqs = [
@@ -310,7 +386,7 @@ function HelpPage({ onBack, onOpenQuestions }: { onBack: () => void; onOpenQuest
     ['Sağlık içerikleri tanı koyar mı?', 'Hayır. Hastalık içerikleri farkındalık içindir; acil veya ağır belirtilerde veteriner hekime başvurmalısın.'],
   ];
   return <ScrollView style={styles.screen} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
-    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} /><DetailHeader title="Yardım" onBack={onBack} />
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} /><DetailHeader title="Yardım ve destek" onBack={onBack} />
     <View style={styles.urgentCard}><Ionicons name="medkit-outline" size={24} color="#9B463B" /><View style={styles.flexOne}><Text style={styles.urgentTitle}>Acil bir durum mu?</Text><Text style={styles.urgentText}>Burada yanıt bekleme; en yakın veteriner kliniğiyle doğrudan iletişim kur.</Text></View></View>
     <Text style={styles.detailLead}>Sık karşılaşılan konulara hızlıca göz at veya topluluktan destek al.</Text>
     <View style={styles.faqCard}>{faqs.map(([title, answer], index) => {
@@ -320,7 +396,33 @@ function HelpPage({ onBack, onOpenQuestions }: { onBack: () => void; onOpenQuest
       </Pressable>;
     })}</View>
     <Pressable onPress={onOpenQuestions} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}><Ionicons name="chatbubbles-outline" size={20} color={colors.white} /><Text style={styles.primaryActionText}>Topluluğa soru sor</Text></Pressable>
-    <Pressable onPress={() => void openUrl('mailto:admin@petwork.com?subject=Pet%27im%20geri%20bildirim')} style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}><Ionicons name="mail-outline" size={20} color={colors.primary} /><Text style={styles.secondaryActionText}>E-posta ile geri bildirim gönder</Text></Pressable>
+    <Pressable onPress={() => void openUrl('mailto:admin@petwork.com?subject=Pet%27im%20destek')} style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}><Ionicons name="mail-outline" size={20} color={colors.primary} /><Text style={styles.secondaryActionText}>Destek ekibine e-posta gönder</Text></Pressable>
+  </ScrollView>;
+}
+
+function AboutPage({ onBack }: { onBack: () => void }) {
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} /><DetailHeader title="Hakkımızda" onBack={onBack} />
+    <View style={styles.aboutHero}><Ionicons name="paw" size={32} color={colors.peach} /><Text style={styles.aboutBrand}>Pet’im</Text><Text style={styles.aboutBy}>by Paws&Us</Text></View>
+    <Text style={styles.detailLead}>Pet’im, patilerin sağlığı, bakımı ve güvenli biçimde bir araya gelmesi için Paws&Us tarafından geliştirilen bir topluluk uygulamasıdır.</Text>
+    <View style={styles.legalCard}>
+      <LegalSection icon="heart-outline" title="Amacımız" text="Doğru bilgiye erişimi kolaylaştırmak, kayıp patilerin evine dönmesine yardımcı olmak ve güvenli sahiplendirme ile arkadaşlık süreçlerini desteklemek." />
+      <LegalSection icon="shield-checkmark-outline" title="Güvenli topluluk" text="Saygılı iletişimi, kişisel bilgilerin kontrollü paylaşılmasını ve şüpheli içeriklerin bildirilmesini temel alırız." />
+      <LegalSection icon="cash-outline" title="Ücretsiz sahiplendirme" text="Pet’imde sahiplendirmeler tamamen ücretsizdir. Hayvan satışı veya sahiplendirme için para talep edilmesine izin verilmez." last />
+    </View>
+  </ScrollView>;
+}
+
+function AppInfoPage({ onBack, onOpenLegal }: { onBack: () => void; onOpenLegal: () => void }) {
+  const version = Application.nativeApplicationVersion || '1.0.0';
+  const build = Application.nativeBuildVersion || 'geliştirme';
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} /><DetailHeader title="Uygulama bilgisi" onBack={onBack} />
+    <View style={styles.versionCard}><View style={styles.versionIcon}><Ionicons name="paw" size={28} color={colors.white} /></View><View><Text style={styles.versionName}>Pet’im mobil</Text><Text style={styles.versionText}>Sürüm {version}</Text><Text style={styles.versionText}>Yapı {build}</Text></View></View>
+    <View style={styles.card}>
+      <InfoRow icon="shield-checkmark-outline" title="Gizlilik politikası" subtitle="Verilerin nasıl korunduğunu gör" onPress={() => void openUrl(apiUrl + '/Home/Privacy')} />
+      <InfoRow icon="document-text-outline" title="Kullanım koşulları" subtitle="Topluluk ve kullanım kurallarını gör" onPress={onOpenLegal} last />
+    </View>
   </ScrollView>;
 }
 
@@ -420,6 +522,26 @@ const styles = createThemedStyles(() => ({
   inputLabel: { color: colors.text, fontSize: 11, fontWeight: '900', marginBottom: 7 },
   input: { minHeight: 50, color: colors.text, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 15, paddingHorizontal: 14, fontSize: 13, marginBottom: 15 },
   contactSave: { marginTop: 18 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  categoryChip: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 13, borderRadius: 15, backgroundColor: colors.lilacSoft, borderWidth: 1, borderColor: '#DDCEE5' },
+  categoryChipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  categoryText: { color: colors.primary, fontSize: 10.5, fontWeight: '800' },
+  categoryTextSelected: { color: colors.white },
+  reportDescription: { minHeight: 130, paddingTop: 13, paddingBottom: 13, marginBottom: 5 },
+  characterCount: { color: colors.muted, fontSize: 9, textAlign: 'right', marginBottom: 14 },
+  uploadButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 15, borderWidth: 1, borderColor: '#DDCEE5', backgroundColor: colors.lilacSoft },
+  uploadText: { color: colors.primary, fontSize: 11, fontWeight: '800' },
+  screenshotWrap: { position: 'relative', marginBottom: 10 },
+  screenshotPreview: { width: '100%', height: 210, borderRadius: 15, backgroundColor: colors.background },
+  removeScreenshot: { position: 'absolute', right: 9, top: 9, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
+  reportSubmit: { marginTop: 18 },
+  aboutHero: { alignItems: 'center', justifyContent: 'center', minHeight: 160, borderRadius: 24, backgroundColor: colors.primary, marginBottom: 18, ...shadow },
+  aboutBrand: { color: colors.white, fontFamily: serif, fontSize: 31, fontWeight: '700', marginTop: 5 },
+  aboutBy: { color: '#EADFE7', fontSize: 11, marginTop: 2 },
+  versionCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 22, backgroundColor: colors.sageSoft, borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
+  versionIcon: { width: 58, height: 58, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
+  versionName: { color: colors.text, fontSize: 15, fontWeight: '900' },
+  versionText: { color: colors.muted, fontSize: 10.5, marginTop: 4 },
   legalCard: { backgroundColor: colors.card, borderRadius: 22, paddingHorizontal: 15, borderWidth: 1, borderColor: colors.border, ...shadow },
   legalSection: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, paddingVertical: 17, borderBottomWidth: 1, borderBottomColor: colors.border },
   legalTitle: { color: colors.text, fontSize: 13, fontWeight: '900' },

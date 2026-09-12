@@ -1223,6 +1223,26 @@ export async function sendPatiMatchMessage(token: string, sourcePetId: number, t
   return readPatiMatchResponse<PatiMatchMessage>(response, `Mesaj gönderilemedi (${response.status}).`);
 }
 
+export type CreateSupportReportRequest = {
+  category: 'technical' | 'account' | 'content' | 'privacy' | 'other';
+  description: string;
+  screenshot?: { uri: string; mimeType?: string | null };
+};
+
+export async function createSupportReport(token: string, request: CreateSupportReportRequest): Promise<{ trackingNumber: string; message: string }> {
+  const file = request.screenshot ? new File(request.screenshot.uri) : null;
+  const response = await fetchApi(`${apiUrl}/api/mobile/support-reports`, {
+    method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      category: request.category,
+      description: request.description,
+      screenshotBase64: file ? await file.base64() : null,
+      screenshotContentType: request.screenshot?.mimeType || file?.type || null,
+    }),
+  }, 30_000);
+  return readCommunityResponse(response, 'Sorun bildirimi gönderilemedi.');
+}
+
 export async function getPatiMatchContactShare(token: string, sourcePetId: number, targetPetId: number, signal?: AbortSignal): Promise<PatiMatchContactShareState> {
   const query = new URLSearchParams({ sourcePetId: String(sourcePetId), targetPetId: String(targetPetId) });
   const response = await fetch(`${apiUrl}/api/mobile/pati-match/contact-share?${query}`, {
