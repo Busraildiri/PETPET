@@ -38,10 +38,10 @@ export function VisibleProfileScreen({ token, userId, sourcePetId, targetPetId, 
       <View style={styles.profileCard}>
         <Image source={{ uri: mediaUrl(profile.profileImage) }} style={styles.avatar} />
         <Text style={styles.username}>@{profile.username}</Text>
-        <Text style={styles.bio}>{profile.bio?.trim() || 'Henüz hakkında bilgisi eklenmedi.'}</Text>
+        {profile.isBioVisible ? <Text style={styles.bio}>{profile.bio?.trim() || 'Henüz hakkında bilgisi eklenmedi.'}</Text> : null}
       </View>
       <Text style={styles.sectionTitle}>Patileri</Text>
-      {!profile.pets.length ? <Text style={styles.empty}>Herkese açık pati profili bulunmuyor.</Text> : profile.pets.map(pet => <Pressable key={pet.id} onPress={() => setSelectedPet(pet)} style={styles.petCard}>
+      {!profile.pets.length ? <Text style={styles.empty}>{profile.arePetsVisible ? 'Herkese açık pati profili bulunmuyor.' : 'Kullanıcı pati bilgilerini gizli tutuyor.'}</Text> : profile.pets.map(pet => <Pressable key={pet.id} onPress={() => setSelectedPet(pet)} style={styles.petCard}>
         <Image source={{ uri: mediaUrl(pet.profileImage) }} style={styles.petImage} />
         <View style={styles.flex}><View style={styles.nameRow}><Text style={styles.petName}>{pet.name}</Text>{pet.isMatchedPet ? <Text style={styles.matchBadge}>Eşleşen pati</Text> : null}</View><Text style={styles.petMeta}>{[pet.type, pet.breed, pet.gender].filter(Boolean).join(' · ')}</Text><Text numberOfLines={2} style={styles.petAbout}>{pet.description || 'Henüz hakkında bilgisi eklenmedi.'}</Text></View>
         <Ionicons name="chevron-forward" size={20} color={colors.muted} />

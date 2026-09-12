@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, BackHandler, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { apiUrl, createSupportReport, getMobileContactSettings, getMobileNotificationPreferences, updateMobileContactSettings, updateMobileNotificationPreferences, type CreateSupportReportRequest, type MobileContactSettings } from '../api';
+import { apiUrl, createSupportReport, getMobileContactSettings, getMobileNotificationPreferences, getProfileVisibility, updateMobileContactSettings, updateMobileNotificationPreferences, updateProfileVisibility, type CreateSupportReportRequest, type MobileContactSettings, type ProfileVisibilitySettings } from '../api';
 import {
   clearNotifications, defaultSettings, isExpoGo, NotificationPermission, NotificationSettingKey,
   notificationsAllowed, PetimSettings, readNotificationPermission, readSettings,
@@ -37,6 +37,8 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, token, unre
   const [permission, setPermission] = useState<Permission>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [profileVisibility, setProfileVisibility] = useState<ProfileVisibilitySettings>({ showBioToOthers: true, showPetsToOthers: true });
+  const [profileVisibilitySaving, setProfileVisibilitySaving] = useState(false);
   const [page, setPage] = useState<Page>(initialPage);
 
   useEffect(() => { if (initialPage !== 'main') onInitialPageConsumed?.(); }, []);
@@ -78,6 +80,15 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, token, unre
       .finally(() => active && setLoading(false));
     return () => { active = false; };
   }, [token, username]);
+
+  useEffect(() => {
+    if (!token) { setProfileVisibility({ showBioToOthers: true, showPetsToOthers: true }); return; }
+    const controller = new AbortController();
+    getProfileVisibility(token, controller.signal)
+      .then(setProfileVisibility)
+      .catch(reason => { if (!controller.signal.aborted) Alert.alert('Profil ayarları yüklenemedi', reason instanceof Error ? reason.message : 'Lütfen tekrar dene.'); });
+    return () => controller.abort();
+  }, [token]);
 
   useEffect(() => {
     setSettings(current => current.darkTheme === darkTheme ? current : { ...current, darkTheme });
@@ -179,6 +190,19 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, token, unre
     if (await persist(next)) onThemeChange(value);
   };
 
+  const updateProfilePrivacy = async (key: keyof ProfileVisibilitySettings, value: boolean) => {
+    if (!token || profileVisibilitySaving) return;
+    const previous = profileVisibility;
+    const next = { ...previous, [key]: value };
+    setProfileVisibility(next);
+    setProfileVisibilitySaving(true);
+    try { setProfileVisibility(await updateProfileVisibility(token, next)); }
+    catch (reason) {
+      setProfileVisibility(previous);
+      Alert.alert('Ayar kaydedilemedi', reason instanceof Error ? reason.message : 'Profil görünürlüğü kaydedilemedi.');
+    } finally { setProfileVisibilitySaving(false); }
+  };
+
   const confirmLogout = () => Alert.alert(
     'Çıkış yapmak istiyor musun?',
     'Bu cihazdaki oturumun kapatılacak. Hesabın ve içeriklerin silinmeyecek.',
@@ -209,6 +233,12 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, token, unre
     </Pressable>
 
     {loading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>Tercihler yükleniyor…</Text></View> : <>
+      <SectionTitle icon="person-circle-outline" title="Profil bilgileri" />
+      <View style={styles.card}>
+        <SettingSwitch icon="document-text-outline" title="Hakkımda bilgimi diğer kullanıcılar görsün" subtitle="Kapalıyken biyografin herkese açık profilinde gösterilmez" value={profileVisibility.showBioToOthers} disabled={!token || profileVisibilitySaving} onChange={value => void updateProfilePrivacy('showBioToOthers', value)} />
+        <SettingSwitch icon="paw-outline" title="Pati bilgilerimi diğer kullanıcılar görsün" subtitle="Kapalıyken patilerin herkese açık profilinde listelenmez" value={profileVisibility.showPetsToOthers} disabled={!token || profileVisibilitySaving} onChange={value => void updateProfilePrivacy('showPetsToOthers', value)} last />
+      </View>
+
       <SectionTitle icon="color-palette-outline" title="Görünüm" />
       <View style={styles.card}>
         <SettingSwitch icon="moon-outline" title="Koyu tema" subtitle="Uygulamayı koyu renklerle kullan" value={settings.darkTheme} disabled={saving} onChange={value => void updateTheme(value)} last />

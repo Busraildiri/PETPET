@@ -53,7 +53,7 @@ namespace PetWork.Models
         public string? ExtraAttributesJson { get; set; }
 
         // Genel profilde listelenmesi kullanıcının açık tercihine bağlıdır.
-        public bool IsPublic { get; set; }
+        public bool IsPublic { get; set; } = true;
         
         public int UserId { get; set; }
         public User User { get; set; }

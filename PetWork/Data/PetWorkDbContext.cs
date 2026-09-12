@@ -158,6 +158,10 @@ namespace PetWork.Data
                 .WithMany(u => u.Pets)
                 .HasForeignKey(p => p.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Pet>().Property(pet => pet.IsPublic).HasDefaultValue(true);
+            modelBuilder.Entity<User>().Property(user => user.ShowBioToOthers).HasDefaultValue(true);
+            modelBuilder.Entity<User>().Property(user => user.ShowPetsToOthers).HasDefaultValue(true);
                 
             // Recipe - User ilişkisi
             modelBuilder.Entity<Recipe>()

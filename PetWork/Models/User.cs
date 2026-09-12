@@ -38,6 +38,9 @@ namespace PetWork.Models
         public bool? HasChildren { get; set; }
         public bool? HasOtherPets { get; set; }
 
+        public bool ShowBioToOthers { get; set; } = true;
+        public bool ShowPetsToOthers { get; set; } = true;
+
         public string ProfileImage { get; set; } = "img/user-profile.jpg";
         
         public DateTime RegistrationDate { get; set; } = DateTime.Now;

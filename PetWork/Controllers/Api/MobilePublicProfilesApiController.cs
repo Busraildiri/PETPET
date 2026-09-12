@@ -13,6 +13,33 @@ namespace PetWork.Controllers.Api;
 [Route("api/mobile/profiles")]
 public sealed class MobilePublicProfilesApiController(PetWorkDbContext context) : ControllerBase
 {
+    [HttpGet("visibility")]
+    [Authorize]
+    public async Task<ActionResult<MobileProfileVisibilityResponse>> GetVisibility(CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+        var value = await context.Users.AsNoTracking().Where(user => user.Id == userId.Value)
+            .Select(user => new MobileProfileVisibilityResponse(user.ShowBioToOthers, user.ShowPetsToOthers))
+            .SingleOrDefaultAsync(cancellationToken);
+        return value is null ? NotFound(new { message = "Kullanıcı bulunamadı." }) : Ok(value);
+    }
+
+    [HttpPut("visibility")]
+    [Authorize]
+    public async Task<ActionResult<MobileProfileVisibilityResponse>> UpdateVisibility(
+        MobileProfileVisibilityRequest request, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+        var user = await context.Users.SingleOrDefaultAsync(candidate => candidate.Id == userId.Value, cancellationToken);
+        if (user is null) return NotFound(new { message = "Kullanıcı bulunamadı." });
+        user.ShowBioToOthers = request.ShowBioToOthers;
+        user.ShowPetsToOthers = request.ShowPetsToOthers;
+        await context.SaveChangesAsync(cancellationToken);
+        return Ok(new MobileProfileVisibilityResponse(user.ShowBioToOthers, user.ShowPetsToOthers));
+    }
+
     [HttpGet("{userId:int}")]
     [AllowAnonymous]
     public async Task<ActionResult<MobileVisibleUserProfileResponse>> GetPublic(
@@ -54,18 +81,19 @@ public sealed class MobilePublicProfilesApiController(PetWorkDbContext context) 
     {
         var user = await context.Users.AsNoTracking()
             .Where(candidate => candidate.Id == userId)
-            .Select(candidate => new { candidate.Id, candidate.Username, candidate.ProfileImage, candidate.Bio })
+            .Select(candidate => new { candidate.Id, candidate.Username, candidate.ProfileImage, candidate.Bio, candidate.ShowBioToOthers, candidate.ShowPetsToOthers })
             .SingleOrDefaultAsync(cancellationToken);
         if (user is null) return null;
 
         var pets = await context.Pets.AsNoTracking()
-            .Where(pet => pet.UserId == userId && (pet.IsPublic || (matchAccess && pet.Id == matchedPetId)))
+            .Where(pet => pet.UserId == userId && ((user.ShowPetsToOthers && pet.IsPublic) || (matchAccess && pet.Id == matchedPetId)))
             .OrderByDescending(pet => pet.Id == matchedPetId)
             .ThenBy(pet => pet.Name)
             .ToListAsync(cancellationToken);
 
         return new MobileVisibleUserProfileResponse(
-            user.Id, user.Username, user.ProfileImage, user.Bio,
+            user.Id, user.Username, user.ProfileImage, user.ShowBioToOthers ? user.Bio : null,
+            user.ShowBioToOthers, user.ShowPetsToOthers,
             pets.Select(pet => ToVisiblePet(pet, pet.Id == matchedPetId)).ToList());
     }
 
@@ -101,7 +129,16 @@ public sealed class MobilePublicProfilesApiController(PetWorkDbContext context) 
 
 public sealed record MobileVisibleUserProfileResponse(
     int UserId, string Username, string? ProfileImage, string? Bio,
+    bool IsBioVisible, bool ArePetsVisible,
     IReadOnlyList<MobileVisiblePetResponse> Pets);
+
+public sealed class MobileProfileVisibilityRequest
+{
+    public bool ShowBioToOthers { get; init; } = true;
+    public bool ShowPetsToOthers { get; init; } = true;
+}
+
+public sealed record MobileProfileVisibilityResponse(bool ShowBioToOthers, bool ShowPetsToOthers);
 
 public sealed record MobileVisiblePetResponse(
     int Id, string Name, string Type, string? Breed, decimal? Age, string? Gender,

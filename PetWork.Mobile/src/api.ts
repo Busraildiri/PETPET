@@ -148,7 +148,14 @@ export type VisibleUserProfile = {
   username: string;
   profileImage?: string | null;
   bio?: string | null;
+  isBioVisible: boolean;
+  arePetsVisible: boolean;
   pets: (PetProfile & { isMatchedPet: boolean })[];
+};
+
+export type ProfileVisibilitySettings = {
+  showBioToOthers: boolean;
+  showPetsToOthers: boolean;
 };
 
 export type SocialCommentPayload = {
@@ -604,6 +611,21 @@ export async function getMatchedUserProfile(token: string, sourcePetId: number, 
     headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal,
   });
   return readCommunityResponse(response, 'Eşleşen kullanıcı profili yüklenemedi.');
+}
+
+export async function getProfileVisibility(token: string, signal?: AbortSignal): Promise<ProfileVisibilitySettings> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/profiles/visibility`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal,
+  });
+  return readCommunityResponse(response, 'Profil görünürlüğü yüklenemedi.');
+}
+
+export async function updateProfileVisibility(token: string, settings: ProfileVisibilitySettings): Promise<ProfileVisibilitySettings> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/profiles/visibility`, {
+    method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(settings),
+  });
+  return readCommunityResponse(response, 'Profil görünürlüğü kaydedilemedi.');
 }
 
 export async function getQuestions(signal?: AbortSignal): Promise<QuestionsResponse> {
