@@ -58,6 +58,7 @@ namespace PetWork.Data
         {
             try
             {
+                NormalizePostgreSqlDateTimes();
                 var entries = ChangeTracker.Entries()
                     .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified)
                     .ToList();
@@ -79,6 +80,39 @@ namespace PetWork.Data
             {
                 _logger?.LogError(ex, "SaveChanges sırasında hata");
                 throw;
+            }
+        }
+
+        public override async Task<int> SaveChangesAsync(
+            bool acceptAllChangesOnSuccess,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                NormalizePostgreSqlDateTimes();
+                return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "SaveChangesAsync sırasında hata");
+                throw;
+            }
+        }
+
+        private void NormalizePostgreSqlDateTimes()
+        {
+            if (!Database.IsNpgsql()) return;
+
+            foreach (var entry in ChangeTracker.Entries()
+                         .Where(entry => entry.State is EntityState.Added or EntityState.Modified))
+            {
+                foreach (var property in entry.Properties.Where(property =>
+                             property.Metadata.ClrType == typeof(DateTime) ||
+                             property.Metadata.ClrType == typeof(DateTime?)))
+                {
+                    if (property.CurrentValue is DateTime value && value.Kind != DateTimeKind.Unspecified)
+                        property.CurrentValue = DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
+                }
             }
         }
 

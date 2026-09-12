@@ -399,7 +399,10 @@ export async function resendEmailCode(challengeToken: string): Promise<EmailVeri
 
 async function authRequest(path: string, init: RequestInit, fallback: string): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
+  // Kayıt, giriş ve kod yenileme istekleri doğrulama e-postasının sağlayıcı
+  // tarafından kabul edilmesini bekleyebilir. Render cold-start + e-posta
+  // gecikmesinde istemcinin başarılı isteği erken iptal etmesini önle.
+  const timer = setTimeout(() => controller.abort(), 30000);
   try {
     const response = await fetchApi(`${apiUrl}/api/mobile/auth/${path}`, { ...init, signal: controller.signal });
     if (!response.ok) {
