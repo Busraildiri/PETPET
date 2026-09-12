@@ -5,6 +5,8 @@ export type SocialTab = 'posts' | 'questions' | 'nearby';
 export type SocialPost = {
   id: string;
   serverId?: number;
+  ownerUserId?: number;
+  ownerProfileImage?: string | null;
   ownerName: string;
   username: string;
   petName: string;

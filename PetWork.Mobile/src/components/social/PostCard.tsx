@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Alert, Image, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { mediaUrl } from '../../api';
 import { colors, createThemedStyles, shadow } from '../../theme';
 import type { SocialPost } from '../../types/social';
 
@@ -10,9 +11,10 @@ type Props = {
   onReport: (post: SocialPost) => void;
   onLike: (post: SocialPost) => Promise<void>;
   onSave: (post: SocialPost) => Promise<void>;
+  onOpenProfile: (post: SocialPost) => void;
 };
 
-export function PostCard({ post, onComment, onReport, onLike, onSave }: Props) {
+export function PostCard({ post, onComment, onReport, onLike, onSave, onOpenProfile }: Props) {
   const [likeBusy, setLikeBusy] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
 
@@ -52,15 +54,17 @@ export function PostCard({ post, onComment, onReport, onLike, onSave }: Props) {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <View style={styles.avatar}><Text style={styles.avatarText}>{post.petName.charAt(0)}</Text></View>
-        <View style={styles.identity}>
+        <Pressable disabled={!post.ownerUserId} onPress={() => onOpenProfile(post)} accessibilityRole="button" accessibilityLabel={`${post.petName} profilini aç`}>
+          {post.ownerProfileImage ? <Image source={{ uri: mediaUrl(post.ownerProfileImage) }} style={styles.avatarImage} /> : <View style={styles.avatar}><Text style={styles.avatarText}>{post.petName.charAt(0)}</Text></View>}
+        </Pressable>
+        <Pressable disabled={!post.ownerUserId} onPress={() => onOpenProfile(post)} style={styles.identity}>
           <View style={styles.nameRow}>
             <Text style={styles.petName}>{post.petName}</Text>
             {post.isAdmin ? <Text style={styles.adminBadge}>Yönetici</Text> : null}
           </View>
           <Text style={styles.meta}>{post.username} · Henüz konum yok</Text>
           <Text style={styles.time}>{post.publishedAt}</Text>
-        </View>
+        </Pressable>
         <Pressable onPress={() => onReport(post)} hitSlop={10} accessibilityLabel="Gönderi seçenekleri">
           <Ionicons name="ellipsis-horizontal" size={22} color={colors.muted} />
         </Pressable>
@@ -105,6 +109,7 @@ const styles = createThemedStyles(() => ({
   card: { backgroundColor: colors.card, borderRadius: 24, marginBottom: 18, overflow: 'hidden', ...shadow },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, gap: 11 },
   avatar: { width: 45, height: 45, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lilacSoft },
+  avatarImage: { width: 45, height: 45, borderRadius: 23, backgroundColor: colors.lilacSoft },
   avatarText: { color: colors.primary, fontSize: 19, fontWeight: '900' }, identity: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
   petName: { color: colors.text, fontSize: 16, fontWeight: '900' },

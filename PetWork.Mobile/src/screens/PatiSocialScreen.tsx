@@ -16,6 +16,7 @@ import { PostCard } from '../components/social/PostCard';
 import { BrandMark } from '../components/BrandMark';
 import { colors, createThemedStyles, shadow } from '../theme';
 import type { SocialPost, SocialTab } from '../types/social';
+import { VisibleProfileScreen } from './VisibleProfileScreen';
 
 type Props = {
   initialTab?: SocialTab;
@@ -41,6 +42,8 @@ function toSocialPost(post: SocialPostPayload): SocialPost {
   return {
     id: `api-${post.id}`,
     serverId: post.id,
+    ownerUserId: post.userId,
+    ownerProfileImage: post.userProfileImage,
     ownerName: post.isAdmin ? 'PetWork Yönetimi' : post.username,
     username: `@${post.username}`,
     petName: post.username,
@@ -72,6 +75,7 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
   const [questionSubmitting, setQuestionSubmitting] = useState(false);
   const [questionComposerError, setQuestionComposerError] = useState<string | null>(null);
   const [questionsRevision, setQuestionsRevision] = useState(0);
+  const [profileUserId, setProfileUserId] = useState<number | null>(null);
   const displayName = username ?? 'Misafir';
   const avatarLetter = username?.charAt(0).toLocaleUpperCase('tr-TR') ?? '?';
 
@@ -218,6 +222,8 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
     ]);
   };
 
+  if (profileUserId) return <VisibleProfileScreen token={authToken} userId={profileUserId} onBack={() => setProfileUserId(null)} />;
+
   return (
     <View style={styles.screen}>
     <ScrollView style={styles.screen} contentContainerStyle={[styles.content, activeTab === 'questions' && styles.contentWithFloatingAction]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -249,7 +255,7 @@ export function PatiSocialScreen({ initialTab = 'posts', username, authToken, on
 
           {postsLoading ? <View style={styles.postsLoading}><ActivityIndicator color={colors.primary} /><Text style={styles.postsLoadingText}>Paylaşımlar yükleniyor…</Text></View> : null}
           {postsError ? <Pressable onPress={() => { setPostsLoading(true); loadPosts(); }} style={styles.postsError}><Text style={styles.postsErrorText}>{postsError}</Text><Text style={styles.retryText}>Yeniden dene</Text></Pressable> : null}
-          {posts.map(post => <PostCard key={post.id} post={post} onComment={openRealComments} onReport={openPostOptions} onLike={togglePostLike} onSave={togglePostSave} />)}
+          {posts.map(post => <PostCard key={post.id} post={post} onComment={openRealComments} onReport={openPostOptions} onLike={togglePostLike} onSave={togglePostSave} onOpenProfile={post => post.ownerUserId && setProfileUserId(post.ownerUserId)} />)}
         </>
       ) : null}
 

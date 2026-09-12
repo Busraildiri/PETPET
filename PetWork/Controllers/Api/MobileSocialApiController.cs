@@ -43,7 +43,9 @@ public sealed class MobileSocialApiController : ControllerBase
             .Take(50)
             .Select(post => new MobileSocialPostResponse(
                 post.Id,
+                post.UserId,
                 post.User.Username,
+                post.User.ProfileImage,
                 post.User.IsAdmin,
                 post.Body,
                 post.Tags,
@@ -109,7 +111,9 @@ public sealed class MobileSocialApiController : ControllerBase
 
         return CreatedAtAction(nameof(GetPosts), new MobileSocialPostResponse(
             post.Id,
+            user.Id,
             user.Username,
+            user.ProfileImage,
             user.IsAdmin,
             post.Body,
             post.Tags,
@@ -504,7 +508,9 @@ public sealed class MobileCreateSocialPostRequest
 
 public sealed record MobileSocialPostResponse(
     int Id,
+    int UserId,
     string Username,
+    string? UserProfileImage,
     bool IsAdmin,
     string Body,
     string? Tags,

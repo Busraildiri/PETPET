@@ -79,6 +79,7 @@ export type PetProfile = {
   isMicrochipped?: boolean | null;
   tags: string[];
   extraAttributes: Record<string, string>;
+  isPublic: boolean;
 };
 
 export type PatiMatchMyPet = PetProfile & {
@@ -91,6 +92,8 @@ export type PatiMatchMyPet = PetProfile & {
 
 export type PatiMatchCandidate = {
   petId: number;
+  ownerUserId: number;
+  ownerUsername: string;
   name: string;
   type: string;
   breed?: string | null;
@@ -126,7 +129,9 @@ export type PetProfileRequest = Omit<PetProfile, 'id' | 'profileImage'> & {
 
 export type SocialPostPayload = {
   id: number;
+  userId: number;
   username: string;
+  userProfileImage?: string | null;
   isAdmin: boolean;
   body: string;
   tags?: string | null;
@@ -136,6 +141,14 @@ export type SocialPostPayload = {
   likeCount: number;
   isLikedByMe: boolean;
   isSavedByMe: boolean;
+};
+
+export type VisibleUserProfile = {
+  userId: number;
+  username: string;
+  profileImage?: string | null;
+  bio?: string | null;
+  pets: (PetProfile & { isMatchedPet: boolean })[];
 };
 
 export type SocialCommentPayload = {
@@ -577,6 +590,20 @@ export async function getSocialPosts(token?: string | null, signal?: AbortSignal
     await new Promise(resolve => setTimeout(resolve, 500));
     return fetchSocialPostsOnce(token, signal);
   }
+}
+
+export async function getPublicUserProfile(userId: number, token?: string | null, signal?: AbortSignal): Promise<VisibleUserProfile> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/profiles/${userId}`, {
+    headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, signal,
+  });
+  return readCommunityResponse(response, 'Kullanıcı profili yüklenemedi.');
+}
+
+export async function getMatchedUserProfile(token: string, sourcePetId: number, targetPetId: number, signal?: AbortSignal): Promise<VisibleUserProfile> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/profiles/match/${sourcePetId}/${targetPetId}`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, signal,
+  });
+  return readCommunityResponse(response, 'Eşleşen kullanıcı profili yüklenemedi.');
 }
 
 export async function getQuestions(signal?: AbortSignal): Promise<QuestionsResponse> {

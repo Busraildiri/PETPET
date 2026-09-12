@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PetWork.Data;
@@ -11,9 +12,11 @@ using PetWork.Data;
 namespace PetWork.Migrations.PostgreSql
 {
     [DbContext(typeof(PostgresPetWorkDbContext))]
-    partial class PostgresPetWorkDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260912135543_AddPetProfileVisibilityPostgres")]
+    partial class AddPetProfileVisibilityPostgres
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -87,11 +90,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.Property<int?>("AgeYears")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("AllowInAppMessages")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
                     b.Property<string>("Breed")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -100,14 +98,6 @@ namespace PetWork.Migrations.PostgreSql
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
-
-                    b.Property<string>("ContactEmail")
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.Property<string>("ContactPhone")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
@@ -659,11 +649,6 @@ namespace PetWork.Migrations.PostgreSql
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<bool>("AllowInAppMessages")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
                     b.Property<string>("Breed")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -676,14 +661,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.Property<string>("CollarOrMicrochip")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
-
-                    b.Property<string>("ContactEmail")
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.Property<string>("ContactPhone")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");

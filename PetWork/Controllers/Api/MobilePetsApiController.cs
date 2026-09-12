@@ -98,6 +98,7 @@ public sealed class MobilePetsApiController : ControllerBase
             IsMicrochipped = request.IsMicrochipped,
             TagsCsv = NormalizeTags(request.Tags),
             ExtraAttributesJson = NormalizeExtraAttributes(type, request.ExtraAttributes),
+            IsPublic = request.IsPublic,
             ProfileImage = imageResult.Path ?? "img/pet-default.jpg"
         };
 
@@ -148,6 +149,7 @@ public sealed class MobilePetsApiController : ControllerBase
         pet.IsMicrochipped = request.IsMicrochipped;
         pet.TagsCsv = NormalizeTags(request.Tags);
         pet.ExtraAttributesJson = NormalizeExtraAttributes(type, request.ExtraAttributes);
+        pet.IsPublic = request.IsPublic;
         if (imageResult.Path is not null)
         {
             var previousImage = pet.ProfileImage;
@@ -285,7 +287,7 @@ public sealed class MobilePetsApiController : ControllerBase
             pet.Character, pet.CareNotes, pet.ChildCompatibility, pet.OtherPetCompatibility, pet.IsVaccinated,
             pet.IsNeutered, pet.IsMicrochipped,
             string.IsNullOrWhiteSpace(pet.TagsCsv) ? [] : pet.TagsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries),
-            ReadExtraAttributes(pet.ExtraAttributesJson));
+            ReadExtraAttributes(pet.ExtraAttributesJson), pet.IsPublic);
 }
 
 public sealed class MobilePetRequest
@@ -319,6 +321,7 @@ public sealed class MobilePetRequest
     public bool? IsMicrochipped { get; init; }
     public List<string>? Tags { get; init; }
     public Dictionary<string, string>? ExtraAttributes { get; init; }
+    public bool IsPublic { get; init; }
 
     [StringLength(11_500_000, ErrorMessage = "Fotoğraf verisi çok büyük.")]
     public string? ImageBase64 { get; init; }
@@ -344,4 +347,5 @@ public sealed record MobilePetResponse(
     bool? IsNeutered,
     bool? IsMicrochipped,
     IReadOnlyList<string> Tags,
-    IReadOnlyDictionary<string, string> ExtraAttributes);
+    IReadOnlyDictionary<string, string> ExtraAttributes,
+    bool IsPublic);

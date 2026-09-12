@@ -51,6 +51,9 @@ namespace PetWork.Models
         // Tür bazlı opsiyonel özellikler JSON olarak saklanır; yeni türler şema değişmeden eklenebilir.
         [StringLength(2000)]
         public string? ExtraAttributesJson { get; set; }
+
+        // Genel profilde listelenmesi kullanıcının açık tercihine bağlıdır.
+        public bool IsPublic { get; set; }
         
         public int UserId { get; set; }
         public User User { get; set; }
