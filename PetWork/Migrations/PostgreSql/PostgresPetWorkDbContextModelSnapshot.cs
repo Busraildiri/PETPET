@@ -1203,11 +1203,27 @@ namespace PetWork.Migrations.PostgreSql
                     b.Property<string>("Breed")
                         .HasColumnType("text");
 
+                    b.Property<string>("CareNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Character")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("ChildCompatibility")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<DateTime?>("DateOfBirth")
                         .HasColumnType("date");
 
                     b.Property<string>("Description")
                         .HasColumnType("text");
+
+                    b.Property<string>("ExtraAttributesJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("Gender")
                         .HasColumnType("text");
@@ -1215,10 +1231,23 @@ namespace PetWork.Migrations.PostgreSql
                     b.Property<string>("Image")
                         .HasColumnType("text");
 
+                    b.Property<bool?>("IsMicrochipped")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("IsNeutered")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("IsVaccinated")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("OtherPetCompatibility")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<string>("PetType")
                         .IsRequired()
@@ -1229,6 +1258,10 @@ namespace PetWork.Migrations.PostgreSql
                     b.Property<string>("ProfileImage")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("TagsCsv")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -1688,12 +1721,22 @@ namespace PetWork.Migrations.PostgreSql
                     b.Property<string>("Bio")
                         .HasColumnType("text");
 
+                    b.Property<string>("City")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("citext");
 
                     b.Property<int>("ExperiencePoints")
                         .HasColumnType("integer");
+
+                    b.Property<bool?>("HasChildren")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("HasOtherPets")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsAdmin")
                         .ValueGeneratedOnAdd()
@@ -1702,6 +1745,14 @@ namespace PetWork.Migrations.PostgreSql
 
                     b.Property<bool>("IsEmailVerified")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("LivingSituation")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Occupation")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()

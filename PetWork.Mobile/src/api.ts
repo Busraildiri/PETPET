@@ -48,7 +48,8 @@ export type EmailVerificationChallengeResponse = {
   message: string;
 };
 
-export type CurrentUser = { userId: number; username: string; email: string };
+export type CurrentUser = { userId: number; username: string; email: string; bio?: string | null; city?: string | null; occupation?: string | null; livingSituation?: string | null; hasChildren?: boolean | null; hasOtherPets?: boolean | null; profileImage: string };
+export type ProfileUpdate = Omit<CurrentUser, 'userId' | 'username' | 'email' | 'profileImage'> & { imageBase64?: string | null; imageContentType?: string | null; removeProfileImage?: boolean };
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) { super(message); }
@@ -69,6 +70,15 @@ export type PetProfile = {
   gender?: string | null;
   description?: string | null;
   profileImage?: string | null;
+  character?: string | null;
+  careNotes?: string | null;
+  childCompatibility?: string | null;
+  otherPetCompatibility?: string | null;
+  isVaccinated?: boolean | null;
+  isNeutered?: boolean | null;
+  isMicrochipped?: boolean | null;
+  tags: string[];
+  extraAttributes: Record<string, string>;
 };
 
 export type PatiMatchMyPet = PetProfile & {
@@ -407,6 +417,14 @@ export async function updateUsername(token: string, username: string): Promise<C
   return response.json();
 }
 
+export async function updateProfile(token: string, profile: ProfileUpdate): Promise<CurrentUser> {
+  const response = await authRequest('profile', {
+    method: 'PATCH', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(profile),
+  }, 'Profil güncellenemedi.');
+  return response.json();
+}
+
 export async function refreshAuthSession(refreshToken: string): Promise<AuthResponse> {
   const response = await authRequest('refresh', {
     method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -452,10 +470,31 @@ async function readPetResponse(response: Response, fallback: string): Promise<Pe
   const payload = await response.json().catch(() => null) as PetProfile | { message?: string; title?: string; errors?: Record<string, string[]> } | null;
   if (!response.ok) {
     const error = payload as { message?: string; title?: string; errors?: Record<string, string[]> } | null;
-    const validation = error?.errors ? Object.values(error.errors).flat()[0] : undefined;
+    const validation = petValidationMessage(error?.errors);
     throw new Error(validation || error?.message || error?.title || fallback);
   }
   return payload as PetProfile;
+}
+
+function petValidationMessage(errors?: Record<string, string[]>) {
+  if (!errors) return undefined;
+  const entries = Object.entries(errors);
+  const fieldLabels: Record<string, string> = {
+    name: 'Pati adı', type: 'Hayvan türü', breed: 'Irk', age: 'Yaş', gender: 'Cinsiyet', description: 'Hakkında',
+    character: 'Karakter', careNotes: 'Bakım bilgisi', childCompatibility: 'Çocuk uyumu',
+    otherPetCompatibility: 'Diğer hayvanlarla uyum', tags: 'Etiketler', extraAttributes: 'Tür özellikleri',
+    imageBase64: 'Fotoğraf', imageContentType: 'Fotoğraf türü',
+  };
+  for (const [rawField, messages] of entries) {
+    const field = rawField.replace(/^\$\.?/, '').split(/[.[\]]/).filter(Boolean)[0] || '';
+    if (rawField.toLocaleLowerCase('tr-TR') === 'request') continue;
+    const message = messages.find(item => item && !/^the .* field is required\.?$/i.test(item));
+    if (!message) continue;
+    if (/could not be converted|json value|invalid start|depth/i.test(message))
+      return `${fieldLabels[field] || 'Pati bilgileri'} okunamadı. Lütfen seçimini yenileyip tekrar dene.`;
+    return message;
+  }
+  return 'Pati bilgileri sunucu tarafından okunamadı. Lütfen ekranı yenileyip tekrar dene.';
 }
 
 export async function getPets(token: string, signal?: AbortSignal): Promise<PetProfile[]> {

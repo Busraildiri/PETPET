@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PetWork.Data;
 
@@ -11,9 +12,11 @@ using PetWork.Data;
 namespace PetWork.Migrations
 {
     [DbContext(typeof(PetWorkDbContext))]
-    partial class PetWorkDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260912131839_AddProfileDetails")]
+    partial class AddProfileDetails
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

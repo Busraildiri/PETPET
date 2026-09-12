@@ -28,6 +28,29 @@ namespace PetWork.Models
         public string? Image { get; set; }
         
         public string? Description { get; set; }
+
+        [StringLength(300)]
+        public string? Character { get; set; }
+
+        [StringLength(500)]
+        public string? CareNotes { get; set; }
+
+        [StringLength(30)]
+        public string? ChildCompatibility { get; set; }
+
+        [StringLength(30)]
+        public string? OtherPetCompatibility { get; set; }
+
+        public bool? IsVaccinated { get; set; }
+        public bool? IsNeutered { get; set; }
+        public bool? IsMicrochipped { get; set; }
+
+        [StringLength(300)]
+        public string? TagsCsv { get; set; }
+
+        // Tür bazlı opsiyonel özellikler JSON olarak saklanır; yeni türler şema değişmeden eklenebilir.
+        [StringLength(2000)]
+        public string? ExtraAttributesJson { get; set; }
         
         public int UserId { get; set; }
         public User User { get; set; }
