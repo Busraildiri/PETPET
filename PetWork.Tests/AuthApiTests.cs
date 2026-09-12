@@ -104,6 +104,47 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task Contact_settings_are_private_by_default_and_persist_per_user()
+    {
+        var id = Guid.NewGuid().ToString("N")[..10];
+        var email = $"contact-{id}@example.com";
+        var auth = await ReadAuth(await Register($"contact_{id}", email, "Valid1!x"));
+
+        var initialResponse = await Authorized(HttpMethod.Get, "api/mobile/contact-settings", auth.Token);
+        Assert.Equal(HttpStatusCode.OK, initialResponse.StatusCode);
+        var initial = await initialResponse.Content.ReadFromJsonAsync<ContactSettingsDto>();
+        Assert.Equal(email, initial!.Email);
+        Assert.Null(initial.Phone);
+        Assert.False(initial.AllowPatiMatchSharing);
+        Assert.False(initial.AllowAdoptionSharing);
+        Assert.False(initial.AllowLostPetSharing);
+        Assert.False(initial.IsConfigured);
+
+        var updatedResponse = await Authorized(HttpMethod.Put, "api/mobile/contact-settings", auth.Token, new {
+            phone = "+90 555 123 45 67", email = $"share-{id}@example.com",
+            allowPatiMatchSharing = true, allowAdoptionSharing = false, allowLostPetSharing = true
+        });
+        Assert.Equal(HttpStatusCode.OK, updatedResponse.StatusCode);
+        var updated = await updatedResponse.Content.ReadFromJsonAsync<ContactSettingsDto>();
+        Assert.True(updated!.AllowPatiMatchSharing);
+        Assert.False(updated.AllowAdoptionSharing);
+        Assert.True(updated.AllowLostPetSharing);
+        Assert.True(updated.IsConfigured);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var stored = await scope.ServiceProvider.GetRequiredService<PetWorkDbContext>()
+                .MobileContactPreferences.SingleAsync(item => item.UserId == auth.UserId);
+            Assert.Equal("+90 555 123 45 67", stored.Phone);
+            Assert.Equal($"share-{id}@example.com", stored.ContactEmail);
+        }
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await Authorized(HttpMethod.Put, "api/mobile/contact-settings", auth.Token,
+            new { phone = "123", email = "geçersiz", allowPatiMatchSharing = false, allowAdoptionSharing = false, allowLostPetSharing = false })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("api/mobile/contact-settings")).StatusCode);
+    }
+
+    [Fact]
     public async Task Full_auth_lifecycle_revokes_tokens_and_deletes_account()
     {
         var id = Guid.NewGuid().ToString("N")[..10];
@@ -222,6 +263,8 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
     }
     private sealed record AuthDto(int UserId, string Username, string Token, DateTime ExpiresAt, string RefreshToken, DateTime RefreshExpiresAt, string Message);
     private sealed record MeDto(int UserId, string Username, string Email);
+    private sealed record ContactSettingsDto(string? Phone, string? Email, bool AllowPatiMatchSharing,
+        bool AllowAdoptionSharing, bool AllowLostPetSharing, bool IsConfigured);
     private sealed record EmailChallengeDto(bool RequiresEmailVerification, string ChallengeToken, DateTime ExpiresAt, string MaskedEmail, string Message);
     private sealed record PetDto(int Id, string Name, string? ProfileImage = null);
 }

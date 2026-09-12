@@ -448,14 +448,16 @@ app.Use(async (context, next) =>
     var isMobileAdoptionRequest = context.Request.Path.StartsWithSegments("/api/mobile/adoption");
     var isMobileReviewRequest = context.Request.Path.StartsWithSegments("/api/mobile/product-reviews");
     var isMobileNotificationRequest = context.Request.Path.StartsWithSegments("/api/mobile/notifications");
+    var isMobileContactSettingsRequest = context.Request.Path.StartsWithSegments("/api/mobile/contact-settings");
     var isReadOnlyMethod = HttpMethods.IsGet(context.Request.Method) ||
                            HttpMethods.IsHead(context.Request.Method) ||
                            HttpMethods.IsOptions(context.Request.Method);
 
     var isLegacyApiWrite = isApiRequest && !isReadOnlyMethod && !isMobileAuthRequest &&
-                           !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest &&
-                           !isMobilePetRequest && !isMobilePatiMatchRequest && !isMobileLostPetsRequest &&
-                           !isMobileAdoptionRequest && !isMobileReviewRequest && !isMobileNotificationRequest;
+                            !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest &&
+                            !isMobilePetRequest && !isMobilePatiMatchRequest && !isMobileLostPetsRequest &&
+                            !isMobileAdoptionRequest && !isMobileReviewRequest && !isMobileNotificationRequest &&
+                            !isMobileContactSettingsRequest;
 
     if (isAdminArea || isLegacyApiWrite)
     {

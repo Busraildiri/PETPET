@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Application from 'expo-application';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { apiUrl, getMobileNotificationPreferences, updateMobileNotificationPreferences } from '../api';
+import { ActivityIndicator, Alert, AppState, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { apiUrl, getMobileContactSettings, getMobileNotificationPreferences, updateMobileContactSettings, updateMobileNotificationPreferences, type MobileContactSettings } from '../api';
 import {
   clearNotifications, defaultSettings, isExpoGo, NotificationPermission, NotificationSettingKey,
   notificationsAllowed, PetimSettings, readNotificationPermission, readSettings,
@@ -25,7 +25,7 @@ type Props = {
   onOpenQuestions: () => void;
   onOpenPatiMatch: () => void;
 };
-type Page = 'main' | 'help' | 'legal';
+type Page = 'main' | 'contact' | 'help' | 'legal';
 type Permission = NotificationPermission | null;
 const notificationKeys: NotificationSettingKey[] = ['communityNotifications', 'lostPetNotifications', 'matchNotifications'];
 
@@ -180,6 +180,7 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, token, unre
     [{ text: 'Vazgeç', style: 'cancel' }, { text: 'Çıkış Yap', style: 'destructive', onPress: onLogout }],
   );
 
+  if (page === 'contact' && token) return <ContactSettingsPage token={token} onBack={() => setPage('main')} />;
   if (page === 'help') return <HelpPage onBack={() => setPage('main')} onOpenQuestions={onOpenQuestions} />;
   if (page === 'legal') return <LegalPage onBack={() => setPage('main')} />;
 
@@ -220,6 +221,7 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, token, unre
 
       <SectionTitle icon="shield-checkmark-outline" title="Gizlilik ve konum" />
       <View style={styles.card}>
+        <InfoRow icon="call-outline" title="İletişim bilgileri" subtitle={username ? 'Telefon, e-posta ve paylaşım izinlerini yönet' : 'Yönetmek için hesabına giriş yap'} onPress={username ? () => setPage('contact') : onLogin} />
         <InfoRow icon="paw-outline" title="PatiMatch görünürlüğü" subtitle={username ? 'Görünür patilerini ve eşleşme tercihlerini yönet' : 'Yönetmek için hesabına giriş yap'} onPress={username ? onOpenPatiMatch : onLogin} />
         <InfoRow icon="navigate-outline" title="Yaklaşık konum koruması" subtitle="Kesin ev adresin paylaşılmaz; bu koruma her zaman açık" onPress={() => Alert.alert('Yaklaşık konum koruması', 'Pet’im diğer kullanıcılara kesin koordinatını veya ev adresini göstermez. İlan ve keşif alanlarında konum yaklaşıklaştırılır.')} />
         <InfoRow icon="options-outline" title="Cihaz konum izni" subtitle="Pet’im için konum erişimini yönet" onPress={() => void Linking.openSettings()} last />
@@ -234,6 +236,65 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, token, unre
       </View>
     </>}
     {username ? <Pressable onPress={confirmLogout} accessibilityRole="button" style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed]}><Ionicons name="log-out-outline" size={20} color="#8E4036" /><Text style={styles.logoutText}>Çıkış Yap</Text></Pressable> : null}
+  </ScrollView>;
+}
+
+function ContactSettingsPage({ token, onBack }: { token: string; onBack: () => void }) {
+  const [form, setForm] = useState<MobileContactSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getMobileContactSettings(token)
+      .then(value => active && setForm(value))
+      .catch(reason => active && Alert.alert('Bilgiler yüklenemedi', reason instanceof Error ? reason.message : 'Lütfen tekrar dene.'))
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [token]);
+
+  const update = <K extends keyof MobileContactSettings>(key: K, value: MobileContactSettings[K]) => {
+    setForm(current => current ? { ...current, [key]: value } : current);
+  };
+  const save = async () => {
+    if (!form || saving) return;
+    setSaving(true);
+    try {
+      const saved = await updateMobileContactSettings(token, {
+        phone: form.phone?.trim() || null,
+        email: form.email?.trim() || null,
+        allowPatiMatchSharing: form.allowPatiMatchSharing,
+        allowAdoptionSharing: form.allowAdoptionSharing,
+        allowLostPetSharing: form.allowLostPetSharing,
+      });
+      setForm(saved);
+      Alert.alert('Kaydedildi', 'İletişim bilgilerin ve paylaşım izinlerin güncellendi.');
+    } catch (reason) {
+      Alert.alert('Kaydedilemedi', reason instanceof Error ? reason.message : 'Lütfen tekrar dene.');
+    } finally { setSaving(false); }
+  };
+
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <StatusBar style={getThemeMode() === 'dark' ? 'light' : 'dark'} /><DetailHeader title="İletişim bilgileri" onBack={onBack} />
+    <Text style={styles.detailLead}>Telefon ve e-posta bilgilerin varsayılan olarak gizlidir. İzinleri ayrı ayrı sen yönetirsin.</Text>
+    {loading || !form ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>İletişim bilgileri yükleniyor…</Text></View> : <>
+      <View style={styles.formCard}>
+        <Text style={styles.inputLabel}>Telefon</Text>
+        <TextInput value={form.phone ?? ''} onChangeText={value => update('phone', value)} placeholder="Örn. +90 5xx xxx xx xx" placeholderTextColor={colors.muted} keyboardType="phone-pad" textContentType="telephoneNumber" autoComplete="tel" style={styles.input} />
+        <Text style={styles.inputLabel}>E-posta</Text>
+        <TextInput value={form.email ?? ''} onChangeText={value => update('email', value)} placeholder="ornek@eposta.com" placeholderTextColor={colors.muted} keyboardType="email-address" textContentType="emailAddress" autoComplete="email" autoCapitalize="none" autoCorrect={false} style={styles.input} />
+      </View>
+      <SectionTitle icon="lock-closed-outline" title="Paylaşım izinleri" />
+      <View style={styles.card}>
+        <SettingSwitch icon="heart-outline" title="Eşleşen patilerle paylaşmama izin ver" subtitle="PatiMatch sohbetinde yalnızca sen paylaştığında kullanılır" value={form.allowPatiMatchSharing} disabled={saving} onChange={value => update('allowPatiMatchSharing', value)} />
+        <SettingSwitch icon="home-outline" title="Yuva olma ilanlarında paylaşmama izin ver" subtitle="Seçtiğin sahiplendirme ilanlarında kullanılabilir" value={form.allowAdoptionSharing} disabled={saving} onChange={value => update('allowAdoptionSharing', value)} />
+        <SettingSwitch icon="location-outline" title="Kayıp pati ilanlarında paylaşmama izin ver" subtitle="Seçtiğin kayıp pati ilanlarında kullanılabilir" value={form.allowLostPetSharing} disabled={saving} onChange={value => update('allowLostPetSharing', value)} last />
+      </View>
+      <View style={styles.safetyNote}><Ionicons name="eye-off-outline" size={20} color="#4E7458" /><Text style={styles.safetyText}>İzin vermen bilgilerini herkese açmaz. İletişim bilgileri yalnızca sonraki adımlarda açıkça seçtiğin eşleşme veya ilanda paylaşılır.</Text></View>
+      <Pressable onPress={() => void save()} disabled={saving} style={({ pressed }) => [styles.primaryAction, styles.contactSave, (pressed || saving) && styles.pressed]}>
+        {saving ? <ActivityIndicator color={colors.white} /> : <><Ionicons name="checkmark-circle-outline" size={20} color={colors.white} /><Text style={styles.primaryActionText}>Bilgileri kaydet</Text></>}
+      </Pressable>
+    </>}
   </ScrollView>;
 }
 
@@ -351,6 +412,10 @@ const styles = createThemedStyles(() => ({
   primaryActionText: { color: colors.white, fontSize: 12, fontWeight: '900' },
   secondaryAction: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 18, backgroundColor: colors.lilacSoft, borderWidth: 1, borderColor: '#DDCEE5', marginTop: 10 },
   secondaryActionText: { color: colors.primary, fontSize: 12, fontWeight: '900' },
+  formCard: { backgroundColor: colors.card, borderRadius: 22, padding: 16, borderWidth: 1, borderColor: colors.border, ...shadow },
+  inputLabel: { color: colors.text, fontSize: 11, fontWeight: '900', marginBottom: 7 },
+  input: { minHeight: 50, color: colors.text, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 15, paddingHorizontal: 14, fontSize: 13, marginBottom: 15 },
+  contactSave: { marginTop: 18 },
   legalCard: { backgroundColor: colors.card, borderRadius: 22, paddingHorizontal: 15, borderWidth: 1, borderColor: colors.border, ...shadow },
   legalSection: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, paddingVertical: 17, borderBottomWidth: 1, borderBottomColor: colors.border },
   legalTitle: { color: colors.text, fontSize: 13, fontWeight: '900' },

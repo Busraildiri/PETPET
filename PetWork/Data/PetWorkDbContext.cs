@@ -46,6 +46,7 @@ namespace PetWork.Data
         public DbSet<ProductReviewReport> ProductReviewReports { get; set; }
         public DbSet<MobileNotification> MobileNotifications { get; set; }
         public DbSet<MobileNotificationPreference> MobileNotificationPreferences { get; set; }
+        public DbSet<MobileContactPreference> MobileContactPreferences { get; set; }
         public DbSet<MobilePushToken> MobilePushTokens { get; set; }
         public DbSet<MobileMediaAsset> MobileMediaAssets { get; set; }
         public DbSet<DailyCostUsage> DailyCostUsages { get; set; }
@@ -306,6 +307,12 @@ namespace PetWork.Data
                 .HasOne(preference => preference.User)
                 .WithOne()
                 .HasForeignKey<MobileNotificationPreference>(preference => preference.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<MobileContactPreference>()
+                .HasOne(preference => preference.User)
+                .WithOne()
+                .HasForeignKey<MobileContactPreference>(preference => preference.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<MobilePushToken>()

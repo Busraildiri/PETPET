@@ -236,6 +236,15 @@ export type MobileNotificationPreferences = {
   communityNotifications: boolean; lostPetNotifications: boolean; matchNotifications: boolean; isConfigured: boolean;
 };
 
+export type MobileContactSettings = {
+  phone?: string | null;
+  email?: string | null;
+  allowPatiMatchSharing: boolean;
+  allowAdoptionSharing: boolean;
+  allowLostPetSharing: boolean;
+  isConfigured: boolean;
+};
+
 export type CreateAdoptionListingRequest = {
   petName: string; species: string; breed?: string; ageYears?: number; gender?: string; city: string; district?: string;
   healthInfo: string; story: string; image: { uri: string; mimeType?: string | null };
@@ -1007,6 +1016,21 @@ export async function updateMobileNotificationPreferences(token: string, prefere
     body: JSON.stringify(preferences),
   });
   return readCommunityResponse(response, 'Bildirim tercihleri kaydedilemedi.');
+}
+
+export async function getMobileContactSettings(token: string): Promise<MobileContactSettings> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/contact-settings`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  return readCommunityResponse(response, 'İletişim bilgileri yüklenemedi.');
+}
+
+export async function updateMobileContactSettings(token: string, settings: Omit<MobileContactSettings, 'isConfigured'>): Promise<MobileContactSettings> {
+  const response = await fetchApi(`${apiUrl}/api/mobile/contact-settings`, {
+    method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(settings),
+  });
+  return readCommunityResponse(response, 'İletişim bilgileri kaydedilemedi.');
 }
 
 export async function registerMobilePushToken(token: string, pushToken: string, platform: string): Promise<void> {
