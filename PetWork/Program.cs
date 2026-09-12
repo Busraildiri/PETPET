@@ -173,11 +173,13 @@ if (useResend)
             throw new InvalidOperationException($"Required email configuration '{key}' is missing.");
     builder.Services.AddScoped<IPasswordResetEmailSender, ResendPasswordResetEmailSender>();
     builder.Services.AddSingleton<IEmailVerificationSender, ResendEmailVerificationSender>();
+    builder.Services.AddScoped<ISupportReportEmailSender, ResendSupportReportEmailSender>();
 }
 else if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddScoped<IPasswordResetEmailSender, DevelopmentPasswordResetEmailSender>();
     builder.Services.AddSingleton<IEmailVerificationSender, DevelopmentEmailVerificationSender>();
+    builder.Services.AddScoped<ISupportReportEmailSender, DevelopmentSupportReportEmailSender>();
 }
 else
 {
@@ -449,6 +451,7 @@ app.Use(async (context, next) =>
     var isMobileReviewRequest = context.Request.Path.StartsWithSegments("/api/mobile/product-reviews");
     var isMobileNotificationRequest = context.Request.Path.StartsWithSegments("/api/mobile/notifications");
     var isMobileContactSettingsRequest = context.Request.Path.StartsWithSegments("/api/mobile/contact-settings");
+    var isMobileSupportRequest = context.Request.Path.StartsWithSegments("/api/mobile/support-reports");
     var isReadOnlyMethod = HttpMethods.IsGet(context.Request.Method) ||
                            HttpMethods.IsHead(context.Request.Method) ||
                            HttpMethods.IsOptions(context.Request.Method);
@@ -457,7 +460,7 @@ app.Use(async (context, next) =>
                             !isMobileQuestionRequest && !isMobileSocialRequest && !isMobileNearbyRequest &&
                             !isMobilePetRequest && !isMobilePatiMatchRequest && !isMobileLostPetsRequest &&
                             !isMobileAdoptionRequest && !isMobileReviewRequest && !isMobileNotificationRequest &&
-                            !isMobileContactSettingsRequest;
+                            !isMobileContactSettingsRequest && !isMobileSupportRequest;
 
     if (isAdminArea || isLegacyApiWrite)
     {

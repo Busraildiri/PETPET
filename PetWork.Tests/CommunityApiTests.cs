@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PetWork.Data;
 using PetWork.Models;
@@ -81,6 +82,50 @@ public sealed class CommunityApiTests : IClassFixture<AuthApiFactory>
         var user = await Register($"pet_{id}", $"pet-{id}@example.com");
         Assert.Equal(HttpStatusCode.BadRequest,
             (await Authorized(HttpMethod.Post, "api/mobile/pets", user.Token, new { name = "  ", type = "Kedi" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Support_reports_require_login_and_are_saved_with_a_tracking_number()
+    {
+        var id = Guid.NewGuid().ToString("N")[..8];
+        var user = await Register($"support_{id}", $"support-{id}@example.com");
+
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await _client.PostAsJsonAsync("api/mobile/support-reports", new
+            {
+                category = "technical", description = "Ana sayfada içerikler açılmıyor."
+            })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await Authorized(HttpMethod.Post, "api/mobile/support-reports", user.Token, new
+            {
+                category = "unknown", description = "Geçersiz kategori gönderiyorum."
+            })).StatusCode);
+
+        var response = await Authorized(HttpMethod.Post, "api/mobile/support-reports", user.Token, new
+        {
+            category = "technical", description = "Ana sayfada içerikler açılmıyor.",
+            screenshotBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+            screenshotContentType = "image/png"
+        });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<SupportReportDto>();
+        Assert.StartsWith("PET-", result!.TrackingNumber);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PetWorkDbContext>();
+        var saved = await db.MobileSupportReports.SingleAsync(item => item.TrackingNumber == result.TrackingNumber);
+        Assert.Equal(user.UserId, saved.UserId);
+        Assert.Equal("technical", saved.Category);
+        Assert.Equal("Ana sayfada içerikler açılmıyor.", saved.Description);
+        Assert.Equal("open", saved.Status);
+        Assert.False(string.IsNullOrWhiteSpace(saved.ScreenshotPath));
+        Assert.True(await db.MobileMediaAssets.AnyAsync(item => item.StorageKey == saved.ScreenshotPath));
+
+        var email = _factory.SupportReportEmailSender.Get(result.TrackingNumber);
+        Assert.Equal("technical", email.Category);
+        Assert.Equal($"support_{id}", email.Username);
+        Assert.Equal($"support-{id}@example.com", email.UserEmail);
+        Assert.Contains(saved.ScreenshotPath, email.ScreenshotUrl);
     }
 
     [Fact]
@@ -218,4 +263,5 @@ public sealed class CommunityApiTests : IClassFixture<AuthApiFactory>
     private sealed record QuestionDto(int Id);
     private sealed record PostDto(int Id);
     private sealed record ListingContactDto(int Id, bool AllowInAppMessages, string? ContactPhone, string? ContactEmail);
+    private sealed record SupportReportDto(string TrackingNumber, string Message);
 }

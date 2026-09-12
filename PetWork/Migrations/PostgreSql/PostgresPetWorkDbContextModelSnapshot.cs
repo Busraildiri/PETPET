@@ -1023,6 +1023,56 @@ namespace PetWork.Migrations.PostgreSql
                     b.ToTable("MobilePushTokens", "petwork");
                 });
 
+            modelBuilder.Entity("PetWork.Models.MobileSupportReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<string>("ScreenshotPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TrackingNumber")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TrackingNumber")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("MobileSupportReports", "petwork");
+                });
+
             modelBuilder.Entity("PetWork.Models.PasswordResetToken", b =>
                 {
                     b.Property<long>("Id")
@@ -1971,6 +2021,17 @@ namespace PetWork.Migrations.PostgreSql
                 });
 
             modelBuilder.Entity("PetWork.Models.MobilePushToken", b =>
+                {
+                    b.HasOne("PetWork.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PetWork.Models.MobileSupportReport", b =>
                 {
                     b.HasOne("PetWork.Models.User", "User")
                         .WithMany()

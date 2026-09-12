@@ -50,6 +50,7 @@ namespace PetWork.Data
         public DbSet<MobileContactPreference> MobileContactPreferences { get; set; }
         public DbSet<MobilePushToken> MobilePushTokens { get; set; }
         public DbSet<MobileMediaAsset> MobileMediaAssets { get; set; }
+        public DbSet<MobileSupportReport> MobileSupportReports { get; set; }
         public DbSet<DailyCostUsage> DailyCostUsages { get; set; }
         public DbSet<RateLimitUsage> RateLimitUsages { get; set; }
         
@@ -331,6 +332,17 @@ namespace PetWork.Data
             modelBuilder.Entity<MobileMediaAsset>()
                 .HasIndex(asset => asset.StorageKey)
                 .IsUnique();
+
+            modelBuilder.Entity<MobileSupportReport>()
+                .HasOne(report => report.User)
+                .WithMany()
+                .HasForeignKey(report => report.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<MobileSupportReport>()
+                .HasIndex(report => report.TrackingNumber)
+                .IsUnique();
+            modelBuilder.Entity<MobileSupportReport>()
+                .HasIndex(report => new { report.Status, report.CreatedAt });
 
             modelBuilder.Entity<AdoptionListing>()
                 .HasOne(listing => listing.User)

@@ -336,6 +336,7 @@ public sealed class AuthApiFactory : WebApplicationFactory<Program>
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     public CapturingPasswordResetEmailSender EmailSender { get; } = new();
     public CapturingEmailVerificationSender VerificationSender { get; } = new();
+    public CapturingSupportReportEmailSender SupportReportEmailSender { get; } = new();
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -357,6 +358,7 @@ public sealed class AuthApiFactory : WebApplicationFactory<Program>
             _connection.Open(); services.AddSingleton(_connection); services.AddDbContext<PetWorkDbContext>(options => options.UseSqlite(_connection));
             services.RemoveAll<IPasswordResetEmailSender>(); services.AddSingleton<IPasswordResetEmailSender>(EmailSender);
             services.RemoveAll<IEmailVerificationSender>(); services.AddSingleton<IEmailVerificationSender>(VerificationSender);
+            services.RemoveAll<ISupportReportEmailSender>(); services.AddSingleton<ISupportReportEmailSender>(SupportReportEmailSender);
         });
     }
     protected override Microsoft.Extensions.Hosting.IHost CreateHost(Microsoft.Extensions.Hosting.IHostBuilder builder)
@@ -384,4 +386,18 @@ public sealed class CapturingPasswordResetEmailSender : IPasswordResetEmailSende
     private readonly Dictionary<string, string> _tokens = new(StringComparer.OrdinalIgnoreCase);
     public Task SendAsync(string email, string username, string rawToken, DateTime expiresAt, CancellationToken cancellationToken) { lock (_tokens) _tokens[email] = rawToken; return Task.CompletedTask; }
     public string GetToken(string email) { lock (_tokens) return _tokens[email]; }
+}
+
+public sealed class CapturingSupportReportEmailSender : ISupportReportEmailSender
+{
+    private readonly Dictionary<string, SupportReportEmail> _reports = new(StringComparer.OrdinalIgnoreCase);
+    public Task SendAsync(SupportReportEmail report, CancellationToken cancellationToken)
+    {
+        lock (_reports) _reports[report.TrackingNumber] = report;
+        return Task.CompletedTask;
+    }
+    public SupportReportEmail Get(string trackingNumber)
+    {
+        lock (_reports) return _reports[trackingNumber];
+    }
 }
