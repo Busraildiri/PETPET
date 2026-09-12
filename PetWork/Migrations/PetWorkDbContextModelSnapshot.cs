@@ -827,6 +827,36 @@ namespace PetWork.Migrations
                     b.ToTable("MobileAuthSessions");
                 });
 
+            modelBuilder.Entity("PetWork.Models.MobileContactPreference", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("AllowAdoptionSharing")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowLostPetSharing")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowPatiMatchSharing")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("MobileContactPreferences");
+                });
+
             modelBuilder.Entity("PetWork.Models.MobileMediaAsset", b =>
                 {
                     b.Property<int>("Id")
@@ -1311,13 +1341,13 @@ namespace PetWork.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
-                    b.Property<DateTime>("WindowStartedAtUtc")
-                        .HasColumnType("datetime2");
-
                     b.Property<int>("Count")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("WindowStartedAtUtc")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Policy", "SubjectHash");
@@ -1818,6 +1848,17 @@ namespace PetWork.Migrations
                     b.HasOne("PetWork.Models.User", "User")
                         .WithMany("MobileAuthSessions")
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PetWork.Models.MobileContactPreference", b =>
+                {
+                    b.HasOne("PetWork.Models.User", "User")
+                        .WithOne()
+                        .HasForeignKey("PetWork.Models.MobileContactPreference", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
