@@ -16,7 +16,7 @@ export function CommunityShortcuts({ onOpenAdoption, onOpenReviews, onOpenLost }
         <Shortcut title="Sahiplendirme" subtitle="Bir yuvaya aracılık et" icon="home-outline" color={colors.sageSoft} onPress={onOpenAdoption} />
         <Shortcut title="Pati Denedi" subtitle="Mama deneyimleri" icon="nutrition-outline" color={colors.yellowSoft} onPress={onOpenReviews} />
       </View>
-      <Pressable onPress={onOpenLost} style={({ pressed }) => [styles.lostCard, pressed && styles.pressed]}>
+      <Pressable onPress={() => onOpenLost()} style={({ pressed }) => [styles.lostCard, pressed && styles.pressed]}>
         <View style={styles.lostIcon}><Ionicons name="location" size={24} color={colors.white} /></View>
         <View style={styles.flex}><Text style={styles.lostTitle}>Kayıp Patiler</Text><Text style={styles.subtitle}>Yakınındaki ilanlara göz at veya bildirim oluştur.</Text></View>
         <Ionicons name="chevron-forward" size={20} color={colors.primary} />

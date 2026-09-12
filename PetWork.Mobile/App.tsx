@@ -221,7 +221,7 @@ export default function App() {
   }
 
   const changeTab = (next: TabKey) => { if (next === 'social') setSocialInitialTab('posts'); setLostInitialListingId(null); setAdoptionInitialListingId(null); setSocialInitialPostId(null); setMatchInitialTargetPetId(null); setQuestionInitialId(null); setMatchChatOpen(false); setTab(next); setPage('root'); };
-  const openLost = (id?: number) => { setLostInitialListingId(id ?? null); setTab('lost'); setPage('root'); };
+  const openLost = (id?: number) => { setLostInitialListingId(typeof id === 'number' ? id : null); setTab('lost'); setPage('root'); };
   const openQuestions = () => { setQuestionInitialId(null); setSocialInitialTab('questions'); setTab('social'); setPage('root'); };
   const sessionChanged = (session: AuthResponse) => {
     void saveSession(session);
@@ -467,7 +467,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 }
 
 function LostHomeBanner({ onPress }: { onPress: () => void }) {
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.lostHomeBanner, pressed && styles.cardPressed]}>
+  return <Pressable onPress={() => onPress()} style={({ pressed }) => [styles.lostHomeBanner, pressed && styles.cardPressed]}>
     <View style={styles.lostHomeIcon}><Ionicons name="location" size={26} color={colors.white} /></View>
     <View style={styles.flexOne}><Text style={styles.lostEyebrow}>KAYIP PATİLER</Text>
       <Text style={styles.lostHomeTitle}>Bir pati eve dönsün</Text><Text style={styles.lostHomeText}>Yakındaki ilanları gör veya hızlıca bildirim oluştur.</Text></View>

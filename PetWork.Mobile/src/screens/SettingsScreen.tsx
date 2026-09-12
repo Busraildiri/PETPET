@@ -191,7 +191,6 @@ export function SettingsScreen({ darkTheme, onThemeChange, username, token, unre
     <StatusBar style={darkTheme ? 'light' : 'dark'} />
     <View style={styles.header}>
       <View><Text style={styles.eyebrow}>PET’İM</Text><Text style={styles.title}>Ayarlar</Text><Text style={styles.subtitle}>Deneyimini ve gizliliğini yönet.</Text></View>
-      <View style={styles.headerIcon}><Ionicons name="settings" size={27} color={colors.primary} /></View>
     </View>
 
     <Pressable onPress={username ? onOpenAccount : onLogin} accessibilityRole="button" accessibilityLabel={username ? 'Hesap bilgilerini aç' : 'Hesaba giriş yap'} style={({ pressed }) => [styles.profileCard, pressed && styles.pressed]}>
@@ -304,11 +303,10 @@ const styles = createThemedStyles(() => ({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingTop: Platform.OS === 'ios' ? 58 : 32, paddingHorizontal: 20, paddingBottom: 118 },
   detailContent: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingTop: Platform.OS === 'ios' ? 58 : 32, paddingHorizontal: 20, paddingBottom: 70 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 },
+  header: { marginBottom: 22 },
   eyebrow: { color: colors.peach, fontSize: 11, fontWeight: '900', letterSpacing: 2 },
   title: { color: colors.text, fontFamily: serif, fontSize: 34, fontWeight: '700', marginTop: 4 },
   subtitle: { color: colors.muted, fontSize: 12, marginTop: 4 },
-  headerIcon: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lilacSoft },
   profileCard: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: colors.primary, borderRadius: 24, padding: 16, ...shadow },
   avatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF24', borderWidth: 1, borderColor: '#FFFFFF46' },
   avatarText: { color: colors.white, fontFamily: serif, fontSize: 23, fontWeight: '700' },

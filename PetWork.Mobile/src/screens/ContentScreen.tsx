@@ -63,7 +63,7 @@ export function ContentScreen({ kind, onBack, onOpenLost }: { kind: ContentKind;
         ? 'Acil veya ağır belirtilerde içerik okumakla yetinmeyip veteriner hekime başvur.'
         : 'İçerikler PetWork veritabanından ve kaynak bilgisi korunarak webden getirilen yayınlardan sunulur.'}</Text>
     </View>
-    {kind === 'grief' ? <Pressable onPress={onOpenLost} style={styles.lostButton}>
+    {kind === 'grief' ? <Pressable onPress={() => onOpenLost()} style={styles.lostButton}>
       <Ionicons name="location" size={21} color={colors.white} />
       <View style={styles.flex}><Text style={styles.lostTitle}>Kayıp pati ilanlarına git</Text><Text style={styles.lostText}>İlanları gör veya yeni bildirim oluştur</Text></View>
       <Ionicons name="chevron-forward" size={20} color={colors.white} />
