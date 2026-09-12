@@ -141,7 +141,7 @@ public sealed class MobilePatiMatchApiController : ControllerBase
             .OrderByDescending(profile => profile.UpdatedAt)
             .Take(20)
             .Select(profile => new PatiMatchCandidateResponse(
-                profile.Pet.Id, profile.Pet.Name, profile.Pet.Type, profile.Pet.Breed,
+                profile.Pet.Id, profile.Pet.UserId, profile.Pet.User.Username, profile.Pet.Name, profile.Pet.Type, profile.Pet.Breed,
                 profile.Pet.DateOfBirth, profile.Pet.Age, profile.Pet.Gender,
                 profile.Pet.Description, profile.Pet.ProfileImage,
                 profile.Purpose, profile.City, profile.District))
@@ -225,7 +225,7 @@ public sealed class MobilePatiMatchApiController : ControllerBase
             .Where(profile => profile.IsActive && mutualPetIds.Contains(profile.PetId))
             .OrderByDescending(profile => profile.UpdatedAt)
             .Select(profile => new PatiMatchCandidateResponse(
-                profile.Pet.Id, profile.Pet.Name, profile.Pet.Type, profile.Pet.Breed,
+                profile.Pet.Id, profile.Pet.UserId, profile.Pet.User.Username, profile.Pet.Name, profile.Pet.Type, profile.Pet.Breed,
                 profile.Pet.DateOfBirth, profile.Pet.Age, profile.Pet.Gender,
                 profile.Pet.Description, profile.Pet.ProfileImage,
                 profile.Purpose, profile.City, profile.District))
@@ -518,7 +518,7 @@ public sealed record PatiMatchMyPetResponse(
     public decimal? Age { get; init; }
 }
 public sealed record PatiMatchCandidateResponse(
-    int PetId, string Name, string Type, string? Breed, DateTime? DateOfBirth, int? StoredAge,
+    int PetId, int OwnerUserId, string OwnerUsername, string Name, string Type, string? Breed, DateTime? DateOfBirth, int? StoredAge,
     string? Gender, string? Description, string? ProfileImage,
     string Purpose, string City, string? District)
 {

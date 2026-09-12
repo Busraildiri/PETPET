@@ -10,9 +10,10 @@ type Props = {
   sourcePet: PatiMatchMyPet;
   match: PatiMatchCandidate;
   onBack: () => void;
+  onOpenProfile: () => void;
 };
 
-export function PatiMatchChatScreen({ token, sourcePet, match, onBack }: Props) {
+export function PatiMatchChatScreen({ token, sourcePet, match, onBack, onOpenProfile }: Props) {
   const [messages, setMessages] = useState<PatiMatchMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
@@ -100,11 +101,11 @@ export function PatiMatchChatScreen({ token, sourcePet, match, onBack }: Props) 
       <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Eşleşmelere dön" style={styles.backButton}>
         <Ionicons name="arrow-back" size={23} color={colors.primary} />
       </Pressable>
-      <Image source={{ uri: mediaUrl(match.profileImage) }} style={styles.avatar} />
-      <View style={styles.headerCopy}>
+      <Pressable onPress={onOpenProfile} accessibilityRole="button" accessibilityLabel="Eşleşen profili aç"><Image source={{ uri: mediaUrl(match.profileImage) }} style={styles.avatar} /></Pressable>
+      <Pressable onPress={onOpenProfile} style={styles.headerCopy}>
         <Text style={styles.title}>{match.name}</Text>
-        <Text style={styles.subtitle}>{sourcePet.name} ile PatiMatch</Text>
-      </View>
+        <Text style={styles.subtitle}>@{match.ownerUsername} · {sourcePet.name} ile PatiMatch</Text>
+      </Pressable>
       <Ionicons name="shield-checkmark-outline" size={23} color="#4E7458" />
     </View>
 

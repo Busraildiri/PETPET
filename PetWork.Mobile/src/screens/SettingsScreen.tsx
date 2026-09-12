@@ -25,17 +25,21 @@ type Props = {
   onLogout: () => void;
   onOpenQuestions: () => void;
   onOpenPatiMatch: () => void;
+  initialPage?: Page;
+  onInitialPageConsumed?: () => void;
 };
 type Page = 'main' | 'contact' | 'report' | 'help' | 'about' | 'appInfo' | 'legal';
 type Permission = NotificationPermission | null;
 const notificationKeys: NotificationSettingKey[] = ['communityNotifications', 'lostPetNotifications', 'matchNotifications'];
 
-export function SettingsScreen({ darkTheme, onThemeChange, username, token, unreadNotifications, onOpenNotifications, onOpenAccount, onLogin, onLogout, onOpenQuestions, onOpenPatiMatch }: Props) {
+export function SettingsScreen({ darkTheme, onThemeChange, username, token, unreadNotifications, onOpenNotifications, onOpenAccount, onLogin, onLogout, onOpenQuestions, onOpenPatiMatch, initialPage = 'main', onInitialPageConsumed }: Props) {
   const [settings, setSettings] = useState<PetimSettings>(defaultSettings);
   const [permission, setPermission] = useState<Permission>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [page, setPage] = useState<Page>('main');
+  const [page, setPage] = useState<Page>(initialPage);
+
+  useEffect(() => { if (initialPage !== 'main') onInitialPageConsumed?.(); }, []);
 
   useEffect(() => {
     let active = true;

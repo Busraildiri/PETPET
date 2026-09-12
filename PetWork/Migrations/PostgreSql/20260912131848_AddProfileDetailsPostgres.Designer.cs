@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PetWork.Data;
@@ -11,9 +12,11 @@ using PetWork.Data;
 namespace PetWork.Migrations.PostgreSql
 {
     [DbContext(typeof(PostgresPetWorkDbContext))]
-    partial class PostgresPetWorkDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260912131848_AddProfileDetailsPostgres")]
+    partial class AddProfileDetailsPostgres
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -87,11 +90,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.Property<int?>("AgeYears")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("AllowInAppMessages")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
                     b.Property<string>("Breed")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -100,14 +98,6 @@ namespace PetWork.Migrations.PostgreSql
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
-
-                    b.Property<string>("ContactEmail")
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.Property<string>("ContactPhone")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
@@ -659,11 +649,6 @@ namespace PetWork.Migrations.PostgreSql
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<bool>("AllowInAppMessages")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
                     b.Property<string>("Breed")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -676,14 +661,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.Property<string>("CollarOrMicrochip")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
-
-                    b.Property<string>("ContactEmail")
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.Property<string>("ContactPhone")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
@@ -1023,56 +1000,6 @@ namespace PetWork.Migrations.PostgreSql
                     b.ToTable("MobilePushTokens", "petwork");
                 });
 
-            modelBuilder.Entity("PetWork.Models.MobileSupportReport", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("character varying(3000)");
-
-                    b.Property<string>("ScreenshotPath")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("TrackingNumber")
-                        .IsRequired()
-                        .HasMaxLength(24)
-                        .HasColumnType("character varying(24)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TrackingNumber")
-                        .IsUnique();
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("Status", "CreatedAt");
-
-                    b.ToTable("MobileSupportReports", "petwork");
-                });
-
             modelBuilder.Entity("PetWork.Models.PasswordResetToken", b =>
                 {
                     b.Property<long>("Id")
@@ -1311,9 +1238,6 @@ namespace PetWork.Migrations.PostgreSql
                         .HasColumnType("boolean");
 
                     b.Property<bool?>("IsNeutered")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsPublic")
                         .HasColumnType("boolean");
 
                     b.Property<bool?>("IsVaccinated")
@@ -2075,17 +1999,6 @@ namespace PetWork.Migrations.PostgreSql
                 });
 
             modelBuilder.Entity("PetWork.Models.MobilePushToken", b =>
-                {
-                    b.HasOne("PetWork.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("PetWork.Models.MobileSupportReport", b =>
                 {
                     b.HasOne("PetWork.Models.User", "User")
                         .WithMany()

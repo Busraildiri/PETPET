@@ -25,7 +25,19 @@ namespace PetWork.Models
         public string PasswordHash { get; set; }
         
         public string? Bio { get; set; }
-        
+
+        [StringLength(80)]
+        public string? City { get; set; }
+
+        [StringLength(80)]
+        public string? Occupation { get; set; }
+
+        [StringLength(80)]
+        public string? LivingSituation { get; set; }
+
+        public bool? HasChildren { get; set; }
+        public bool? HasOtherPets { get; set; }
+
         public string ProfileImage { get; set; } = "img/user-profile.jpg";
         
         public DateTime RegistrationDate { get; set; } = DateTime.Now;

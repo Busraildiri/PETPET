@@ -1273,11 +1273,27 @@ namespace PetWork.Migrations
                     b.Property<string>("Breed")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CareNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Character")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ChildCompatibility")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<DateTime?>("DateOfBirth")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExtraAttributesJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("Gender")
                         .HasColumnType("nvarchar(max)");
@@ -1285,10 +1301,23 @@ namespace PetWork.Migrations
                     b.Property<string>("Image")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool?>("IsMicrochipped")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("IsNeutered")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("IsVaccinated")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("OtherPetCompatibility")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<string>("PetType")
                         .IsRequired()
@@ -1297,6 +1326,10 @@ namespace PetWork.Migrations
                     b.Property<string>("ProfileImage")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TagsCsv")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -1752,6 +1785,10 @@ namespace PetWork.Migrations
                     b.Property<string>("Bio")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("City")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -1759,11 +1796,25 @@ namespace PetWork.Migrations
                     b.Property<int>("ExperiencePoints")
                         .HasColumnType("int");
 
+                    b.Property<bool?>("HasChildren")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("HasOtherPets")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsAdmin")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsEmailVerified")
                         .HasColumnType("bit");
+
+                    b.Property<string>("LivingSituation")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Occupation")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()

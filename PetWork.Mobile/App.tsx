@@ -77,6 +77,7 @@ export default function App() {
   const [matchChatOpen, setMatchChatOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [darkTheme, setDarkTheme] = useState(false);
+  const [settingsInitialPage, setSettingsInitialPage] = useState<'main' | 'contact'>('main');
   const [lostInitialListingId, setLostInitialListingId] = useState<number | null>(null);
   const [adoptionInitialListingId, setAdoptionInitialListingId] = useState<number | null>(null);
   const [socialInitialPostId, setSocialInitialPostId] = useState<number | null>(null);
@@ -247,7 +248,7 @@ export default function App() {
   if (page === 'login') screen = <AuthScreen key="login" initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
   else if (page === 'register') screen = <AuthScreen key="register" initialMode="register" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
   else if (page === 'reset') screen = <AuthScreen key={`reset-${resetToken}`} initialMode="reset" resetToken={resetToken} onBack={() => setPage('login')} onAuthenticated={authenticated} />;
-  else if (page === 'account' && currentUser && authToken) screen = <AccountScreen username={currentUser} token={authToken} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onLogout={logout} onSessionChanged={sessionChanged} onUsernameChanged={setCurrentUser} onDeleted={logout} />;
+  else if (page === 'account' && currentUser && authToken) screen = <AccountScreen username={currentUser} token={authToken} onBack={() => setPage('root')} onOpenPets={() => setPage('pets')} onOpenContactSettings={() => { setSettingsInitialPage('contact'); setPage('root'); setTab('settings'); }} onLogout={logout} onSessionChanged={sessionChanged} onUsernameChanged={setCurrentUser} onDeleted={logout} />;
   else if (page === 'pets' && authToken) screen = <PetsScreen token={authToken} onBack={() => setPage('account')} />;
   else if (page === 'nearby' && authToken) screen = <NearbyScreen token={authToken} category={nearbyCategory} onBack={() => setPage('root')} />;
   else if (page === 'nearby') screen = <AuthScreen key="nearby-login" initialMode="login" onBack={() => setPage('root')} onAuthenticated={authenticated} />;
@@ -274,7 +275,7 @@ export default function App() {
   />;
   else if (tab === 'lost') screen = <LostPetsScreen token={authToken} username={currentUser} initialListingId={lostInitialListingId} onLogin={() => setPage('login')} />;
   else if (tab === 'match') screen = <PatiMatchScreen token={authToken} username={currentUser} initialTargetPetId={matchInitialTargetPetId} onLogin={() => setPage('login')} onOpenPets={() => setPage('pets')} onSessionExpired={() => { void logout(); setPage('login'); }} onChatStateChange={setMatchChatOpen} />;
-  else if (tab === 'settings') screen = <SettingsScreen darkTheme={darkTheme} onThemeChange={value => { setThemeMode(value ? 'dark' : 'light'); setDarkTheme(value); }} username={currentUser} token={authToken} unreadNotifications={unreadNotifications} onOpenNotifications={() => setPage(currentUser ? 'notifications' : 'login')} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} onOpenPatiMatch={() => setTab('match')} />;
+  else if (tab === 'settings') screen = <SettingsScreen initialPage={settingsInitialPage} onInitialPageConsumed={() => setSettingsInitialPage('main')} darkTheme={darkTheme} onThemeChange={value => { setThemeMode(value ? 'dark' : 'light'); setDarkTheme(value); }} username={currentUser} token={authToken} unreadNotifications={unreadNotifications} onOpenNotifications={() => setPage(currentUser ? 'notifications' : 'login')} onOpenAccount={() => setPage('account')} onLogin={() => setPage('login')} onLogout={logout} onOpenQuestions={openQuestions} onOpenPatiMatch={() => setTab('match')} />;
   else screen = <ComingSoon tab={tab} onHome={() => changeTab('home')} />;
 
   return (

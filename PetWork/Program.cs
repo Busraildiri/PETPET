@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using PetWork.Data;
 using PetWork.Services;
@@ -38,6 +39,27 @@ foreach (var origin in allowedCorsOrigins)
 
 // Add services to the container.
 builder.Services.AddControllersWithViews(options => options.Filters.Add<ApiInputValidationFilter>());
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(item => !item.Key.Equals("request", StringComparison.OrdinalIgnoreCase) && item.Value?.Errors.Count > 0)
+            .ToDictionary(
+                item => item.Key,
+                item => item.Value!.Errors.Select(error =>
+                    string.IsNullOrWhiteSpace(error.ErrorMessage) ||
+                    error.ErrorMessage.Contains("could not be converted", StringComparison.OrdinalIgnoreCase)
+                        ? "Gönderilen alanın değeri okunamadı. Lütfen seçimini yenileyip tekrar dene."
+                        : error.ErrorMessage).ToArray());
+        if (errors.Count == 0) errors["body"] = ["Gönderilen bilgiler okunamadı. Lütfen tekrar dene."];
+        return new BadRequestObjectResult(new ValidationProblemDetails(errors)
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = "İstek doğrulaması başarısız."
+        });
+    };
+});
 builder.Services.AddCors(options => options.AddPolicy(corsPolicyName, policy =>
 {
     // Kimlik bilgileri açıkken wildcard origin geçersiz ve güvensizdir; yalnızca tam origin listesi kullanılır.

@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, Animated, Image, PanResponder, Platform, Pres
 import { deactivatePatiMatch, decidePatiMatch, enrollPatiMatch, getLocationSuggestions, getPatiMatchCandidates, getPatiMatches, getPatiMatchOverview, mediaUrl, type LocationSuggestion, type PatiMatchCandidate, type PatiMatchMyPet, type PatiMatchOverview } from '../api';
 import { colors, createThemedStyles, shadow } from '../theme';
 import { PatiMatchChatScreen } from './PatiMatchChatScreen';
+import { VisibleProfileScreen } from './VisibleProfileScreen';
 
 type Props = { token: string | null; username: string | null; onLogin: () => void; onOpenPets: () => void; onSessionExpired: () => void; onChatStateChange: (open: boolean) => void; initialTargetPetId?: number | null };
 const purposeLabels = { friendship: 'Oyun arkadaşı', mate: 'Eş arıyor' } as const;
@@ -28,6 +29,7 @@ export function PatiMatchScreen({ token, username, onLogin, onOpenPets, onSessio
   const [accepted, setAccepted] = useState(false);
   const [editingPetId, setEditingPetId] = useState<number | null>(null);
   const [chatMatch, setChatMatch] = useState<PatiMatchCandidate | null>(null);
+  const [profileMatch, setProfileMatch] = useState<PatiMatchCandidate | null>(null);
   const [openedInitialTargetId, setOpenedInitialTargetId] = useState<number | null>(null);
 
   const activePets = useMemo(() => overview?.pets.filter(pet => pet.isActive) ?? [], [overview]);
@@ -145,7 +147,8 @@ export function PatiMatchScreen({ token, username, onLogin, onOpenPets, onSessio
   };
 
   if (!token || !username) return <GuestState onLogin={onLogin} />;
-  if (selectedPet && chatMatch) return <PatiMatchChatScreen token={token} sourcePet={selectedPet} match={chatMatch} onBack={closeChat} />;
+  if (selectedPet && profileMatch) return <VisibleProfileScreen token={token} sourcePetId={selectedPet.id} targetPetId={profileMatch.petId} onBack={() => setProfileMatch(null)} />;
+  if (selectedPet && chatMatch) return <PatiMatchChatScreen token={token} sourcePet={selectedPet} match={chatMatch} onBack={closeChat} onOpenProfile={() => setProfileMatch(chatMatch)} />;
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.primary} />}>
     <Header matchCount={overview?.matchCount ?? 0} />
@@ -161,7 +164,7 @@ export function PatiMatchScreen({ token, username, onLogin, onOpenPets, onSessio
       {selectedPet?.isActive && editingPetId !== selectedPet.id ? <>
         <View style={styles.activeBar}><View style={styles.flex}><Text style={styles.activeTitle}>{selectedPet.name} ile keşfet</Text><Text style={styles.activeMeta}>{purposeLabels[selectedPet.purpose ?? 'friendship']} · {(selectedPet.preferredTypes?.length ? selectedPet.preferredTypes : [selectedPet.type]).join(', ')} · {[selectedPet.city, selectedPet.district].filter(Boolean).join(', ')}</Text></View><View style={styles.activeActions}><Pressable onPress={() => { setEditingPetId(selectedPet.id); setAccepted(false); }}><Text style={styles.editProfile}>Düzenle</Text></Pressable><Pressable onPress={deactivate}><Text style={styles.closeProfile}>Kapat</Text></Pressable></View></View>
         {candidates[0] ? <><Text style={styles.swipeHint}>Sola kaydır: geç · Sağa kaydır: beğen</Text><SwipeCard key={candidates[0].petId} candidate={candidates[0]} busy={busy} onDecision={isLike => decide(candidates[0], isLike)} /><View style={styles.actions}><Pressable disabled={busy} onPress={() => void decide(candidates[0], false)} style={[styles.actionButton, styles.passButton]}><Ionicons name="close" size={31} color="#A65345" /></Pressable><Pressable disabled={busy} onPress={() => void decide(candidates[0], true)} style={[styles.actionButton, styles.likeButton]}><Ionicons name="heart" size={29} color={colors.white} /></Pressable></View></> : <NoCandidates onRefresh={() => void load(true)} />}
-        <Matches items={matches} onOpen={openChat} />
+        <Matches items={matches} onOpen={openChat} onProfile={setProfileMatch} />
       </> : null}
     </> : null}
     <SafetyNote />
@@ -257,7 +260,7 @@ function SwipeCard({ candidate, busy, onDecision }: { candidate: PatiMatchCandid
 }
 
 function NoCandidates({ onRefresh }: { onRefresh: () => void }) { return <View style={styles.emptyCard}><Ionicons name="sparkles-outline" size={37} color={colors.primary} /><Text style={styles.cardTitle}>Şimdilik yeni pati yok</Text><Text style={styles.cardText}>Yalnızca PatiMatch’e gerçekten katılan profiller burada görünür. Daha sonra tekrar kontrol edebilirsin.</Text><Pressable onPress={onRefresh} style={styles.smallButton}><Text style={styles.smallButtonText}>Yenile</Text></Pressable></View>; }
-function Matches({ items, onOpen }: { items: PatiMatchCandidate[]; onOpen: (item: PatiMatchCandidate) => void }) { if (!items.length) return null; return <View><Text style={styles.sectionLabel}>EŞLEŞMELERİN</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.matchesRow}>{items.map(item => <Pressable key={item.petId} onPress={() => onOpen(item)} accessibilityRole="button" accessibilityLabel={`${item.name} ile sohbeti aç`} style={({ pressed }) => [styles.matchCard, pressed && { opacity: .72 }]}><Image source={{ uri: mediaUrl(item.profileImage) }} style={styles.matchImage} /><Text style={styles.matchName}>{item.name}</Text><Text style={styles.matchLocation}>{item.city}</Text><View style={styles.chatLink}><Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.primary} /><Text style={styles.chatLinkText}>Sohbeti aç</Text></View></Pressable>)}</ScrollView></View>; }
+function Matches({ items, onOpen, onProfile }: { items: PatiMatchCandidate[]; onOpen: (item: PatiMatchCandidate) => void; onProfile: (item: PatiMatchCandidate) => void }) { if (!items.length) return null; return <View><Text style={styles.sectionLabel}>EŞLEŞMELERİN</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.matchesRow}>{items.map(item => <View key={item.petId} style={styles.matchCard}><Pressable onPress={() => onProfile(item)} accessibilityRole="button" accessibilityLabel={`${item.name} profilini aç`}><Image source={{ uri: mediaUrl(item.profileImage) }} style={styles.matchImage} /><Text style={styles.matchName}>{item.name}</Text><Text style={styles.matchLocation}>@{item.ownerUsername} · {item.city}</Text></Pressable><Pressable onPress={() => onOpen(item)} style={styles.chatLink}><Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.primary} /><Text style={styles.chatLinkText}>Sohbeti aç</Text></Pressable></View>)}</ScrollView></View>; }
 function SafetyNote() { return <View style={styles.safetyNote}><Ionicons name="shield-checkmark-outline" size={24} color="#4E7458" /><Text style={styles.safetyText}>İlk buluşmayı halka açık bir yerde yap. Sağlık, aşı ve kısırlaştırma bilgilerini yüz yüze doğrula; hayvan refahını her zaman eşleşmenin önünde tut.</Text></View>; }
 
 const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });

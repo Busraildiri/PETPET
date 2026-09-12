@@ -14,6 +14,7 @@ using PetWork.Data;
 using PetWork.Models;
 using PetWork.Services;
 using PetWork.Security;
+using PetWork.Validation;
 
 namespace PetWork.Controllers.Api;
 
@@ -196,7 +197,7 @@ public sealed class MobileAuthApiController : ControllerBase
         if (userId is null) return Unauthorized(new MobileAuthError("Oturumun geçersiz veya süresi dolmuş."));
         var user = await _context.Users.AsNoTracking()
             .Where(candidate => candidate.Id == userId.Value)
-            .Select(candidate => new MobileMeResponse(candidate.Id, candidate.Username, candidate.Email))
+            .Select(candidate => ToMeResponse(candidate))
             .FirstOrDefaultAsync(cancellationToken);
         return user is null ? Unauthorized(new MobileAuthError("Oturumun geçersiz veya süresi dolmuş.")) : Ok(user);
     }
@@ -217,7 +218,7 @@ public sealed class MobileAuthApiController : ControllerBase
         if (user is null) return Unauthorized(new MobileAuthError("Oturumun geçersiz veya süresi dolmuş."));
 
         if (string.Equals(user.Username, username, StringComparison.Ordinal))
-            return Ok(new MobileMeResponse(user.Id, user.Username, user.Email));
+            return Ok(ToMeResponse(user));
 
         var exists = await _context.Users.AsNoTracking().AnyAsync(candidate =>
             candidate.Id != user.Id && candidate.Username.ToLower() == normalizedUsername, cancellationToken);
@@ -235,7 +236,47 @@ public sealed class MobileAuthApiController : ControllerBase
         }
 
         _logger.LogInformation("Mobil kullanıcı adı güncellendi. UserId: {UserId}", user.Id);
-        return Ok(new MobileMeResponse(user.Id, user.Username, user.Email));
+        return Ok(ToMeResponse(user));
+    }
+
+    [HttpPatch("profile")]
+    [Authorize]
+    [SensitiveRateLimit("Expensive")]
+    public async Task<ActionResult<MobileMeResponse>> UpdateProfile(MobileUpdateProfileRequest request, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized(new MobileAuthError("Oturumun geçersiz veya süresi dolmuş."));
+        if (string.IsNullOrWhiteSpace(request.City)) return BadRequest(new MobileAuthError("Şehir bilgisi zorunludur."));
+        if (string.IsNullOrWhiteSpace(request.Occupation)) return BadRequest(new MobileAuthError("Meslek bilgisi zorunludur."));
+        if (!ProfileOptionCatalog.Cities.Contains(request.City.Trim())) return BadRequest(new MobileAuthError("Geçerli bir şehir seçmelisin."));
+        if (!ProfileOptionCatalog.Occupations.Contains(request.Occupation.Trim())) return BadRequest(new MobileAuthError("Geçerli bir meslek seçmelisin."));
+        if (string.IsNullOrWhiteSpace(request.LivingSituation)) return BadRequest(new MobileAuthError("Birlikte yaşam bilgisi zorunludur."));
+        if (!ProfileOptionCatalog.LivingSituations.Contains(request.LivingSituation.Trim())) return BadRequest(new MobileAuthError("Geçerli bir birlikte yaşam seçeneği seçmelisin."));
+        if (request.HasChildren is null) return BadRequest(new MobileAuthError("Evde çocuk bilgisi zorunludur."));
+        if (request.HasOtherPets is null) return BadRequest(new MobileAuthError("Diğer evcil hayvan bilgisi zorunludur."));
+        var user = await _context.Users.FirstOrDefaultAsync(candidate => candidate.Id == userId.Value, cancellationToken);
+        if (user is null) return Unauthorized(new MobileAuthError("Oturumun geçersiz veya süresi dolmuş."));
+
+        user.Bio = Clean(request.Bio, 500); user.City = Clean(request.City, 80); user.Occupation = Clean(request.Occupation, 80);
+        user.LivingSituation = Clean(request.LivingSituation, 80); user.HasChildren = request.HasChildren; user.HasOtherPets = request.HasOtherPets;
+        if (request.RemoveProfileImage)
+        {
+            await _mediaStorage.DeleteAsync(user.ProfileImage, cancellationToken);
+            user.ProfileImage = "img/user-profile.jpg";
+        }
+        else if (!string.IsNullOrWhiteSpace(request.ImageBase64))
+        {
+            try
+            {
+                var stored = _mediaStorage.StoreBytes("profile", Convert.FromBase64String(request.ImageBase64), 5 * 1024 * 1024, request.ImageContentType);
+                await _mediaStorage.DeleteAsync(user.ProfileImage, cancellationToken);
+                user.ProfileImage = stored.StorageKey;
+            }
+            catch (FormatException) { return BadRequest(new MobileAuthError("Profil fotoğrafı okunamadı.")); }
+            catch (MediaValidationException exception) { return BadRequest(new MobileAuthError(exception.Message)); }
+        }
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(ToMeResponse(user));
     }
 
     [HttpPost("refresh")]
@@ -513,6 +554,10 @@ public sealed class MobileAuthApiController : ControllerBase
     private static string HashToken(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
 
+    private static string? Clean(string? value, int maximum) => string.IsNullOrWhiteSpace(value) ? null : value.Trim()[..Math.Min(value.Trim().Length, maximum)];
+    private static MobileMeResponse ToMeResponse(User user) => new(user.Id, user.Username, user.Email, user.Bio, user.City,
+        user.Occupation, user.LivingSituation, user.HasChildren, user.HasOtherPets, user.ProfileImage);
+
 }
 
 public sealed class MobileRegisterRequest
@@ -610,5 +655,18 @@ public sealed record MobileAuthResponse(
     string RefreshToken,
     DateTime RefreshExpiresAt,
     string Message);
-public sealed record MobileMeResponse(int UserId, string Username, string Email);
+public sealed record MobileMeResponse(int UserId, string Username, string Email, string? Bio, string? City,
+    string? Occupation, string? LivingSituation, bool? HasChildren, bool? HasOtherPets, string ProfileImage);
+public sealed class MobileUpdateProfileRequest
+{
+    [StringLength(500)] public string? Bio { get; init; }
+    [StringLength(80)] public string? City { get; init; }
+    [StringLength(80)] public string? Occupation { get; init; }
+    [StringLength(80)] public string? LivingSituation { get; init; }
+    public bool? HasChildren { get; init; }
+    public bool? HasOtherPets { get; init; }
+    public string? ImageBase64 { get; init; }
+    [StringLength(100)] public string? ImageContentType { get; init; }
+    public bool RemoveProfileImage { get; init; }
+}
 public sealed record MobileAuthError(string Message, string? ReferenceCode = null);
