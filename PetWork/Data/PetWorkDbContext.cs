@@ -280,6 +280,9 @@ namespace PetWork.Data
 
             modelBuilder.Entity<LostPetListing>()
                 .HasIndex(listing => new { listing.City, listing.District, listing.CreatedAt });
+            modelBuilder.Entity<LostPetListing>()
+                .Property(listing => listing.AllowInAppMessages)
+                .HasDefaultValue(true);
 
             modelBuilder.Entity<LostPetSighting>()
                 .HasOne(sighting => sighting.LostPetListing)
@@ -338,6 +341,9 @@ namespace PetWork.Data
                 .HasIndex(listing => new { listing.IsDeleted, listing.Status, listing.CreatedAt });
             modelBuilder.Entity<AdoptionListing>()
                 .HasIndex(listing => new { listing.City, listing.CreatedAt });
+            modelBuilder.Entity<AdoptionListing>()
+                .Property(listing => listing.AllowInAppMessages)
+                .HasDefaultValue(true);
 
             modelBuilder.Entity<AdoptionApplication>()
                 .HasOne(application => application.AdoptionListing)

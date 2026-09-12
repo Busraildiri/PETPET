@@ -22,6 +22,9 @@ public sealed class LostPetListing
     [StringLength(500)] public string? CollarOrMicrochip { get; set; }
     [StringLength(1500)] public string? Notes { get; set; }
     [Required, StringLength(500)] public string ImagePath { get; set; } = string.Empty;
+    public bool AllowInAppMessages { get; set; } = true;
+    [StringLength(32)] public string? ContactPhone { get; set; }
+    [StringLength(254)] public string? ContactEmail { get; set; }
     [Required, StringLength(20)] public string Status { get; set; } = "active";
     [Required, StringLength(100)] public string SourceName { get; set; } = "Pet'im";
     [StringLength(1000)] public string? SourceUrl { get; set; }

@@ -48,7 +48,13 @@ public sealed class MobileAdoptionApiController : ControllerBase
             .OrderByDescending(item => item.CreatedAt)
             .Take(100)
             .ToListAsync(cancellationToken);
-        return Ok(items.Select(item => ToResponse(item, hasUser ? userId : null)).ToList());
+        var ownerIds = items.Select(item => item.UserId).Distinct().ToList();
+        var contactSharingOwnerIds = (await _context.MobileContactPreferences.AsNoTracking()
+            .Where(item => item.AllowAdoptionSharing && ownerIds.Contains(item.UserId))
+            .Select(item => item.UserId)
+            .ToListAsync(cancellationToken)).ToHashSet();
+        return Ok(items.Select(item => ToResponse(item, hasUser ? userId : null,
+            contactSharingOwnerIds.Contains(item.UserId))).ToList());
     }
 
     [HttpPost("listings")]
@@ -60,6 +66,9 @@ public sealed class MobileAdoptionApiController : ControllerBase
     {
         if (!TryGetUserId(out var userId)) return Unauthorized(new { message = "Oturum bilgisi doğrulanamadı." });
         if (request.AgeYears is < 0 or > 40) return BadRequest(new { message = "Yaş bilgisi geçersiz." });
+        var contact = await ResolveListingContact(userId, request.AllowInAppMessages, request.SharePhone,
+            request.ShareEmail, adoption: true, cancellationToken);
+        if (contact.Error is not null) return BadRequest(new { message = contact.Error });
         var image = SaveImage(request.ImageBase64, request.ImageContentType);
         if (image.Error is not null) return BadRequest(new { message = image.Error });
 
@@ -69,12 +78,13 @@ public sealed class MobileAdoptionApiController : ControllerBase
             PetName = request.PetName.Trim(), Species = request.Species.Trim(), Breed = Clean(request.Breed),
             AgeYears = request.AgeYears, Gender = Clean(request.Gender), City = request.City.Trim(),
             District = Clean(request.District), HealthInfo = request.HealthInfo.Trim(), Story = request.Story.Trim(),
-            ImagePath = image.Path!, Status = "active", CreatedAt = DateTime.Now
+            ImagePath = image.Path!, AllowInAppMessages = request.AllowInAppMessages,
+            ContactPhone = contact.Phone, ContactEmail = contact.Email, Status = "active", CreatedAt = DateTime.Now
         };
         _context.AdoptionListings.Add(listing);
         await _context.SaveChangesAsync(cancellationToken);
         listing.User = await _context.Users.AsNoTracking().FirstAsync(user => user.Id == userId, cancellationToken);
-        return CreatedAtAction(nameof(GetListings), new { id = listing.Id }, ToResponse(listing, userId));
+        return CreatedAtAction(nameof(GetListings), new { id = listing.Id }, ToResponse(listing, userId, true));
     }
 
     [HttpPost("listings/{id:int}/applications")]
@@ -87,6 +97,8 @@ public sealed class MobileAdoptionApiController : ControllerBase
         var listing = await _context.AdoptionListings.FirstOrDefaultAsync(item => item.Id == id && !item.IsDeleted && item.Status == "active", cancellationToken);
         if (listing is null) return NotFound(new { message = "Aktif sahiplendirme ilanı bulunamadı." });
         if (listing.UserId == userId) return BadRequest(new { message = "Kendi ilanına başvuru yapamazsın." });
+        if (!listing.AllowInAppMessages)
+            return Conflict(new { message = "İlan sahibi uygulama içinden başvuru kabul etmiyor. İlandaki diğer iletişim yöntemlerini kullanabilirsin." });
         if (await _context.AdoptionApplications.AnyAsync(item => item.AdoptionListingId == id && item.UserId == userId, cancellationToken))
             return Conflict(new { message = "Bu ilana daha önce başvurdun." });
 
@@ -229,7 +241,7 @@ public sealed class MobileAdoptionApiController : ControllerBase
         return Ok(new { message = "Bildirimin alındı." });
     }
 
-    private static MobileAdoptionListingResponse ToResponse(AdoptionListing item, int? userId)
+    private static MobileAdoptionListingResponse ToResponse(AdoptionListing item, int? userId, bool exposeContact)
     {
         var ownApplication = userId.HasValue
             ? item.Applications.FirstOrDefault(application => application.UserId == userId.Value)
@@ -237,7 +249,26 @@ public sealed class MobileAdoptionApiController : ControllerBase
         return new MobileAdoptionListingResponse(
             item.Id, item.PetName, item.Species, item.Breed, item.AgeYears, item.Gender, item.City, item.District,
             item.HealthInfo, item.Story, item.ImagePath, item.Status, item.User.Username, item.CreatedAt,
-            userId.HasValue && item.UserId == userId, ownApplication is not null, ownApplication?.Status);
+            userId.HasValue && item.UserId == userId, ownApplication is not null, ownApplication?.Status,
+            item.AllowInAppMessages, exposeContact ? item.ContactPhone : null, exposeContact ? item.ContactEmail : null);
+    }
+
+    private async Task<(string? Phone, string? Email, string? Error)> ResolveListingContact(int userId,
+        bool allowInAppMessages, bool sharePhone, bool shareEmail, bool adoption, CancellationToken cancellationToken)
+    {
+        if (!sharePhone && !shareEmail)
+            return allowInAppMessages ? (null, null, null) : (null, null, "En az bir iletişim yöntemi seçmelisin.");
+
+        var preference = await _context.MobileContactPreferences.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        var permission = adoption ? preference?.AllowAdoptionSharing == true : preference?.AllowLostPetSharing == true;
+        if (!permission)
+            return (null, null, "Telefon veya e-posta paylaşmak için Ayarlar > İletişim bilgileri bölümündeki ilgili izni açmalısın.");
+        if (sharePhone && string.IsNullOrWhiteSpace(preference?.Phone))
+            return (null, null, "Telefonu seçebilmek için Ayarlar > İletişim bilgileri bölümüne telefon numaranı kaydetmelisin.");
+        if (shareEmail && string.IsNullOrWhiteSpace(preference?.ContactEmail))
+            return (null, null, "E-postayı seçebilmek için Ayarlar > İletişim bilgileri bölümüne e-posta adresini kaydetmelisin.");
+        return (sharePhone ? preference!.Phone : null, shareEmail ? preference!.ContactEmail : null, null);
     }
 
     private (string? Path, string? Error) SaveImage(string imageBase64, string? contentType)
@@ -277,6 +308,9 @@ public sealed class MobileCreateAdoptionListingRequest
     [Required, StringLength(2000, MinimumLength = 10)] public string Story { get; init; } = string.Empty;
     [Required] public string ImageBase64 { get; init; } = string.Empty;
     [Required, StringLength(100)] public string ImageContentType { get; init; } = string.Empty;
+    public bool AllowInAppMessages { get; init; } = true;
+    public bool SharePhone { get; init; }
+    public bool ShareEmail { get; init; }
 }
 public sealed class MobileCreateAdoptionApplicationRequest { [Required, StringLength(1000, MinimumLength = 10)] public string Message { get; init; } = string.Empty; }
 public sealed class MobileUpdateAdoptionApplicationRequest { [Required, StringLength(20)] public string Status { get; init; } = string.Empty; }
@@ -284,5 +318,6 @@ public sealed class MobileUpdateAdoptionListingRequest { [Required, StringLength
 public sealed class MobileReportRequest { [Required, StringLength(500, MinimumLength = 3)] public string Reason { get; init; } = string.Empty; }
 public sealed record MobileAdoptionListingResponse(int Id, string PetName, string Species, string? Breed, int? AgeYears, string? Gender,
     string City, string? District, string HealthInfo, string Story, string ImagePath, string Status, string OwnerUsername,
-    DateTime CreatedAt, bool IsMine, bool HasApplied, string? ApplicationStatus);
+    DateTime CreatedAt, bool IsMine, bool HasApplied, string? ApplicationStatus, bool AllowInAppMessages,
+    string? ContactPhone, string? ContactEmail);
 public sealed record MobileAdoptionApplicationResponse(int Id, string Username, string Message, string Status, DateTime CreatedAt);

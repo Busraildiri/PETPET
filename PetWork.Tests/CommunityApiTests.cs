@@ -117,6 +117,79 @@ public sealed class CommunityApiTests : IClassFixture<AuthApiFactory>
                 new { reason = "Şüpheli iletişim bilgisi" })).StatusCode);
     }
 
+    [Fact]
+    public async Task Listing_contact_methods_are_stored_per_listing_and_disabled_in_app_actions_are_rejected()
+    {
+        var id = Guid.NewGuid().ToString("N")[..8];
+        var owner = await Register($"contactOwner_{id}", $"contact-owner-{id}@example.com");
+        var visitor = await Register($"contactVisitor_{id}", $"contact-visitor-{id}@example.com");
+        const string image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+        var withoutPermission = await Authorized(HttpMethod.Post, "api/mobile/adoption/listings", owner.Token, new
+        {
+            petName = "Misket", species = "Kedi", city = "İstanbul", healthInfo = "Sağlığı iyi.",
+            story = "Kalıcı ve güvenli bir yuva arıyor.", imageBase64 = image, imageContentType = "image/png",
+            allowInAppMessages = false, sharePhone = true, shareEmail = false
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, withoutPermission.StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await Authorized(HttpMethod.Put, "api/mobile/contact-settings", owner.Token, new
+        {
+            phone = "+90 555 444 33 22", email = $"listing-{id}@example.com", allowPatiMatchSharing = false,
+            allowAdoptionSharing = true, allowLostPetSharing = true
+        })).StatusCode);
+
+        var adoptionResponse = await Authorized(HttpMethod.Post, "api/mobile/adoption/listings", owner.Token, new
+        {
+            petName = "Misket", species = "Kedi", city = "İstanbul", healthInfo = "Sağlığı iyi.",
+            story = "Kalıcı ve güvenli bir yuva arıyor.", imageBase64 = image, imageContentType = "image/png",
+            allowInAppMessages = false, sharePhone = true, shareEmail = false
+        });
+        Assert.Equal(HttpStatusCode.Created, adoptionResponse.StatusCode);
+        var adoption = (await adoptionResponse.Content.ReadFromJsonAsync<ListingContactDto>())!;
+        Assert.False(adoption.AllowInAppMessages);
+        Assert.Equal("+90 555 444 33 22", adoption.ContactPhone);
+        Assert.Null(adoption.ContactEmail);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await Authorized(HttpMethod.Post, $"api/mobile/adoption/listings/{adoption.Id}/applications", visitor.Token,
+                new { message = "Bu pati için güvenli bir yuva sunabilirim." })).StatusCode);
+
+        var lostResponse = await Authorized(HttpMethod.Post, "api/mobile/lost-pets", owner.Token, new
+        {
+            kind = "lost", petName = "Boncuk", species = "Kedi", distinguishingFeatures = "Kırmızı tasması var.",
+            eventAt = DateTime.Now.AddMinutes(-5), city = "İstanbul", district = "Ataşehir",
+            imageBase64 = image, imageContentType = "image/png", allowInAppMessages = true,
+            sharePhone = false, shareEmail = true
+        });
+        Assert.Equal(HttpStatusCode.Created, lostResponse.StatusCode);
+        var lost = (await lostResponse.Content.ReadFromJsonAsync<ListingContactDto>())!;
+        Assert.True(lost.AllowInAppMessages);
+        Assert.Null(lost.ContactPhone);
+        Assert.Equal($"listing-{id}@example.com", lost.ContactEmail);
+
+        Assert.Equal(HttpStatusCode.OK, (await Authorized(HttpMethod.Put, "api/mobile/contact-settings", owner.Token, new
+        {
+            phone = "+90 555 444 33 22", email = $"listing-{id}@example.com", allowPatiMatchSharing = false,
+            allowAdoptionSharing = false, allowLostPetSharing = false
+        })).StatusCode);
+        var adoptionList = (await (await Authorized(HttpMethod.Get, "api/mobile/adoption/listings", visitor.Token))
+            .Content.ReadFromJsonAsync<List<ListingContactDto>>())!;
+        var hiddenAdoption = adoptionList.Single(item => item.Id == adoption.Id);
+        Assert.Null(hiddenAdoption.ContactPhone);
+        Assert.Null(hiddenAdoption.ContactEmail);
+        var hiddenLost = (await (await Authorized(HttpMethod.Get, $"api/mobile/lost-pets/{lost.Id}", visitor.Token))
+            .Content.ReadFromJsonAsync<ListingContactDto>())!;
+        Assert.Null(hiddenLost.ContactPhone);
+        Assert.Null(hiddenLost.ContactEmail);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PetWorkDbContext>();
+        var storedAdoption = await db.AdoptionListings.FindAsync(adoption.Id);
+        var storedLost = await db.LostPetListings.FindAsync(lost.Id);
+        Assert.Equal("+90 555 444 33 22", storedAdoption!.ContactPhone);
+        Assert.Equal($"listing-{id}@example.com", storedLost!.ContactEmail);
+    }
+
     private async Task<AuthDto> Register(string username, string email)
     {
         var response = await _client.PostAsJsonAsync("api/mobile/auth/register", new { username, email, password = "ValidPass1!", confirmPassword = "ValidPass1!", acceptTerms = true, rememberMe = true });
@@ -144,4 +217,5 @@ public sealed class CommunityApiTests : IClassFixture<AuthApiFactory>
     private sealed record EmailChallengeDto(string ChallengeToken);
     private sealed record QuestionDto(int Id);
     private sealed record PostDto(int Id);
+    private sealed record ListingContactDto(int Id, bool AllowInAppMessages, string? ContactPhone, string? ContactEmail);
 }
